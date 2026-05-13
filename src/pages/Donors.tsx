@@ -1,0 +1,165 @@
+import { User, Crown, Heart } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useState } from 'react';
+
+const donors = [
+  { name: 'প্রফেসর ড. সৈয়দ কামরুল আহসান টিটু', title: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়', location: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়' },
+  { name: 'আব্দুল হাই মো: তারক', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'মো: লুৎফর রহমান', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'আবু বকর মোসাদ্দ তাহের', title: 'দাতা সদস্য', location: 'পানধোয়া গ্রীন সিটি' },
+  { name: 'প্রফেসর আব্দুল সালাম', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'সার্জেন্ট শফিউল আলম (অব)', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'আমিরুল ইসলাম', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'মো: আবু বকর সিদ্দিক', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'মো: মোশাররফ হোসেন', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'সাইদুর রহমান আকন', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'নূর মোহাম্মদ শিমুল', title: 'দাতা সদস্য', location: 'পানধোয়া' },
+  { name: 'মো: রুবেল হোসেন', title: 'ব্যবসায়ী', location: 'রিয়াদিয়া স্টোর' },
+];
+
+const recentDonations = [
+  { name: 'অজ্ঞাতনামা', amount: 500, date: '১২ মে, ২০২৬', message: 'লাইব্রেরির জন্য সামান্য অবদান।' },
+  { name: 'সায়েম আহমেদ', amount: 1000, date: '১০ মে, ২০২৬', message: 'বই কেনার জন্য।' },
+];
+
+export default function Donors() {
+  const [activeTab, setActiveTab] = useState<'members' | 'donations'>('members');
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-16">
+       <div className="text-center mb-16">
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em] mb-6"
+        >
+          আমাদের অগ্রযাত্রা
+        </motion.p>
+        
+        <div className="flex flex-wrap justify-center gap-4 mb-12">
+            <button 
+              onClick={() => setActiveTab('members')}
+              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 ${
+                activeTab === 'members' 
+                ? "bg-indigo-600 text-white shadow-xl shadow-indigo-200 ring-4 ring-indigo-50" 
+                : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+                <Crown className={`w-4 h-4 ${activeTab === 'members' ? "text-white" : "text-amber-500"}`} />
+                <span>সম্মানিত দাতা সদস্যবৃন্দ</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('donations')}
+              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 ${
+                activeTab === 'donations' 
+                ? "bg-rose-600 text-white shadow-xl shadow-rose-200 ring-4 ring-rose-50" 
+                : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+                <Heart className={`w-4 h-4 ${activeTab === 'donations' ? "text-white" : "text-rose-500"}`} />
+                <span>সাম্প্রতিক অনুদানসমূহ</span>
+            </button>
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {activeTab === 'members' ? (
+          <motion.div 
+            key="members"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-amber-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-amber-100"
+          >
+            <div className="text-center mb-16">
+                 <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white rounded-full shadow-sm border border-amber-100 mb-6">
+                    <Crown className="w-5 h-5 text-amber-500" />
+                    <h2 className="text-xl font-black text-slate-900">সম্মানিত দাতা সদস্যবৃন্দ</h2>
+                 </div>
+                 <p className="text-slate-500 text-sm max-w-lg mx-auto">যে সকল মহৎ ব্যক্তিদের অনুদানে আমাদের পাঠাগারের কার্যক্রম পরিচালিত হচ্ছে, আমরা তাঁদের প্রতি গভীরভাবে কৃতজ্ঞ।</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {donors.map((donor, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  whileHover={{ x: 10 }}
+                  className="bg-white p-6 rounded-3xl border border-amber-100/50 shadow-sm flex items-center space-x-6 group hover:shadow-md transition-all"
+                >
+                   <div className="flex-shrink-0 w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center relative">
+                     <User className="w-8 h-8 text-amber-400" />
+                     <div className="absolute -top-1 -right-1 bg-white p-1 rounded-full shadow-sm border border-amber-100">
+                        <Crown className="w-3 h-3 text-amber-500" />
+                     </div>
+                   </div>
+                   <div className="flex-1 min-w-0 text-left">
+                     <h3 className="text-lg font-bold text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors truncate">{donor.name}</h3>
+                     <div className="flex items-center space-x-2 mt-1">
+                        <span className="text-[10px] font-bold text-slate-400 py-0.5 px-2 bg-slate-50 rounded-md border border-slate-100">{donor.title}</span>
+                        <span className="text-[10px] text-slate-400">•</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{donor.location}</span>
+                     </div>
+                   </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="donations"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-rose-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-rose-100"
+          >
+            <div className="text-center mb-16">
+                 <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white rounded-full shadow-sm border border-rose-100 mb-6">
+                    <Heart className="w-5 h-5 text-rose-500" />
+                    <h2 className="text-xl font-black text-slate-900">সাম্প্রতিক অনুদানসমূহ</h2>
+                 </div>
+                 <p className="text-slate-500 text-sm max-w-lg mx-auto">অল্প অল্প সংগ্রহই আমাদের এই বড় পথচলার পাথেয়। আপনাদের দান আমাদের লাইব্রেরিকে টিকিয়ে রাখতে সাহায্য করে।</p>
+            </div>
+
+            <div className="space-y-4 max-w-2xl mx-auto">
+              {recentDonations.map((donation, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white p-6 rounded-3xl border border-rose-100/50 shadow-sm flex items-center justify-between"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
+                      <Heart className="w-6 h-6 text-rose-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800">{donation.name}</h4>
+                      <p className="text-xs text-slate-400">{donation.date}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-black text-emerald-600">৳ {donation.amount}</div>
+                    <p className="text-[10px] text-slate-400 italic">"{donation.message}"</p>
+                  </div>
+                </motion.div>
+              ))}
+              
+              <div className="mt-12 text-center p-8 bg-white/50 rounded-3xl border border-dashed border-rose-200">
+                <p className="text-slate-500 text-sm mb-6">আমাদের কাজগুলো চালিয়ে নিতে আপনিও অনুদান দিতে পারেন।</p>
+                <div className="flex items-center justify-center space-x-4">
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-50">
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">বিকাশ/নগদ/রকেট</span>
+                    <span className="text-lg font-black text-slate-900">01880412129</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
