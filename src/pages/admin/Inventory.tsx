@@ -1,245 +1,591 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BookOpen, Search, Filter, 
   MoreVertical, Plus, Edit2, 
   Trash2, QrCode, ArrowUpRight,
   Bookmark, CheckCircle2, XCircle,
-  Image as ImageIcon, X
+  Image as ImageIcon, X, Loader2, AlertTriangle,
+  RefreshCw, FileText, Download, Eye, LayoutGrid, List as ListIcon,
+  Package, DollarSign, HardDrive, Inbox
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { fetchBooksFromSheet, SheetBook, submitToGoogleScript } from '@/src/lib/googleSheets';
 
-const initialBooks = [
-  { id: 'GEN-7618', title: 'কুফর তাকফির বিদআত-প্রান্তিকতা ও ভারসাম্য', author: 'মূল: শায়খ সালিহ আল ফাওযান', category: 'সাধারণ', stock: 5, status: 'Available', price: '৳১২০', cover: 'https://placehold.co/400x600/312e81/white?text=Takfir+Book' },
-  { id: 'GEN-7669', title: 'নিভৃত নিভৃত নিভৃতে', author: 'ডঃ মুহাম্মদ ইসমাইল', category: 'প্রবন্ধ', stock: 2, status: 'Available', price: '৳১৫০', cover: 'https://placehold.co/400x600/10b981/white?text=Poem' },
-  { id: 'POE-4613', title: 'ফেরার সময়', author: 'মোহাম্মদ মোতালেব', category: 'কবিতা', stock: 0, status: 'Lent Out', price: '৳১৮০', cover: 'https://placehold.co/400x600/f59e0b/white?text=Return' },
-  { id: 'ISL-8062', title: 'নাম হাতে ধরা মনুশী নবা', author: 'ইমাম আল গাজ্জালী', category: 'ইসলামী বই', stock: 12, status: 'Available', price: '৳২৫০', cover: 'https://placehold.co/400x600/6366f1/white?text=Imam' },
-];
+interface ExtendedBook extends SheetBook {
+  isEBook?: boolean;
+}
 
 export default function AdminInventory() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [books, setBooks] = useState(initialBooks);
+  const [books, setBooks] = useState<ExtendedBook[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isUsingSheet, setIsUsingSheet] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [submitting, setSubmitting] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [customScriptUrl, setCustomScriptUrl] = useState(localStorage.getItem('script_url') || 'https://script.google.com/macros/s/AKfycbyt-HKZBQZ3WWQ5tJ-S5GmVY-wyi2OPRNPHyXFGjMuux5SrhN1ywTX_SlR8yocdC3Z-jQ/exec');
+
   const [newBook, setNewBook] = useState({
     title: '',
     author: '',
     category: 'সাধারণ',
     stock: 1,
     price: '',
-    cover: ''
+    cover: '',
+    isEBook: false,
+    ebookUrl: '',
+    bookId: '',
+    shelfNo: 'N/A'
   });
 
-  const handleAddBook = (e: React.FormEvent) => {
-    e.preventDefault();
-    const id = `BOOK-${Math.floor(Math.random() * 9000) + 1000}`;
-    setBooks([{ ...newBook, id, status: 'Available' }, ...books]);
-    setIsModalOpen(false);
-    setNewBook({ title: '', author: '', category: 'সাধারণ', stock: 1, price: '', cover: '' });
+  const loadBooks = async () => {
+    const libraryUrl = import.meta.env.VITE_GOOGLE_SHEET_URL || localStorage.getItem('custom_sheet_url');
+    const shopUrl = import.meta.env.VITE_GOOGLE_SHEET_SHOP_URL || localStorage.getItem('sheet_shop');
+    
+    try {
+      setLoading(true);
+      let allBooks: ExtendedBook[] = [];
+
+      if (libraryUrl) {
+        const libBooks = await fetchBooksFromSheet(libraryUrl);
+        allBooks = [...allBooks, ...libBooks];
+      }
+      if (shopUrl) {
+        const shopBooks = await fetchBooksFromSheet(shopUrl);
+        // Only add if not already in allBooks to avoid duplicates
+        const existingIds = new Set(allBooks.map(b => b.id));
+        allBooks = [...allBooks, ...shopBooks.filter(b => !existingIds.has(b.id))];
+      }
+
+      if (allBooks.length > 0) {
+        setBooks(allBooks.map(b => ({
+          ...b,
+          isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || !!b.ebookUrl
+        })));
+        setIsUsingSheet(true);
+      }
+    } catch (err) {
+      console.error('Inventory fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  useEffect(() => {
+    loadBooks();
+  }, []);
+
+  const handleAddBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || customScriptUrl;
+
+    if (!scriptUrl) {
+      alert('সতর্কতা: গুগল স্ক্রিপ্ট ইউআরএল কনফিগার করা নেই। সেটিংস থেকে ইউআরএল যোগ করুন।');
+      setShowConfig(true);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      // Save custom script URL if changed
+      if (customScriptUrl) {
+        localStorage.setItem('script_url', customScriptUrl);
+      }
+
+      const res = await submitToGoogleScript(scriptUrl, {
+        ...newBook,
+        type: 'add_book',
+        sheetName: 'বই বাজার (Shop)',
+        timestamp: new Date().toISOString()
+      });
+
+      if (res.success) {
+        alert('বইটি সফলভাবে "বই বাজার (Shop)" তালিকায় যুক্ত করা হয়েছে! গুগল শিটে সেটি রিফ্রেশ হতে ২-৩ মিনিট সময় নিতে পারে।');
+        setIsModalOpen(false);
+        // Local update for instant feedback
+        const localBook: ExtendedBook = {
+           id: `ID-${Date.now()}`,
+           ...newBook,
+           status: 'available'
+        };
+        setBooks([localBook, ...books]);
+        setNewBook({
+          title: '', author: '', category: 'সাধারণ', stock: 1, price: '',
+          cover: '', isEBook: false, ebookUrl: '', bookId: '', shelfNo: 'N/A'
+        });
+      } else {
+        alert('ত্রুটি: গুগল শিটে ডেটা পাঠানো সম্ভব হয়নি। অ্যাপস স্ক্রিপ্টটি চেক করুন।');
+      }
+    } catch (err) {
+      console.error('Add book error:', err);
+      alert('একটি সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filteredBooks = useMemo(() => {
+    return books.filter(book => 
+      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.bookId && book.bookId.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [books, searchTerm]);
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 leading-tight">বইয়ের তালিকা (Inventory)</h2>
-          <p className="text-sm font-bold text-slate-400 mt-1">মোট {books.length}টি বই ক্যাটালগে আছে</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button className="flex items-center justify-center space-x-3 px-6 py-4 bg-white border border-slate-200 rounded-[24px] font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-            <QrCode className="w-5 h-5" />
-            <span>স্ক্যান করুন</span>
-          </button>
+    <div className="space-y-10 animate-in fade-in duration-700 pb-12">
+      {/* Dynamic Header */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="lg:col-span-2 bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8"
+        >
+          <div>
+            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest mb-4">
+              <Package className="w-3.5 h-3.5" />
+              <span>ইভেন্টরি কন্ট্রোল</span>
+            </div>
+            <h2 className="text-4xl font-black text-slate-900 leading-tight mb-2 font-sans tracking-tight">বইয়ের বিশাল ক্যাটালগ</h2>
+            <p className="text-slate-500 font-bold max-w-md">মার্কেটপ্লেস ও লাইব্রেরির সকল বই এখন এক জায়গায়। স্টক ও ই-বুক কন্ট্রোল করুন সহজে।</p>
+          </div>
+          
+          <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-[40px] border border-slate-100 min-w-[200px]">
+            <span className="text-5xl font-black text-indigo-600 font-mono tracking-tighter">{books.length}</span>
+            <span className="text-xs font-black text-slate-400 uppercase tracking-widest mt-2">মোট কালেকশন</span>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-slate-900 p-10 rounded-[50px] shadow-2xl flex flex-col justify-center gap-6 relative overflow-hidden group"
+        >
+          <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:scale-110 transition-transform">
+             <BookOpen className="w-32 h-32 text-white" />
+          </div>
+          <p className="text-indigo-400 font-black text-xs uppercase tracking-widest">কুইক একশন</p>
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center space-x-3 px-8 py-4 bg-indigo-600 text-white rounded-[24px] font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+            className="w-full py-5 bg-white text-slate-900 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-xl hover:bg-indigo-500 hover:text-white transition-all active:scale-95 group relative z-10"
           >
-            <Plus className="w-5 h-5" />
-            <span>নতুন বই যোগ করুন</span>
+            <Plus className="w-6 h-6 transition-transform group-hover:rotate-90" />
+            <span>নতুন বই যুক্ত করুন</span>
+          </button>
+          <button 
+            onClick={() => setShowConfig(!showConfig)}
+            className="w-full py-5 bg-slate-800 text-slate-300 rounded-3xl font-black flex items-center justify-center space-x-3 hover:bg-slate-700 transition-all active:scale-95 z-10"
+          >
+            <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
+            <span>কনফিগারেশন সেটিংস</span>
+          </button>
+
+          {showConfig && (
+            <motion.div 
+               initial={{ height: 0, opacity: 0 }}
+               animate={{ height: 'auto', opacity: 1 }}
+               className="bg-slate-800 p-6 rounded-3xl space-y-4 border border-slate-700"
+            >
+               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Apps Script URL</label>
+               <input 
+                  type="text"
+                  value={customScriptUrl}
+                  onChange={(e) => setCustomScriptUrl(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl text-xs text-white font-mono"
+                  placeholder="https://script.google.com/..."
+               />
+               <button 
+                  onClick={() => {
+                    localStorage.setItem('script_url', customScriptUrl);
+                    alert('সেটিংস সেভ করা হয়েছে!');
+                    setShowConfig(false);
+                  }}
+                  className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-black"
+               >
+                  আপডেট করুন
+               </button>
+            </motion.div>
+          )}
+
+          <button 
+            onClick={loadBooks}
+            className="w-full py-5 bg-slate-800 text-slate-300 rounded-3xl font-black flex items-center justify-center space-x-3 hover:bg-slate-700 transition-all active:scale-95 z-10"
+          >
+            <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
+            <span>ডেটা সিঙ্ক করুন</span>
+          </button>
+        </motion.div>
+      </div>
+
+      {/* Control Bar */}
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/50 backdrop-blur-md p-4 rounded-[40px] border border-white/20 shadow-sm sticky top-4 z-40">
+        <div className="relative w-full md:w-96 group">
+          <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+          <input 
+            type="text" 
+            placeholder="বই, লেখক বা ক্যাটাগরি..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-16 pr-6 py-5 bg-white border border-slate-100 rounded-[30px] font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+             <button 
+              onClick={() => setViewMode('grid')}
+              className={cn("p-3 rounded-xl transition-all", viewMode === 'grid' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400")}
+             >
+               <LayoutGrid className="w-5 h-5" />
+             </button>
+             <button 
+              onClick={() => setViewMode('list')}
+              className={cn("p-3 rounded-xl transition-all", viewMode === 'list' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400")}
+             >
+               <ListIcon className="w-5 h-5" />
+             </button>
+          </div>
+          
+          <button className="flex items-center space-x-2 px-6 py-4 bg-white border border-slate-200 rounded-[24px] text-xs font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
+            <Filter className="w-5 h-5" />
+            <span>ফিল্টার</span>
           </button>
         </div>
       </div>
 
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-32 space-y-4">
+           <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+           <p className="text-slate-400 font-bold">সার্ভার থেকে ডেটা লোড হচ্ছে...</p>
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          {filteredBooks.length === 0 ? (
+            <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }}
+               className="text-center py-32 bg-white rounded-[50px] border border-slate-100"
+            >
+               <Inbox className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+               <p className="text-slate-400 font-black text-lg">কোনো বই খুঁজে পাওয়া যায়নি</p>
+               <p className="text-slate-400 text-sm font-bold">সার্চ টার্ম পরিবর্তন করে চেষ্টা করুন</p>
+            </motion.div>
+          ) : viewMode === 'grid' ? (
+            <motion.div 
+              key="grid"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
+            >
+              {filteredBooks.map((book) => (
+                <motion.div
+                  key={book.id}
+                  layout
+                  className="group bg-white rounded-[45px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl transition-all p-3 flex flex-col h-full"
+                >
+                  <div className="aspect-[3/4] relative overflow-hidden rounded-[35px] bg-slate-50">
+                    {book.cover ? (
+                      <img src={book.cover} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <BookOpen className="w-12 h-12 text-slate-200" />
+                      </div>
+                    )}
+                    
+                    <div className="absolute top-4 right-4 flex flex-col gap-2">
+                       {book.isEBook ? (
+                         <span className="px-4 py-2 bg-purple-600 text-white text-[10px] font-black rounded-xl shadow-lg border border-purple-400">ই-বুক</span>
+                       ) : (
+                         <span className="px-4 py-2 bg-emerald-600 text-white text-[10px] font-black rounded-xl shadow-lg border border-emerald-400">লাইব্রেরি</span>
+                       )}
+                    </div>
+                  </div>
+
+                  <div className="p-6 flex-1 flex flex-col">
+                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block mb-1">{book.category}</span>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight mb-1 truncate group-hover:text-indigo-600 transition-colors">{book.title}</h3>
+                    <p className="text-sm font-bold text-slate-400 mb-6">{book.author}</p>
+                    
+                    <div className="mt-auto flex items-center justify-between pt-6 border-t border-slate-50">
+                       <div className="flex gap-2">
+                          <button className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all">
+                             <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all">
+                             <Trash2 className="w-4 h-4" />
+                          </button>
+                       </div>
+                       <div className="text-right">
+                          <p className="text-[10px] font-black text-slate-400 uppercase">ষ্টক</p>
+                          <p className="text-sm font-black text-slate-900">{book.stock} টি</p>
+                       </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="list"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden"
+            >
+               <table className="w-full text-left border-collapse">
+                  <thead>
+                     <tr className="bg-slate-50/50">
+                        <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-widest">বই ও লেখক</th>
+                        <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-widest">ক্যাটাগরি</th>
+                        <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-widest">অবস্থা</th>
+                        <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-widest">মূল্য ও স্টক</th>
+                        <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-widest text-right">অ্যাকশন</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                     {filteredBooks.map((book) => (
+                        <tr key={book.id} className="hover:bg-slate-50/30 transition-colors group">
+                           <td className="px-8 py-6">
+                              <div className="flex items-center space-x-6">
+                                 <div className="w-12 h-16 bg-slate-100 rounded-xl overflow-hidden shrink-0 shadow-sm">
+                                    {book.cover ? (
+                                      <img src={book.cover} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center"><BookOpen className="w-5 h-5 text-slate-300" /></div>
+                                    )}
+                                 </div>
+                                 <div className="overflow-hidden">
+                                    <p className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors truncate">{book.title}</p>
+                                    <p className="text-xs font-bold text-slate-400 truncate">{book.author}</p>
+                                 </div>
+                              </div>
+                           </td>
+                           <td className="px-8 py-6">
+                              <span className="px-4 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-lg uppercase">{book.category}</span>
+                           </td>
+                           <td className="px-8 py-6">
+                              <div className="flex items-center gap-2">
+                                 {book.isEBook ? (
+                                    <FileText className="w-4 h-4 text-purple-500" />
+                                 ) : (
+                                    <HardDrive className="w-4 h-4 text-emerald-500" />
+                                 )}
+                                 <span className={cn("text-xs font-black uppercase tracking-wider", book.isEBook ? "text-purple-600" : "text-emerald-600")}>
+                                    {book.isEBook ? 'ই-বুক' : 'লাইব্রেরি'}
+                                 </span>
+                              </div>
+                           </td>
+                           <td className="px-8 py-6">
+                              <div className="text-sm font-black text-slate-900">{book.price || '৳০'}</div>
+                              <div className="text-[10px] font-bold text-slate-400 uppercase">ষ্টক: {book.stock || 0} টি</div>
+                           </td>
+                           <td className="px-8 py-6 text-right">
+                              <div className="flex justify-end gap-2">
+                                 <button className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all shadow-sm"><Edit2 className="w-4 h-4" /></button>
+                                 <button className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm"><Trash2 className="w-4 h-4" /></button>
+                                 <button className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100"><MoreVertical className="w-4 h-4" /></button>
+                              </div>
+                           </td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
+
+      {/* Add Book Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              onClick={() => setIsModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white w-full max-w-2xl rounded-[48px] shadow-2xl p-10 overflow-y-auto max-h-[90vh]"
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="relative bg-white w-full max-w-2xl rounded-[60px] shadow-2xl overflow-hidden p-10 md:p-12 overflow-y-auto max-h-[90vh]"
             >
-              <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-black text-slate-900">নতুন বই যোগ করুন</h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                  <X className="w-6 h-6 text-slate-400" />
+              <div className="flex items-center justify-between mb-10">
+                <h3 className="text-3xl font-black text-slate-900 flex items-center gap-4 font-sans tracking-tight">
+                  <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-600">
+                    <Plus className="w-6 h-6" />
+                  </div>
+                  নতুন বই যোগ করুন
+                </h3>
+                <button 
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-4 bg-slate-50 text-slate-400 rounded-full hover:bg-slate-100 hover:text-slate-900 transition-all"
+                >
+                  <X className="w-6 h-6" />
                 </button>
               </div>
 
-              <form onSubmit={handleAddBook} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">বইয়ের নাম</label>
+              <form onSubmit={handleAddBook} className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-3">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">বইয়ের নাম</label>
                     <input 
                       required
                       type="text" 
                       value={newBook.title}
                       onChange={(e) => setNewBook({...newBook, title: e.target.value})}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">লেখকের নাম</label>
+                  <div className="space-y-3">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">লেখকের নাম</label>
                     <input 
                       required
                       type="text" 
                       value={newBook.author}
                       onChange={(e) => setNewBook({...newBook, author: e.target.value})}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">ক্যাটাগরি</label>
+                  <div className="space-y-3">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">ক্যাটাগরি</label>
                     <select 
                       value={newBook.category}
                       onChange={(e) => setNewBook({...newBook, category: e.target.value})}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
                     >
                       <option>সাধারণ</option>
                       <option>উপন্যাস</option>
                       <option>কবিতা</option>
                       <option>ইসলামী বই</option>
                       <option>প্রবন্ধ</option>
+                      <option>ই-বুক</option>
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">মূল্য</label>
+                  <div className="space-y-3">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">স্টক ও আইডি</label>
+                    <div className="flex gap-4">
+                       <input 
+                        type="number" 
+                        placeholder="ষ্টক"
+                        value={newBook.stock}
+                        onChange={(e) => setNewBook({...newBook, stock: parseInt(e.target.value) || 0})}
+                        className="w-24 px-4 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-center"
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="বুক আইডি"
+                        value={newBook.bookId}
+                        onChange={(e) => setNewBook({...newBook, bookId: e.target.value})}
+                        className="flex-1 px-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">মূল্য (যেমন: ৳৪৫০)</label>
+                  <div className="relative">
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <DollarSign className="w-5 h-5" />
+                    </div>
                     <input 
                       type="text" 
-                      placeholder="৳২০০"
+                      placeholder="৳৪৫০"
                       value={newBook.price}
                       onChange={(e) => setNewBook({...newBook, price: e.target.value})}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                      className="w-full pl-16 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">কভার ইমেজ (URL)</label>
-                  <div className="relative group">
-                    <ImageIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                <div className="space-y-3">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">কভার ইমেজ (URL / Drive Link)</label>
+                  <div className="relative">
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 p-2 bg-slate-200 text-slate-500 rounded-lg">
+                      <ImageIcon className="w-5 h-5" />
+                    </div>
                     <input 
-                      type="text" 
-                      placeholder="https://example.com/cover.jpg"
+                      type="url" 
+                      placeholder="https://..."
                       value={newBook.cover}
                       onChange={(e) => setNewBook({...newBook, cover: e.target.value})}
-                      className="w-full pl-16 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                      className="w-full pl-16 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm"
                     />
                   </div>
                 </div>
 
-                {newBook.cover && (
-                  <div className="mt-4 flex justify-center">
-                    <img src={newBook.cover} alt="Cover Preview" className="h-40 w-28 object-cover rounded-xl shadow-lg" onError={(e) => (e.currentTarget.src = 'https://placehold.co/400x600/eee/999?text=Invalid+URL')} />
+                <div className="flex flex-col gap-4 p-8 bg-slate-50 rounded-[40px] border border-slate-100">
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-4">
+                        <div className={cn("p-5 rounded-2xl transition-all", newBook.isEBook ? "bg-purple-100 text-purple-600 shadow-xl shadow-purple-100" : "bg-white text-slate-300 border border-slate-200")}>
+                           <FileText className="w-7 h-7" />
+                        </div>
+                        <div>
+                           <p className="font-black text-slate-900">এটি একটি ই-বুক?</p>
+                           <p className="text-xs font-bold text-slate-400">অনলাইনে পড়ার ও ডাউনলোডের সুবিধা</p>
+                        </div>
+                     </div>
+                     <button 
+                      type="button"
+                      onClick={() => setNewBook({...newBook, isEBook: !newBook.isEBook})}
+                      className={cn(
+                        "w-16 h-9 rounded-full transition-all relative outline-none",
+                        newBook.isEBook ? "bg-purple-600" : "bg-slate-300"
+                      )}
+                     >
+                       <div className={cn("absolute top-1.5 w-6 h-6 bg-white rounded-full transition-all shadow-md", newBook.isEBook ? "right-1.5" : "left-1.5")} />
+                     </button>
                   </div>
-                )}
+                  
+                  {newBook.isEBook && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      className="space-y-3 pt-6 border-t border-slate-200 mt-4"
+                    >
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">ই-বুক ডাউনলোড লিংক</label>
+                      <input 
+                        type="url" 
+                        required={newBook.isEBook}
+                        placeholder="Google Drive, Mega, Dropbox etc URL"
+                        value={newBook.ebookUrl}
+                        onChange={(e) => setNewBook({...newBook, ebookUrl: e.target.value})}
+                        className="w-full px-8 py-5 bg-white border border-slate-200 rounded-[30px] font-bold focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all text-sm"
+                      />
+                    </motion.div>
+                  )}
+                </div>
 
-                <button 
-                  type="submit"
-                  className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black flex items-center justify-center space-x-3 shadow-xl shadow-indigo-100 hover:bg-slate-900 transition-all active:scale-95"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>সংরক্ষণ করুন</span>
-                </button>
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 py-6 bg-slate-100 text-slate-600 rounded-[32px] font-black hover:bg-slate-200 transition-all active:scale-95"
+                  >
+                    বাতিল করুন
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-[2] py-6 bg-indigo-600 text-white rounded-[32px] font-black flex items-center justify-center gap-3 shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {submitting ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
+                    <span>{submitting ? 'সংরক্ষণ করা হচ্ছে...' : 'ক্যাটালগে যুক্ত করুন'}</span>
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-
-      <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row gap-4 justify-between items-center">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="বইয়ের নাম বা লেখকের নাম লিখুন..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all"
-            />
-          </div>
-          <div className="flex flex-wrap gap-3">
-             <button className="flex items-center space-x-2 px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-black text-slate-600">
-               <Filter className="w-4 h-4" />
-               <span> ক্যাটাগরি</span>
-             </button>
-             <button className="flex items-center space-x-2 px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-black text-slate-600">
-               <Bookmark className="w-4 h-4 text-indigo-500" />
-               <span>অভেদ বই</span>
-             </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-0 divide-x divide-y divide-slate-100">
-          {books.map((book) => (
-            <div key={book.id} className="p-8 hover:bg-slate-50/50 transition-all group relative">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-16 h-24 bg-slate-100 rounded-xl overflow-hidden shadow-md group-hover:rotate-6 transition-transform flex items-center justify-center">
-                  {book.cover ? (
-                    <img src={book.cover} alt={book.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <BookOpen className="w-8 h-8 text-slate-300" />
-                  )}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button className="p-2 text-slate-300 hover:text-indigo-600 bg-white rounded-lg shadow-sm border border-slate-100 transition-all">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 text-slate-300 hover:text-rose-600 bg-white rounded-lg shadow-sm border border-slate-100 transition-all">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-black tracking-widest text-indigo-500 uppercase bg-indigo-50 px-3 py-1 rounded-full mb-3 inline-block">
-                  {book.category}
-                </span>
-                <h3 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors leading-tight mb-1">{book.title}</h3>
-                <p className="text-xs font-bold text-slate-500 mb-4">{book.author}</p>
-                
-                <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-slate-400 uppercase">ষ্টক</span>
-                    <span className="text-sm font-black text-slate-900">{book.stock} টি</span>
-                  </div>
-                  <div className="text-right">
-                    <span className={cn(
-                      "flex items-center text-[10px] font-black uppercase tracking-wider mb-0.5",
-                      book.status === 'Available' ? "text-emerald-500" : "text-amber-500"
-                    )}>
-                      {book.status === 'Available' ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
-                      {book.status}
-                    </span>
-                    <span className="text-xs font-black text-indigo-600">{book.price}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <button className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <MoreVertical className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-10 border-t border-slate-100 bg-slate-50/20 text-center">
-          <button className="px-10 py-4 bg-white border border-slate-200 rounded-3xl font-black text-slate-600 hover:border-indigo-500 hover:text-indigo-600 hover:shadow-xl transition-all group">
-            আরও বই দেখুন
-            <ArrowUpRight className="inline-block ml-2 w-4 h-4 group-hover:-translate-y-1 group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

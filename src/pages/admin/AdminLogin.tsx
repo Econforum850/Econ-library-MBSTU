@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { setAdminAuthenticated, isAdminAuthenticated } from '@/src/lib/adminAuth';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('Eco@1902');
   const [password, setPassword] = useState('Eco@1902');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (localStorage.getItem('admin_auth') === 'true' || sessionStorage.getItem('admin_auth') === 'true') {
+    if (isAdminAuthenticated()) {
       navigate('/admin/dashboard', { replace: true });
     }
   }, [navigate]);
@@ -22,24 +24,22 @@ export default function AdminLogin() {
     setIsLoading(true);
     setError(null);
 
-    const checkIdentifier = email.trim();
+    const checkIdentifier = email.trim().toLowerCase();
     const checkPass = password.trim();
 
     // Direct check for your provided credentials: Eco@1902 / Eco@1902
-    if ((checkIdentifier === 'Eco@1902' || checkIdentifier === 'admin' || checkIdentifier === 'admin@library.com') && 
+    if ((checkIdentifier === 'eco@1902' || checkIdentifier === 'admin' || checkIdentifier === 'admin@library.com') && 
         (checkPass === 'Eco@1902' || checkPass === 'admin123')) {
       
-      // PERSIST AUTH
-      localStorage.setItem('admin_auth', 'true');
-      sessionStorage.setItem('admin_auth', 'true');
+      setAdminAuthenticated(true);
+      setIsSuccess(true);
       
-      // SUCCESS ANIMATION state could be added, but for now just log
       console.log('Admin login successful');
       
       // Delay navigation slightly to ensure storage is committed and user see success
       setTimeout(() => {
         navigate('/admin/dashboard', { replace: true });
-      }, 500);
+      }, 800);
     } else {
       setError('ভুল আইডি বা পাসওয়ার্ড! সঠিক তথ্য দিয়ে আবার চেষ্টা করুন।');
       setIsLoading(false);
@@ -105,25 +105,25 @@ export default function AdminLogin() {
 
             <button 
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isSuccess}
               className={cn(
                 "w-full py-6 text-white rounded-[24px] font-black flex items-center justify-center space-x-3 shadow-xl transition-all active:scale-95 group mt-8",
+                isSuccess ? "bg-emerald-500 scale-105" : 
                 isLoading ? "bg-slate-400 cursor-not-allowed" : "bg-indigo-600 shadow-indigo-100 hover:bg-slate-900"
               )}
             >
-              <span>{isLoading ? 'প্রবেশ করা হচ্ছে...' : 'প্রবেশ করুন'}</span>
-              {!isLoading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+              <span>{isSuccess ? 'স্বাগতম!' : isLoading ? 'প্রবেশ করা হচ্ছে...' : 'প্রবেশ করুন'}</span>
+              {isSuccess ? <CheckCircle2 className="w-5 h-5 animate-pulse" /> : !isLoading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
             </button>
           </form>
 
           <div className="mt-10 pt-10 border-t border-slate-50 text-center space-y-4">
             <button 
               onClick={() => {
-                localStorage.setItem('admin_auth', 'true');
-                sessionStorage.setItem('admin_auth', 'true');
+                setAdminAuthenticated(true);
                 navigate('/admin/dashboard', { replace: true });
               }}
-              className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-indigo-600 transition-colors cursor-pointer"
+              className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-indigo-600 transition-colors cursor-pointer p-4 bg-indigo-50/50 rounded-xl"
             >
               সরাসরি ড্যাশবোর্ড (বিপাস)
             </button>

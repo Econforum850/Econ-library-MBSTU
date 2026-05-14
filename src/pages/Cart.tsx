@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../lib/cart';
-import { Minus, Plus, Trash2, ArrowLeft, CreditCard, ShoppingBag } from 'lucide-react';
+import { Minus, Plus, Trash2, ArrowLeft, CreditCard, ShoppingBag, BookOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Cart() {
@@ -53,8 +53,12 @@ export default function Cart() {
                 exit={{ opacity: 0, x: 20 }}
                 className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl transition-all flex items-center space-x-6 md:space-x-10"
               >
-                <div className="w-24 h-32 md:w-32 md:h-44 flex-shrink-0 bg-slate-100 rounded-2xl overflow-hidden shadow-lg">
-                  <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
+                <div className="w-24 h-32 md:w-32 md:h-44 flex-shrink-0 bg-slate-100 rounded-2xl overflow-hidden shadow-lg flex items-center justify-center">
+                  {item.cover && item.cover !== "" ? (
+                    <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <BookOpen className="w-10 h-10 text-slate-300" />
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">

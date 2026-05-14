@@ -11,7 +11,7 @@ export default function AdminTopBar() {
     switch(path) {
       case 'dashboard': return 'ওভারভিউ (Overview)';
       case 'profile': return 'আমার প্রোফাইল';
-      case 'users': return 'সদস্য ব্যবস্থাপনা (Users)';
+      case 'users': return 'সদস্য ব্যবস্থাপনা (Members)';
       case 'inventory': return 'বইয়ের তালিকা (Inventory)';
       case 'id-card': return 'আইডি কার্ড প্রিন্ট';
       case 'finance': return 'হিসাব-নিকাশ';

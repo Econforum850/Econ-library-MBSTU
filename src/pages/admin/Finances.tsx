@@ -1,33 +1,62 @@
 import { 
   TrendingDown, TrendingUp, Wallet, 
   ArrowUpRight, ArrowDownLeft, Calendar,
-  Download, Plus
+  Download, Plus, Loader2
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-
-const data = [
-  { name: 'Jan', amount: 4000, type: 'income' },
-  { name: 'Feb', amount: -2400, type: 'expense' },
-  { name: 'Mar', amount: 3000, type: 'income' },
-  { name: 'Apr', amount: -1500, type: 'expense' },
-  { name: 'May', amount: 5000, type: 'income' },
-  { name: 'Jun', amount: -6460, type: 'expense' },
-];
-
-const transactions = [
-  { id: 'TX-001', type: 'expense', category: 'বই ক্রয়', amount: '৳৫০০০', date: '১২ মে ২০২৪', status: 'Completed', note: 'গোর্কির মা ও অন্যান্য কতিপয় বই' },
-  { id: 'TX-002', type: 'income', category: 'সদস্য চাঁদা', amount: '৳১২০০', date: '১০ মে ২০২৪', status: 'Completed', note: '১০ জন সদস্যের মাসিক চাঁদা' },
-  { id: 'TX-003', type: 'expense', category: 'বিদ্যুৎ বিল', amount: '৳১৪৬০', date: '০৫ মে ২০২৪', status: 'Completed', note: 'এপ্রিল মাসের বিদ্যুৎ বিল' },
-];
+import { useState, useEffect } from 'react';
+import { fetchFinancesFromSheet, SheetTransaction } from '@/src/lib/googleSheets';
 
 export default function AdminFinances() {
+  const [transactions, setTransactions] = useState<SheetTransaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 });
+
+  useEffect(() => {
+    const loadFinances = async () => {
+      const sheetUrl = localStorage.getItem('sheet_finances');
+      if (!sheetUrl) return;
+
+      try {
+        setLoading(true);
+        const fetched = await fetchFinancesFromSheet(sheetUrl);
+        setTransactions(fetched);
+        
+        const inc = fetched.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const exp = fetched.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        setSummary({ income: inc, expense: exp, balance: inc - exp });
+      } catch (err) {
+        console.error('Finances fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFinances();
+  }, []);
+
+  // Format data for chart (grouped by month)
+  // For now, just taking the last few transactions for display if we don't want to group yet
+  const chartData = transactions.slice(0, 6).map(t => ({
+    name: t.date,
+    amount: t.type === 'income' ? t.amount : -t.amount
+  }));
+
+  if (loading && transactions.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
         <div>
           <h2 className="text-3xl font-black text-slate-900 leading-tight">আয়-ব্যয় হিসেব (Finances)</h2>
-          <p className="text-sm font-bold text-slate-400 mt-1">সবশেষ হালনাগাদ: ১২ মে ২০২৪, ০৩:৪৫ মিনিট</p>
+          <p className="text-sm font-bold text-slate-400 mt-1">সবশেষ হালনাগাদ: {new Date().toLocaleDateString('bn-BD')}</p>
         </div>
         <div className="flex items-center space-x-3">
           <button className="flex items-center space-x-3 px-6 py-4 bg-white border border-slate-200 rounded-[24px] font-black text-slate-600 hover:bg-slate-50 transition-all">
@@ -50,10 +79,10 @@ export default function AdminFinances() {
             </div>
             <span className="text-xs font-black text-slate-400 uppercase tracking-wider">মোট আয়</span>
           </div>
-          <p className="text-3xl font-black text-slate-900">৳১২,০০০</p>
+          <p className="text-3xl font-black text-slate-900">৳{summary.income.toLocaleString('bn-BD')}</p>
           <div className="mt-4 flex items-center text-[10px] font-black text-emerald-500">
             <ArrowUpRight className="w-3 h-3 mr-1" />
-            +১২% গত মাস থেকে
+            লাইভ আপডেট
           </div>
         </div>
 
@@ -65,14 +94,17 @@ export default function AdminFinances() {
             </div>
             <span className="text-xs font-black text-slate-400 uppercase tracking-wider">মোট ব্যয়</span>
           </div>
-          <p className="text-3xl font-black text-slate-900">৳১৮,৪৬০</p>
+          <p className="text-3xl font-black text-slate-900">৳{summary.expense.toLocaleString('bn-BD')}</p>
           <div className="mt-4 flex items-center text-[10px] font-black text-rose-500">
             <ArrowDownLeft className="w-3 h-3 mr-1" />
-            +৪৫% গত মাস থেকে
+            লাইভ আপডেট
           </div>
         </div>
 
-        <div className="bg-indigo-600 p-8 rounded-[40px] shadow-xl shadow-indigo-100 overflow-hidden relative group text-white">
+        <div className={cn(
+          "p-8 rounded-[40px] shadow-xl overflow-hidden relative group text-white",
+          summary.balance >= 0 ? "bg-indigo-600 shadow-indigo-100" : "bg-rose-600 shadow-rose-100"
+        )}>
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700" />
           <div className="flex items-center space-x-4 mb-6">
             <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white backdrop-blur-md">
@@ -80,9 +112,9 @@ export default function AdminFinances() {
             </div>
             <span className="text-xs font-black text-white/60 uppercase tracking-wider">বর্তমান স্থিতি</span>
           </div>
-          <p className="text-3xl font-black">৳-৬,৪৬০</p>
-          <div className="mt-4 flex items-center text-[10px] font-black text-rose-200">
-             অপর্যাপ্ত তহবিল
+          <p className="text-3xl font-black">৳{summary.balance.toLocaleString('bn-BD')}</p>
+          <div className="mt-4 flex items-center text-[10px] font-black text-white/80">
+             {summary.balance >= 0 ? "তহবিল পর্যাপ্ত" : "অপর্যাপ্ত তহবিল"}
           </div>
         </div>
       </div>
@@ -90,15 +122,15 @@ export default function AdminFinances() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xl font-black text-slate-900">মাসিক সারাংশ</h3>
+            <h3 className="text-xl font-black text-slate-900">লেনদেনের সংক্ষিপ্তসার</h3>
             <div className="flex items-center space-x-2 text-xs font-bold text-slate-400">
               <Calendar className="w-4 h-4" />
-              <span>জানুয়ারি - জুন ২০২৪</span>
+              <span>রিয়েলটাইম চার্ট</span>
             </div>
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
+              <BarChart data={chartData.length > 0 ? chartData : [{name: 'No Data', amount: 0}]}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 900}} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 900}} />
@@ -107,7 +139,7 @@ export default function AdminFinances() {
                   contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', padding: '15px'}}
                 />
                 <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
-                  {data.map((entry, index) => (
+                  {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.amount > 0 ? '#10b981' : '#f43f5e'} />
                   ))}
                 </Bar>
@@ -119,7 +151,7 @@ export default function AdminFinances() {
         <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">
           <h3 className="text-xl font-black text-slate-900 mb-8 px-4">সাম্প্রতিক লেনদেন</h3>
           <div className="space-y-4 flex-1">
-            {transactions.map((tx) => (
+            {transactions.slice(0, 5).map((tx) => (
               <div key={tx.id} className="flex items-center justify-between p-6 bg-slate-50 hover:bg-white border border-transparent hover:border-slate-100 rounded-[32px] transition-all group">
                 <div className="flex items-center space-x-4">
                   <div className={cn(
@@ -135,7 +167,7 @@ export default function AdminFinances() {
                 </div>
                 <div className="text-right">
                   <p className={cn("font-black", tx.type === 'income' ? "text-emerald-600" : "text-rose-600")}>
-                    {tx.type === 'income' ? '+' : '-'}{tx.amount}
+                    {tx.type === 'income' ? '+' : '-'}৳{tx.amount}
                   </p>
                   <p className="text-[9px] font-black uppercase text-slate-300 tracking-widest">{tx.id}</p>
                 </div>

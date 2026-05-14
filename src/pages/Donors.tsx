@@ -1,8 +1,9 @@
-import { User, Crown, Heart } from 'lucide-react';
+import { User, Crown, Heart, Loader2, Search, Image, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { fetchDonorsFromSheet, SheetDonor } from '@/src/lib/googleSheets';
 
-const donors = [
+const initialDonors = [
   { name: 'প্রফেসর ড. সৈয়দ কামরুল আহসান টিটু', title: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়', location: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়' },
   { name: 'আব্দুল হাই মো: তারক', title: 'দাতা সদস্য', location: 'পানধোয়া' },
   { name: 'মো: লুৎফর রহমান', title: 'দাতা সদস্য', location: 'পানধোয়া' },
@@ -23,7 +24,48 @@ const recentDonations = [
 ];
 
 export default function Donors() {
-  const [activeTab, setActiveTab] = useState<'members' | 'donations'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'donations' | 'media'>('members');
+  const [donors, setDonors] = useState<any[]>(initialDonors);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [mediaLink, setMediaLink] = useState('');
+
+  useEffect(() => {
+    // Media Link from localStorage
+    const savedLink = localStorage.getItem('donor_media_link');
+    if (savedLink) {
+      setMediaLink(savedLink);
+    }
+
+    const loadDonors = async () => {
+      const sheetUrl = import.meta.env.VITE_GOOGLE_SHEET_DONORS_URL || localStorage.getItem('sheet_donors');
+      if (!sheetUrl) return;
+
+      try {
+        setLoading(true);
+        const fetched = await fetchDonorsFromSheet(sheetUrl);
+        if (fetched.length > 0) {
+          // Convert SheetDonor to UI format
+          setDonors(fetched.map(d => ({
+            name: d.name,
+            title: d.type,
+            location: d.impact || d.lastDonationDate
+          })));
+        }
+      } catch (err) {
+        console.error('Donors fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDonors();
+  }, []);
+
+  const filteredDonors = donors.filter(d => 
+    d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    d.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-16">
@@ -59,11 +101,41 @@ export default function Donors() {
                 <Heart className={`w-4 h-4 ${activeTab === 'donations' ? "text-white" : "text-rose-500"}`} />
                 <span>সাম্প্রতিক অনুদানসমূহ</span>
             </button>
+            <button 
+              onClick={() => setActiveTab('media')}
+              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 ${
+                activeTab === 'media' 
+                ? "bg-emerald-600 text-white shadow-xl shadow-emerald-200 ring-4 ring-emerald-50" 
+                : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+                <Image className={`w-4 h-4 ${activeTab === 'media' ? "text-white" : "text-emerald-500"}`} />
+                <span>মিডিয়া ও স্মৃতিচারণ</span>
+            </button>
         </div>
+
+        {activeTab === 'members' && (
+          <div className="relative w-full max-w-md mx-auto mb-16 animate-in fade-in slide-in-from-top-4 duration-500">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="দাতা সদস্যের নাম বা স্থান দিয়ে খুঁজুন..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 rounded-[28px] text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all shadow-sm"
+            />
+          </div>
+        )}
       </div>
 
+      {loading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
-        {activeTab === 'members' ? (
+        {!loading && activeTab === 'members' ? (
           <motion.div 
             key="members"
             initial={{ opacity: 0, y: 20 }}
@@ -80,7 +152,7 @@ export default function Donors() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {donors.map((donor, idx) => (
+              {filteredDonors.map((donor, idx) => (
                 <motion.div
                   key={idx}
                   initial={{ opacity: 0, x: -20 }}
@@ -107,7 +179,7 @@ export default function Donors() {
               ))}
             </div>
           </motion.div>
-        ) : (
+        ) : activeTab === 'donations' ? (
           <motion.div 
             key="donations"
             initial={{ opacity: 0, y: 20 }}
@@ -157,6 +229,43 @@ export default function Donors() {
                 </div>
               </div>
             </div>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="media"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-emerald-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-emerald-100/50 text-center"
+          >
+            <div className="relative w-32 h-32 md:w-40 md:h-40 mx-auto mb-10">
+              <div className="w-full h-full bg-emerald-100 rounded-[35px] rotate-6 border border-emerald-200 absolute inset-0 mix-blend-multiply" />
+              <div className="w-full h-full bg-white rounded-[35px] border-4 border-emerald-50 absolute inset-0 -rotate-3 flex items-center justify-center shadow-lg">
+                 <Image className="w-16 h-16 text-emerald-300" />
+              </div>
+            </div>
+
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-6">মিডিয়া ও স্মৃতিচারণ গ্যালারি</h2>
+            <p className="text-slate-500 text-lg font-medium leading-relaxed max-w-2xl mx-auto mb-12">
+               লাইব্রেরির বই প্রদানকারী দাতা সদস্যদের ছবি ও ভিডিওগুলো আমরা যত্ন সহকারে আমাদের গুগল ড্রাইভে আর্কাইভ করে রাখি।
+            </p>
+
+            {mediaLink ? (
+              <a 
+                href={mediaLink} 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-3 px-10 py-5 bg-emerald-600 text-white rounded-[24px] font-black hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/20 active:scale-95 text-lg"
+              >
+                <ExternalLink className="w-6 h-6" />
+                <span>গুগল ড্রাইভে ছবি ও ভিডিও দেখুন</span>
+              </a>
+            ) : (
+              <div className="inline-block px-8 py-5 bg-white border-2 border-dashed border-emerald-200 rounded-[24px]">
+                 <p className="text-emerald-600 font-bold">আপাতত ড্রাইভ লিঙ্ক যুক্ত করা হয়নি।</p>
+                 <p className="text-xs text-slate-400 mt-2">অ্যাডমিন ড্যাশবোর্ড থেকে লিঙ্ক আপডেট করুন।</p>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

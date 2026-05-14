@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import AdminTopBar from './AdminTopBar';
+import { isAdminAuthenticated } from '@/src/lib/adminAuth';
 
 export default function AdminLayout() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    const auth = localStorage.getItem('admin_auth') === 'true' || sessionStorage.getItem('admin_auth') === 'true';
-    setIsAuthorized(auth);
+    setIsAuthorized(isAdminAuthenticated());
     setAuthChecked(true);
   }, []);
 

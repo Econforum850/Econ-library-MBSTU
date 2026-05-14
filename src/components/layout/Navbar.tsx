@@ -1,15 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Globe, LogIn, Menu, X, ShoppingCart, BookOpen } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, Globe, LogIn, Menu, X, ShoppingCart, BookOpen, ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useCart } from '../../lib/cart';
+import { isAdminAuthenticated } from '@/src/lib/adminAuth';
 
 const navLinksBN = [
   { name: 'হোম', path: '/' },
   { name: 'বইসমূহ', path: '/books' },
   { name: 'ইভেন্ট', path: '/events' },
-  { name: 'বই কিনুন', path: '/shop' },
   { name: 'দাতা সদস্য', path: '/donors' },
 ];
 
@@ -17,7 +17,6 @@ const navLinksEN = [
   { name: 'Home', path: '/' },
   { name: 'Books', path: '/books' },
   { name: 'Events', path: '/events' },
-  { name: 'Shop', path: '/shop' },
   { name: 'Donors', path: '/donors' },
 ];
 
@@ -26,53 +25,65 @@ export default function Navbar() {
   const [lang, setLang] = useState<'BN' | 'EN'>('BN');
   const location = useLocation();
   const { totalItems } = useCart();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    setIsAdmin(isAdminAuthenticated());
+    const userStr = localStorage.getItem('loggedInUser');
+    if (userStr) {
+      try {
+        setUser(JSON.parse(userStr));
+      } catch (e) {
+        console.error("User parse error", e);
+      }
+    } else {
+      setUser(null);
+    }
+  }, [location.pathname]);
 
   const links = lang === 'BN' ? navLinksBN : navLinksEN;
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm">
+    <nav className="sticky top-0 z-[60] bg-white/90 backdrop-blur-xl border-b border-slate-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
           {/* Logo Section */}
-          <Link to="/" className="flex items-center space-x-3 group">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 group-hover:rotate-12 transition-all">
-              <BookOpen className="w-6 h-6" />
+          <Link to="/" id="nav-logo" className="flex items-center space-x-3 group">
+            <div className="w-12 h-12 bg-indigo-600 rounded-[18px] flex items-center justify-center text-white shadow-xl shadow-indigo-100 group-hover:rotate-[15deg] transition-all duration-500">
+              <BookOpen className="w-7 h-7" />
             </div>
             <div className="flex flex-col">
-              <span className="text-lg font-black text-slate-900 leading-tight">Econ-library-MBSTU</span>
-              <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Economics Dept. Library</span>
+              <span className="text-xl font-black text-slate-900 leading-tight font-sans tracking-tight">ইকোলাইব্রেরি</span>
+              <span className="text-[10px] text-slate-400 font-black tracking-[0.2em] uppercase">ECONOMICS MBSTU</span>
             </div>
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden lg:flex items-center space-x-1">
-            {links.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                  location.pathname === link.path 
-                    ? "bg-indigo-50 text-indigo-700 shadow-sm" 
-                    : "text-slate-600 hover:bg-gray-50 hover:text-slate-900"
-                )}
-              >
-                {link.name}
-              </Link>
-            ))}
-            
-            <div className="relative group px-4 py-2 cursor-pointer flex items-center text-sm font-bold text-slate-600 hover:text-slate-900">
-               {lang === 'BN' ? 'আরো' : 'More'} <ChevronDown className="ml-1 w-4 h-4" />
+          <div className="hidden lg:flex items-center space-x-2">
+            <div className="flex items-center bg-slate-50/50 p-1.5 rounded-[22px] border border-slate-100/50 mr-6">
+              {links.map((link) => (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={cn(
+                    "px-6 py-2.5 rounded-[18px] text-sm font-black transition-all",
+                    location.pathname === link.path 
+                      ? "bg-white text-indigo-700 shadow-sm ring-1 ring-slate-100" 
+                      : "text-slate-500 hover:text-slate-900"
+                  )}
+                >
+                  {link.name}
+                </Link>
+              ))}
             </div>
-
-            <div className="h-6 w-[1px] bg-gray-200 mx-4" />
-
+            
             {/* Actions */}
             <div className="flex items-center space-x-3">
-              <Link to="/cart" className="relative p-2 text-slate-600 hover:text-indigo-600 transition-colors">
-                <ShoppingCart className="w-6 h-6" />
+              <Link to="/cart" className="relative p-3 bg-slate-50 text-slate-600 hover:text-indigo-600 rounded-2xl transition-all hover:bg-indigo-50 border border-slate-100">
+                <ShoppingCart className="w-5 h-5" />
                 {totalItems > 0 && (
-                  <span className="absolute top-0 right-0 w-5 h-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-sm animate-in zoom-in">
+                  <span className="absolute -top-1 -right-1 w-6 h-6 bg-rose-500 text-white text-[11px] rounded-full flex items-center justify-center font-black shadow-lg ring-2 ring-white">
                     {totalItems}
                   </span>
                 )}
@@ -80,60 +91,67 @@ export default function Navbar() {
 
               <button 
                 onClick={() => setLang(lang === 'BN' ? 'EN' : 'BN')}
-                className="flex items-center space-x-2 px-4 py-2 border border-gray-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all hover:border-indigo-200"
+                className="flex items-center space-x-2 px-5 py-3 bg-white border border-slate-200 rounded-[22px] text-[11px] font-black text-slate-600 hover:bg-slate-50 transition-all hover:border-indigo-200 shadow-sm"
               >
                 <Globe className="w-4 h-4 text-indigo-500" />
                 <span>{lang}</span>
               </button>
               
-              <Link 
-                to="/account" 
-                className="px-5 py-2.5 bg-emerald-500 text-white text-xs font-black rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 active:scale-95"
-              >
-                {lang === 'BN' ? 'আয়-ব্যয় হিসেব' : 'Accounts'}
-              </Link>
+              <div className="h-8 w-[2px] bg-slate-100 mx-1" />
 
-              <Link 
-                to="/admin/login" 
-                className="px-5 py-2.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl hover:bg-indigo-100 transition-all shadow-sm active:scale-95 border border-indigo-100"
-              >
-                {lang === 'BN' ? 'অ্যাডমিন লগইন' : 'Admin Login'}
-              </Link>
+              {isAdmin && (
+                <Link 
+                  to="/admin" 
+                  className="px-6 py-3 bg-slate-900 text-white text-[11px] font-black rounded-[22px] hover:bg-slate-800 transition-all shadow-xl shadow-slate-100 flex items-center space-x-2"
+                >
+                  <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                  <span>{lang === 'BN' ? 'ড্যাশবোর্ড' : 'Dashboard'}</span>
+                </Link>
+              )}
 
-              <Link 
-                to="/admin" 
-                className="px-5 py-2.5 bg-slate-900 text-white text-xs font-black rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-100 active:scale-95"
-              >
-                {lang === 'BN' ? 'অ্যাডমিন' : 'Admin'}
-              </Link>
-              
-              <Link 
-                to="/login"
-                className="px-4 py-2 text-slate-600 text-sm font-bold hover:text-slate-900"
-              >
-                {lang === 'BN' ? 'লগইন' : 'Login'}
-              </Link>
-              
-              <Link 
-                to="/register"
-                className="px-6 py-3 bg-indigo-600 text-white text-sm font-black rounded-xl hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 border-b-4 border-indigo-800"
-              >
-                Join Now
-              </Link>
+              {user ? (
+                <Link 
+                  to="/account" 
+                  className="px-6 py-3 bg-emerald-500 text-white text-[11px] font-black rounded-[22px] hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-100 flex items-center space-x-2"
+                >
+                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                    <LogIn className="w-3 h-3 text-white" />
+                  </div>
+                  <span>{lang === 'BN' ? 'আমার প্রোফাইল' : 'Profile'}</span>
+                </Link>
+              ) : (
+                <div className="flex items-center space-x-3">
+                  <Link 
+                    to="/login"
+                    className="px-6 py-3 text-slate-600 text-sm font-black hover:text-slate-900"
+                  >
+                    {lang === 'BN' ? 'লগইন' : 'Login'}
+                  </Link>
+                  <Link 
+                    to="/register"
+                    className="px-8 py-3 bg-indigo-600 text-white text-sm font-black rounded-[22px] hover:bg-slate-900 shadow-xl shadow-indigo-100 transition-all active:scale-95"
+                  >
+                    {lang === 'BN' ? 'সদস্য হন' : 'Join Now'}
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Mobile menu button */}
           <div className="lg:hidden flex items-center space-x-3">
-             <Link 
-                to="/account" 
-                className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-black rounded-lg shadow-md"
-              >
-                হিসোব
+             <Link to="/cart" className="relative p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-100">
+                <ShoppingCart className="w-5 h-5" />
+                {totalItems > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-black">
+                    {totalItems}
+                  </span>
+                )}
               </Link>
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-gray-100 bg-slate-50 border border-slate-100"
+              id="mobile-menu-btn"
+              className="p-3 rounded-2xl text-slate-600 hover:text-slate-900 hover:bg-indigo-50 bg-white border border-slate-200 shadow-sm transition-all active:scale-95"
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -145,53 +163,80 @@ export default function Navbar() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden bg-white border-t border-gray-100 overflow-hidden"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="lg:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-2xl border-t border-slate-100 overflow-hidden shadow-2xl rounded-b-[40px]"
           >
-            <div className="px-4 pt-4 pb-8 space-y-2">
+            <div className="px-6 pt-6 pb-12 space-y-3">
               {links.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
                   onClick={() => setIsOpen(false)}
                   className={cn(
-                    "block px-6 py-4 rounded-2xl text-base font-bold transition-all",
+                    "block px-8 py-5 rounded-[25px] text-lg font-black transition-all",
                     location.pathname === link.path 
-                      ? "bg-indigo-50 text-indigo-700" 
+                      ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100" 
                       : "text-slate-700 hover:bg-slate-50"
                   )}
                 >
                   {link.name}
                 </Link>
               ))}
-              <div className="pt-6 border-t border-gray-100 mt-6 space-y-4">
-                <button 
-                  onClick={() => {
-                    setLang(lang === 'BN' ? 'EN' : 'BN');
-                    setIsOpen(false);
-                  }}
-                  className="flex items-center space-x-3 px-6 py-4 text-slate-700 w-full font-bold"
-                >
-                  <Globe className="w-5 h-5 text-indigo-500" />
-                  <span>Language: {lang}</span>
-                </button>
-                <Link
-                  to="/login"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center space-x-3 px-6 py-4 text-slate-700 font-bold"
-                >
-                  <LogIn className="w-5 h-5 text-indigo-500" />
-                  <span>লগইন</span>
-                </Link>
-                <Link
-                  to="/register"
-                  onClick={() => setIsOpen(false)}
-                  className="block w-full py-5 text-center bg-indigo-600 text-white font-black rounded-[30px] shadow-2xl shadow-indigo-200"
-                >
-                   Join Now
-                </Link>
+              
+              <div className="pt-8 border-t border-slate-100 mt-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => {
+                      setLang(lang === 'BN' ? 'EN' : 'BN');
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center justify-center space-x-3 py-5 bg-slate-50 text-slate-700 rounded-[25px] font-black"
+                  >
+                    <Globe className="w-5 h-5 text-indigo-500" />
+                    <span>{lang}</span>
+                  </button>
+                  
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsOpen(false)}
+                      className="flex items-center justify-center space-x-3 py-5 bg-slate-900 text-white rounded-[25px] font-black"
+                    >
+                      <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                      <span>Admin</span>
+                    </Link>
+                  )}
+                </div>
+
+                {user ? (
+                  <Link
+                    to="/account"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center justify-center space-x-3 py-5 bg-emerald-500 text-white rounded-[25px] font-black shadow-lg"
+                  >
+                    <LogIn className="w-5 h-5" />
+                    <span>প্রোফাইল (Account)</span>
+                  </Link>
+                ) : (
+                  <div className="space-y-4">
+                    <Link
+                      to="/login"
+                      onClick={() => setIsOpen(false)}
+                      className="block w-full py-5 text-center bg-white border border-slate-200 text-slate-700 font-black rounded-[25px]"
+                    >
+                      লগইন
+                    </Link>
+                    <Link
+                      to="/register"
+                      onClick={() => setIsOpen(false)}
+                      className="block w-full py-5 text-center bg-indigo-600 text-white font-black rounded-[25px] shadow-2xl shadow-indigo-200"
+                    >
+                       সদস্য হতে ক্লিক করুন
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>

@@ -1,5 +1,6 @@
-import { motion } from 'motion/react';
-import { Book, Calendar, ShoppingBag, ArrowRight, Users, Heart } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Book, Calendar, ShoppingBag, ArrowRight, Users, Heart, MapPin, Mail, Phone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/src/lib/utils';
 
@@ -23,93 +24,159 @@ const features = [
     desc: 'সাশ্রয়ী মূল্যে পছন্দের বইগুলো অর্ডার করুন সরাসরি আপনার ঠিকানায়।',
     icon: ShoppingBag,
     color: 'bg-rose-50 text-rose-600',
-    path: '/shop'
+    path: '/books'
+  }
+];
+
+const slides = [
+  {
+    image: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&q=80&w=2000',
+    title: 'জ্ঞানের আলোয় সমাজ গড়ি',
+    subtitle: 'ইকোনমিক্স বিভাগ ডিজিটাল লাইব্রেরি',
+    accent: 'from-indigo-600 to-blue-500'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&q=80&w=2000',
+    title: 'হাজারো বইয়ের ডিজিটাল সংগ্রহ',
+    subtitle: 'আপনার পড়াশোনা হোক আরও সহজ ও আধুনিক',
+    accent: 'from-emerald-600 to-teal-500'
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=2000',
+    title: 'ইকোনমিক্স বিভাগ পাঠাগার',
+    subtitle: 'মেধাবী শিক্ষার্থীদের জ্ঞানের তীর্থস্থান',
+    accent: 'from-amber-500 to-orange-400'
   }
 ];
 
 export default function Home() {
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="overflow-hidden">
-      {/* Hero Section */}
-      <section className="relative px-4 pt-20 pb-32 max-w-7xl mx-auto text-center">
-        <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 mb-8"
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold text-emerald-700 tracking-wider uppercase">একটি আধুনিক ডিজিটাল পাঠাগার</span>
-        </motion.div>
+      {/* Hero Section with Slider */}
+      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
+        {/* Background Slider */}
+        <div className="absolute inset-0 z-0">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, scale: 1.1 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.5 }}
+              className="absolute inset-0"
+            >
+              <div className="absolute inset-0 bg-slate-900/60 z-10" />
+              <img 
+                src={slides[currentSlide].image} 
+                alt="Library Background" 
+                className="w-full h-full object-cover"
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-        <motion.h1 
-          className="text-5xl md:text-7xl font-black text-slate-900 leading-tight mb-8"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6 }}
-        >
-          জ্ঞানের আলোয় <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-400">সমাজ গড়ি</span>
-        </motion.h1>
+        {/* Hero Content */}
+        <div className="relative z-20 px-4 max-w-7xl mx-auto text-center">
+          <motion.div
+             initial={{ opacity: 0, y: 20 }}
+             animate={{ opacity: 1, y: 0 }}
+             className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-8"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-black text-white tracking-[0.2em] uppercase">Department of Economics, MBSTU</span>
+          </motion.div>
 
-        <motion.p 
-          className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto mb-12"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          আপনার পছন্দের বইটি এখন এক ক্লিকেই। লাইব্রেরির সদস্য হোন, ইভেন্টে অংশগ্রহণ করুন এবং নিজেকে বিকশিত করুন।
-        </motion.p>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.8 }}
+            >
+              <h1 className="text-5xl md:text-8xl font-black text-white leading-tight mb-8 tracking-tighter">
+                {slides[currentSlide].title.split(' ').map((word, i) => (
+                  <span key={i} className={i === 1 ? `text-transparent bg-clip-text bg-gradient-to-r ${slides[currentSlide].accent}` : ''}>
+                    {word}{' '}
+                  </span>
+                ))}
+              </h1>
+              <p className="text-slate-200 text-lg md:text-2xl max-w-2xl mx-auto mb-12 font-medium">
+                {slides[currentSlide].subtitle}
+              </p>
+            </motion.div>
+          </AnimatePresence>
 
-        <motion.div 
-          className="flex flex-wrap justify-center gap-4"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Link to="/register" className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center space-x-2 hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">
-            <span>সদস্য হতে আবেদন করুন</span>
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-          <Link to="/login" className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200">
-            লগইন করুন
-          </Link>
-          <Link to="/books" className="px-8 py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-bold hover:bg-slate-50 transition-all">
-            বই ব্রাউজ করুন
-          </Link>
-        </motion.div>
+          <motion.div 
+            className="flex flex-col sm:flex-row justify-center gap-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Link to="/books" className="group px-12 py-6 bg-indigo-600 text-white rounded-[20px] font-black flex items-center justify-center space-x-4 shadow-2xl shadow-indigo-500/20 hover:bg-white hover:text-slate-900 transition-all active:scale-95">
+              <ShoppingBag className="w-6 h-6" />
+              <span>বই ব্রাউজ করুন</span>
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+            </Link>
+            <Link to="/register" className="px-12 py-6 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-[20px] font-black hover:bg-white hover:text-slate-900 transition-all active:scale-95 flex items-center justify-center space-x-4">
+              <Users className="w-6 h-6" />
+              <span>সদস্য হন</span>
+            </Link>
+          </motion.div>
+        </div>
 
-        <motion.div 
-          className="mt-8 flex justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-        >
-           <Link to="/shop" className="px-8 py-4 bg-rose-50 text-rose-600 rounded-2xl font-bold flex items-center space-x-2 border border-rose-100 hover:bg-rose-100 transition-all">
-            <ShoppingBag className="w-5 h-5 text-rose-500" />
-            <span>বই কিনুন</span>
-          </Link>
-        </motion.div>
+        {/* Slider Indicators */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex space-x-3 z-30">
+           {slides.map((_, idx) => (
+             <button
+               key={idx}
+               onClick={() => setCurrentSlide(idx)}
+               className={cn(
+                 "w-12 h-1.5 rounded-full transition-all duration-500",
+                 currentSlide === idx ? "bg-white" : "bg-white/20 hover:bg-white/40"
+               )}
+             />
+           ))}
+        </div>
       </section>
 
       {/* Features Grid */}
-      <section className="px-4 py-20 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {features.map((item, idx) => (
+      <section className="px-4 py-32 max-w-7xl mx-auto bg-white">
+        <div className="text-center mb-20 space-y-4">
+          <h2 className="text-4xl font-black text-slate-900">আমাদের বিশেষত্ব</h2>
+          <div className="w-12 h-1.5 bg-indigo-600 mx-auto rounded-full" />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          {features.slice(0, 2).map((item, idx) => (
             <motion.div
               key={idx}
               initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
               transition={{ delay: 0.2 * idx }}
-              className="group p-10 bg-white rounded-[40px] border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-indigo-100 transition-all relative overflow-hidden"
+              className="group p-12 bg-white rounded-[50px] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-indigo-50 transition-all relative overflow-hidden"
             >
-              <div className={cn("w-16 h-16 rounded-2xl mb-8 flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-3", item.color)}>
-                <item.icon className="w-8 h-8" />
+              <div className="absolute top-0 right-0 p-12 opacity-[0.03] group-hover:scale-110 transition-transform">
+                <item.icon className="w-40 h-40" />
               </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-4">{item.title}</h3>
-              <p className="text-slate-500 leading-relaxed mb-6">{item.desc}</p>
-              <Link to={item.path} className="text-indigo-600 font-bold flex items-center space-x-1 group-hover:translate-x-2 transition-transform capitalize">
-                <span>View More</span>
-                <ArrowRight className="w-4 h-4" />
+              <div className={cn("w-20 h-20 rounded-[25px] mb-10 flex items-center justify-center transition-all group-hover:rotate-6", item.color)}>
+                <item.icon className="w-10 h-10" />
+              </div>
+              <h3 className="text-3xl font-black text-slate-900 mb-6">{item.title}</h3>
+              <p className="text-slate-500 text-lg leading-relaxed mb-8 max-w-md">{item.desc}</p>
+              <Link to={item.path} className="inline-flex items-center space-x-3 px-8 py-4 bg-slate-50 text-indigo-600 rounded-2xl font-black group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                <span>বিস্তারিত দেখুন</span>
+                <ArrowRight className="w-5 h-5" />
               </Link>
             </motion.div>
           ))}

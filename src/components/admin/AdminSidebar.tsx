@@ -1,4 +1,5 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { setAdminAuthenticated } from '@/src/lib/adminAuth';
 import { 
   User, LayoutDashboard, Users, BookOpen, QrCode, 
   Scan, ArrowLeftRight, ShoppingBag, Receipt, 
@@ -10,7 +11,7 @@ import { cn } from '@/src/lib/utils';
 const menuItems = [
   { icon: User, label: 'আমার প্রোফাইল', path: '/admin/profile' },
   { icon: LayoutDashboard, label: 'ওভারভিউ (Overview)', path: '/admin/dashboard' },
-  { icon: Users, label: 'সদস্য ব্যবস্থাপনা (Users)', path: '/admin/users' },
+  { icon: Users, label: 'সদস্য ব্যবস্থাপনা (Members)', path: '/admin/users' },
   { icon: BookOpen, label: 'বইয়ের তালিকা (Inventory)', path: '/admin/inventory' },
   { icon: QrCode, label: 'স্টিকার ও QR (Stickers)', path: '/admin/stickers' },
   { icon: Scan, label: 'বারকোড স্ক্যানার', path: '/admin/scanner' },
@@ -22,8 +23,6 @@ const menuItems = [
   { icon: BarChart3, label: 'হিসাব-নিকাশ (Finances)', path: '/admin/finances' },
   { icon: Settings, label: 'ওয়েবসাইট সেটিংস', path: '/admin/settings' },
 ];
-
-import { useNavigate } from 'react-router-dom';
 
 export default function AdminSidebar() {
   const location = useLocation();
@@ -102,8 +101,7 @@ export default function AdminSidebar() {
         </Link>
         <button 
           onClick={() => {
-            localStorage.removeItem('admin_auth');
-            sessionStorage.removeItem('admin_auth');
+            setAdminAuthenticated(false);
             navigate('/admin/login');
           }}
           className="w-full flex items-center space-x-4 px-4 py-3.5 rounded-xl text-rose-500/70 hover:bg-rose-500/5 hover:text-rose-500 transition-all"

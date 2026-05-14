@@ -2,17 +2,14 @@ import { motion } from 'motion/react';
 import { 
   Users, BookOpen, Clock, Wallet, 
   Plus, ShoppingCart, MessageSquare, 
-  ArrowRight, Activity, TrendingUp
+  ArrowRight, Activity, TrendingUp,
+  Loader2, CheckCircle2, Heart
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const stats = [
-  { label: 'নিবন্ধিত সদস্য', value: '30', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50', change: '+2 new' },
-  { label: 'ক্যাটালগে বই', value: '362', icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50', change: '+5 this week' },
-  { label: 'সক্রিয় ইস্যু', value: '1', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', change: 'Live now' },
-  { label: 'বর্তমান ব্যালেন্স', value: '৳-6460', icon: Wallet, color: 'text-rose-600', bg: 'bg-rose-50', change: 'Negative' },
-];
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { fetchBooksFromSheet, fetchMembersFromSheet, fetchIssuesFromSheet, fetchDonorsFromSheet, fetchFinancesFromSheet } from '@/src/lib/googleSheets';
 
 const data = [
   { name: 'Jan', income: 4000, expense: 2400 },
@@ -24,6 +21,71 @@ const data = [
 ];
 
 export default function AdminDashboard() {
+  const [bookCount, setBookCount] = useState<number>(0);
+  const [memberCount, setMemberCount] = useState<number>(0);
+  const [issueCount, setIssueCount] = useState<number>(0);
+  const [donorCount, setDonorCount] = useState<number>(0);
+  const [shopCount, setShopCount] = useState<number>(0);
+  const [balance, setBalance] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      const inventoryUrl = import.meta.env.VITE_GOOGLE_SHEET_URL || localStorage.getItem('sheet_inventory');
+      const membersUrl = import.meta.env.VITE_GOOGLE_SHEET_MEMBERS_URL || localStorage.getItem('sheet_members');
+      const issuesUrl = import.meta.env.VITE_GOOGLE_SHEET_ISSUES_URL || localStorage.getItem('sheet_issues');
+      const donorsUrl = import.meta.env.VITE_GOOGLE_SHEET_DONORS_URL || localStorage.getItem('sheet_donors');
+      const shopUrl = import.meta.env.VITE_GOOGLE_SHEET_SHOP_URL || localStorage.getItem('sheet_shop');
+      const financesUrl = localStorage.getItem('sheet_finances');
+
+      setIsLoading(true);
+      try {
+        if (inventoryUrl) {
+          const books = await fetchBooksFromSheet(inventoryUrl);
+          setBookCount(books.length);
+        }
+        if (membersUrl) {
+          const members = await fetchMembersFromSheet(membersUrl);
+          const acceptedCount = members.filter(m => String(m.status || '').toLowerCase() === 'accepted').length;
+          setMemberCount(acceptedCount);
+        }
+        if (issuesUrl) {
+          const issues = await fetchIssuesFromSheet(issuesUrl);
+          setIssueCount(issues.filter(i => i.status === 'Active').length);
+        }
+        if (donorsUrl) {
+          const donors = await fetchDonorsFromSheet(donorsUrl);
+          setDonorCount(donors.length);
+        }
+        if (shopUrl) {
+          const shopBooks = await fetchBooksFromSheet(shopUrl);
+          setShopCount(shopBooks.length);
+        }
+        if (financesUrl) {
+          const txs = await fetchFinancesFromSheet(financesUrl);
+          const inc = txs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+          const exp = txs.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+          setBalance(inc - exp);
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard stats:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStats();
+  }, []);
+
+  const stats = [
+    { label: 'সক্রিয় সদস্য', value: memberCount.toString(), icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50', change: 'Accepted' },
+    { label: 'ক্যাটালগে বই', value: bookCount.toString(), icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50', change: 'Live Data' },
+    { label: 'সক্রিয় ইস্যু', value: issueCount.toString(), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', change: 'Live Data' },
+    { label: 'দাতা সদস্য', value: donorCount.toString(), icon: Heart, color: 'text-rose-600', bg: 'bg-rose-50', change: 'Live Data' },
+    { label: 'শপ আইটেম', value: shopCount.toString(), icon: ShoppingCart, color: 'text-indigo-600', bg: 'bg-indigo-50', change: 'Live Data' },
+    { label: 'ফান্ড ব্যালেন্স', value: `৳${balance.toLocaleString('bn-BD')}`, icon: Wallet, color: 'text-rose-600', bg: 'bg-rose-50', change: 'Update Soon' },
+  ];
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Banner */}
@@ -40,10 +102,10 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-4">
-            <button className="flex items-center space-x-3 px-8 py-5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-[28px] font-bold backdrop-blur-md transition-all active:scale-95">
+            <Link to="/admin/users" className="flex items-center space-x-3 px-8 py-5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-[28px] font-bold backdrop-blur-md transition-all active:scale-95">
               <Users className="w-5 h-5" />
               <span>সদস্যগণ</span>
-            </button>
+            </Link>
             <button className="flex items-center space-x-3 px-8 py-5 bg-indigo-600 hover:bg-indigo-700 rounded-[28px] font-black shadow-xl shadow-indigo-600/30 transition-all active:scale-95 group">
               <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
               <span>বই প্রদান</span>
