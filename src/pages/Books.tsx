@@ -145,6 +145,20 @@ export default function Books() {
   }, [books]);
 
   const handleAddToCart = (book: Book) => {
+    if (!loggedInUser) {
+      navigate('/login?redirect=books');
+      return;
+    }
+    if (loggedInUser.role !== 'Admin') {
+      if (loggedInUser.status === 'pending') {
+        alert('আপনার অ্যাকাউন্ট বর্তমানে পেন্ডিং রয়েছে। এডমিন এটি সক্রিয় করার আগে আপনি অর্ডার করতে পারবেন না।');
+        return;
+      }
+      if (loggedInUser.status === 'rejected') {
+        alert('দুঃখিত, আপনার অ্যাকাউন্ট বাতিল (Rejected) করা হয়েছে। আপনি অর্ডার বা বই কিনতে পারবেন না।');
+        return;
+      }
+    }
     const priceValue = parseInt(String(book.price || '0').replace(/[^0-9]/g, '')) || 0;
     addItem({
       id: book.id,

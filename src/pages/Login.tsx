@@ -97,6 +97,14 @@ export default function Login() {
       }
 
       if (isLogged && loggedInUserObj) {
+        // Enforce Admin approval checks for standard members
+        if (loggedInUserObj.role !== 'Admin') {
+          if (loggedInUserObj.status === 'pending') {
+            throw new Error('আপনার সদস্যপদের আবেদনটি এখনো অনুমোদন (Approve) করা হয়নি। এডমিন বর্তমানে এটি পর্যালোচনা করছেন। অনুগ্রহ করে অপেক্ষা করুন।');
+          } else if (loggedInUserObj.status === 'rejected') {
+            throw new Error('দুঃখিত, আপনার অ্যাকাউন্ট আবেদনটি কর্তৃপক্ষ দ্বারা বাতিল (Rejected) করা হয়েছে। অনুগ্রহ করে কর্তৃপক্ষের সাথে যোগাযোগ করুন।');
+          }
+        }
         localStorage.setItem('loggedInUser', JSON.stringify(loggedInUserObj));
         navigate('/');
       } else {

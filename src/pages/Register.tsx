@@ -30,17 +30,50 @@ export default function Register() {
     setIsSubmitting(true);
     
     try {
+      const emailInput = formData.email.trim();
+      const phoneInput = formData.phone.trim();
+
+      // 1. Core Duplication Safeguard - Fetch members to check duplicates in the database first
+      const existingMembers = await db.getMembers();
+      
+      const emailDup = existingMembers.find(m => m.email && m.email.toLowerCase() === emailInput.toLowerCase());
+      const phoneDup = existingMembers.find(m => m.phone && m.phone.trim() === phoneInput);
+
+      if (emailDup) {
+        let statusMsg = "";
+        if (emailDup.status === 'pending') {
+          statusMsg = "এই ইমেইল দিয়ে ইতিপূর্বে আবেদন করা হয়েছে এবং আবেদনটি বর্তমানে এডমিন প্যানেলে রিভিউয়ের জন্য প্রস্তুত (Pending) আছে।";
+        } else if (emailDup.status === 'rejected') {
+          statusMsg = "দুঃখিত, এই ইমেইল দিয়ে করা আবেদনটি পাঠাগার এডমিন দ্বারা বাতিল (Rejected) করা হয়েছে। অনুগ্রহ করে কর্তৃপক্ষের সাথে যোগাযোগ করুন।";
+        } else {
+          statusMsg = "এই ইমেইল দিয়ে ইতিপূর্বে একটি সক্রিয় সদস্য অ্যাকাউন্ট তৈরি করা হয়েছে। অনুগ্রহ করে লগইন করুন।";
+        }
+        throw new Error(statusMsg);
+      }
+
+      if (phoneDup) {
+        let statusMsg = "";
+        if (phoneDup.status === 'pending') {
+          statusMsg = "এই মোবাইল নাম্বার দিয়ে ইতিপূর্বে আবেদন করা হয়েছে এবং আবেদনটি বর্তমানে এডমিন প্যানেলে রিভিউয়ের জন্য প্রস্তুত (Pending) আছে।";
+        } else if (phoneDup.status === 'rejected') {
+          statusMsg = "দুঃখিত, এই মোবাইল নাম্বার দিয়ে করা আবেদনটি পাঠাগার এডমিন দ্বারা বাতিল (Rejected) করা হয়েছে। অনুগ্রহ করে কর্তৃপক্ষের সাথে যোগাযোগ করুন।";
+        } else {
+          statusMsg = "এই মোবাইল নাম্বার দিয়ে ইতিপূর্বে একটি সক্রিয় সদস্য অ্যাকাউন্ট তৈরি করা হয়েছে। অনুগ্রহ করে লগইন করুন।";
+        }
+        throw new Error(statusMsg);
+      }
+
       let finalUserId = `M-${Math.floor(100 + Math.random() * 900)}-${Date.now().toString().slice(-4)}`;
       let authUserObj: any = null;
       
       try {
         const { data, error: authError } = await supabase.auth.signUp({
-          email: formData.email.trim(),
+          email: emailInput,
           password: formData.password,
           options: {
             data: {
               name: formData.name,
-              phone: formData.phone,
+              phone: phoneInput,
               occupation: formData.occupation,
               address: formData.address,
               paymentMethod,
@@ -48,16 +81,16 @@ export default function Register() {
               trxId: formData.trxId,
               photo: photo || '',
               role: 'Member',
-              status: 'accepted'
+              status: 'pending' // New users start as pending/under review by default
             }
           }
         });
 
         if (authError) {
-          // If the SMTP email configuration errors out (e.g. confirmation email can't be sent)
-          // we gracefully log a warning and proceed using of the database-only profile method
+          // If the SMTP email configuration errors out or is unconfigured on free plans,
+          // we gracefully log a warning and proceed with direct database registration
           if (authError.message?.toLowerCase().includes('email') || authError.message?.toLowerCase().includes('confirmation') || authError.message?.toLowerCase().includes('not approved')) {
-            console.warn("Auth signup had an email issues, falling back to direct database member creation:", authError);
+            console.warn("Auth signup had SMTP/confirmation limits, falling back to direct database member creation:", authError);
           } else {
             throw authError;
           }
@@ -68,22 +101,19 @@ export default function Register() {
       } catch (authException: any) {
         console.warn("Exception in Auth signup flow. Continuing with direct database registration:", authException);
         if (!authException.message?.toLowerCase().includes('email') && !authException.message?.toLowerCase().includes('confirmation')) {
-          // If it isn't an email confirmation issue, we throw to alert the user about errors,
-          // but if we want maximal reliability we can even suppress other connection errors to let them play with local storage.
-          // Let's make it super clear and keep it throwing only if not email-confirm related.
           throw authException;
         }
       }
 
-      // Save profile to central database table
+      // 2. Save profile representing the user application to supabase database table
       const savedMem = await db.saveMember({
         id: finalUserId,
         name: formData.name,
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
+        email: emailInput,
+        phone: phoneInput,
         role: 'Member',
         joinDate: new Date().toLocaleDateString('bn-BD'),
-        status: 'accepted',
+        status: 'pending', // Pending approval by library admin
         dues: 0,
         photo: photo || '',
         address: formData.address,
@@ -93,13 +123,13 @@ export default function Register() {
 
       const loggedInUserObj = {
         id: savedMem.id,
-        email: savedMem.email || formData.email.trim(),
+        email: savedMem.email || emailInput,
         name: savedMem.name || formData.name,
-        phone: savedMem.phone || formData.phone,
+        phone: savedMem.phone || phoneInput,
         occupation: savedMem.occupation || formData.occupation,
         address: savedMem.address || formData.address,
         photo: savedMem.photo || photo || '',
-        status: savedMem.status || 'accepted',
+        status: savedMem.status || 'pending',
         role: savedMem.role || 'Member',
         dues: savedMem.dues ?? 0
       };

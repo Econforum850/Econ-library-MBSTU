@@ -50,6 +50,16 @@ export default function Cart() {
       navigate('/login?redirect=cart');
       return;
     }
+    if (currentUser.role !== 'Admin') {
+      if (currentUser.status === 'pending') {
+        alert('আপনার অ্যাকাউন্ট বর্তমানে পেন্ডিং রয়েছে। এডমিন এটি সক্রিয় করার আগে আপনি অর্ডার সম্পন্ন করতে পারবেন না।');
+        return;
+      }
+      if (currentUser.status === 'rejected') {
+        alert('দুঃখিত, আপনার অ্যাকাউন্ট বাতিল (Rejected) করা হয়েছে। আপনি অর্ডার বা বই কিনতে পারবেন না।');
+        return;
+      }
+    }
     setCheckoutStep('shipping');
   };
 
