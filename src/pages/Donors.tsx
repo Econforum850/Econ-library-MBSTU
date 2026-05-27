@@ -1,7 +1,7 @@
 import { User, Crown, Heart, Loader2, Search, Image, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
-import { fetchDonorsFromSheet, SheetDonor } from '@/src/lib/googleSheets';
+import { db } from '@/src/lib/supabaseDatabase';
 
 const initialDonors = [
   { name: 'প্রফেসর ড. সৈয়দ কামরুল আহসান টিটু', title: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়', location: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়' },
@@ -38,22 +38,21 @@ export default function Donors() {
     }
 
     const loadDonors = async () => {
-      const sheetUrl = import.meta.env.VITE_GOOGLE_SHEET_DONORS_URL || localStorage.getItem('sheet_donors');
-      if (!sheetUrl) return;
-
       try {
         setLoading(true);
-        const fetched = await fetchDonorsFromSheet(sheetUrl);
+        const fetched = await db.getDonors();
         if (fetched.length > 0) {
-          // Convert SheetDonor to UI format
-          setDonors(fetched.map(d => ({
+          setDonors(fetched.map((d: any) => ({
             name: d.name,
             title: d.type,
-            location: d.impact || d.lastDonationDate
+            location: d.impact || d.lastDonationDate || d.description || ''
           })));
+        } else {
+          setDonors(initialDonors);
         }
       } catch (err) {
         console.error('Donors fetch error:', err);
+        setDonors(initialDonors);
       } finally {
         setLoading(false);
       }

@@ -4,17 +4,15 @@ import {
   MoreVertical, Plus, Edit2, 
   Trash2, QrCode, ArrowUpRight,
   Bookmark, CheckCircle2, XCircle,
-  Image as ImageIcon, X, Loader2, AlertTriangle,
+  ImageIcon, X, Loader2, AlertTriangle,
   RefreshCw, FileText, Download, Eye, LayoutGrid, List as ListIcon,
   Package, DollarSign, HardDrive, Inbox
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchBooksFromSheet, SheetBook, submitToGoogleScript } from '@/src/lib/googleSheets';
+import { db, SupabaseBook } from '@/src/lib/supabaseDatabase';
 
-interface ExtendedBook extends SheetBook {
-  isEBook?: boolean;
-}
+interface ExtendedBook extends SupabaseBook {}
 
 export default function AdminInventory() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,6 +23,7 @@ export default function AdminInventory() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [submitting, setSubmitting] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [customScriptUrl, setCustomScriptUrl] = useState(localStorage.getItem('script_url') || 'https://script.google.com/macros/s/AKfycbyt-HKZBQZ3WWQ5tJ-S5GmVY-wyi2OPRNPHyXFGjMuux5SrhN1ywTX_SlR8yocdC3Z-jQ/exec');
 
   const [newBook, setNewBook] = useState({
@@ -41,31 +40,12 @@ export default function AdminInventory() {
   });
 
   const loadBooks = async () => {
-    const libraryUrl = import.meta.env.VITE_GOOGLE_SHEET_URL || localStorage.getItem('custom_sheet_url');
-    const shopUrl = import.meta.env.VITE_GOOGLE_SHEET_SHOP_URL || localStorage.getItem('sheet_shop');
-    
     try {
       setLoading(true);
-      let allBooks: ExtendedBook[] = [];
-
-      if (libraryUrl) {
-        const libBooks = await fetchBooksFromSheet(libraryUrl);
-        allBooks = [...allBooks, ...libBooks];
-      }
-      if (shopUrl) {
-        const shopBooks = await fetchBooksFromSheet(shopUrl);
-        // Only add if not already in allBooks to avoid duplicates
-        const existingIds = new Set(allBooks.map(b => b.id));
-        allBooks = [...allBooks, ...shopBooks.filter(b => !existingIds.has(b.id))];
-      }
-
-      if (allBooks.length > 0) {
-        setBooks(allBooks.map(b => ({
-          ...b,
-          isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || !!b.ebookUrl
-        })));
-        setIsUsingSheet(true);
-      }
+      const allBooks = await db.getBooks();
+      setBooks(allBooks);
+      const isLive = await db.isSupabaseConnected();
+      setIsUsingSheet(isLive);
     } catch (err) {
       console.error('Inventory fetch error:', err);
     } finally {
@@ -77,51 +57,93 @@ export default function AdminInventory() {
     loadBooks();
   }, []);
 
-  const handleAddBook = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || customScriptUrl;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    if (!scriptUrl) {
-      alert('সতর্কতা: গুগল স্ক্রিপ্ট ইউআরএল কনফিগার করা নেই। সেটিংস থেকে ইউআরএল যোগ করুন।');
-      setShowConfig(true);
+    if (file.size > 1 * 1024 * 1024) {
+      alert('সতর্কতা: ফাইলের সাইজ ১ মেগাবাইটের (1MB) কম হতে হবে!');
       return;
     }
 
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewBook(prev => ({ ...prev, cover: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleEditClick = (book: ExtendedBook) => {
+    setEditingBookId(book.id);
+    setNewBook({
+      title: book.title || '',
+      author: book.author || '',
+      category: book.category || 'সাধারণ',
+      stock: book.stock || 1,
+      price: book.price || '',
+      cover: book.cover || '',
+      isEBook: !!book.isEBook,
+      ebookUrl: book.ebookUrl || '',
+      bookId: book.bookId || '',
+      shelfNo: book.shelfNo || 'N/A'
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteBook = async (bookId: string, bookTitle: string) => {
+    if (!window.confirm(`আপনি কি নিশ্চিত যে "${bookTitle}" ক্যাটালগ থেকে মুছে ফেলতে চান?`)) {
+      return;
+    }
+    setLoading(true);
+    try {
+      await db.deleteBook(bookId);
+      alert('বইটি সফলভাবে মুছে ফেলা হয়েছে!');
+      loadBooks();
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      alert('বইটি মুছতে কোনো সমস্যা হয়েছে:\n' + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveBook = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       setSubmitting(true);
-      
-      // Save custom script URL if changed
-      if (customScriptUrl) {
-        localStorage.setItem('script_url', customScriptUrl);
-      }
+      const bookData: any = {
+        title: newBook.title,
+        author: newBook.author,
+        category: newBook.category,
+        stock: newBook.stock,
+        price: newBook.price || '৳০',
+        cover: newBook.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
+        isEBook: newBook.isEBook,
+        ebookUrl: newBook.isEBook ? newBook.ebookUrl : '',
+        bookId: newBook.bookId || `ID-${Math.floor(Math.random() * 1000)}`,
+        shelfNo: newBook.shelfNo || 'N/A',
+        status: 'available'
+      };
 
-      const res = await submitToGoogleScript(scriptUrl, {
-        ...newBook,
-        type: 'add_book',
-        sheetName: 'বই বাজার (Shop)',
-        timestamp: new Date().toISOString()
-      });
-
-      if (res.success) {
-        alert('বইটি সফলভাবে "বই বাজার (Shop)" তালিকায় যুক্ত করা হয়েছে! গুগল শিটে সেটি রিফ্রেশ হতে ২-৩ মিনিট সময় নিতে পারে।');
-        setIsModalOpen(false);
-        // Local update for instant feedback
-        const localBook: ExtendedBook = {
-           id: `ID-${Date.now()}`,
-           ...newBook,
-           status: 'available'
-        };
-        setBooks([localBook, ...books]);
-        setNewBook({
-          title: '', author: '', category: 'সাধারণ', stock: 1, price: '',
-          cover: '', isEBook: false, ebookUrl: '', bookId: '', shelfNo: 'N/A'
-        });
+      if (editingBookId) {
+        bookData.id = editingBookId;
+        await db.saveBook(bookData);
+        alert('বইটি ক্যাটালগে সফলভাবে আপডেট করা হয়েছে!');
       } else {
-        alert('ত্রুটি: গুগল শিটে ডেটা পাঠানো সম্ভব হয়নি। অ্যাপস স্ক্রিপ্টটি চেক করুন।');
+        await db.saveBook(bookData);
+        alert('বইটি ক্যাটালগে সফলভাবে যুক্ত করা হয়েছে!');
       }
-    } catch (err) {
-      console.error('Add book error:', err);
-      alert('একটি সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+
+      setIsModalOpen(false);
+      setEditingBookId(null);
+      setNewBook({
+        title: '', author: '', category: 'সাধারণ', stock: 1, price: '',
+        cover: '', isEBook: false, ebookUrl: '', bookId: '', shelfNo: 'N/A'
+      });
+      loadBooks();
+    } catch (err: any) {
+      console.error('Save book error:', err);
+      alert('বইটি সংরক্ষণ করতে সমস্যা হয়েছে:\n' + (err.message || err));
     } finally {
       setSubmitting(false);
     }
@@ -180,33 +202,165 @@ export default function AdminInventory() {
             onClick={() => setShowConfig(!showConfig)}
             className="w-full py-5 bg-slate-800 text-slate-300 rounded-3xl font-black flex items-center justify-center space-x-3 hover:bg-slate-700 transition-all active:scale-95 z-10"
           >
-            <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
-            <span>কনফিগারেশন সেটিংস</span>
+            <HardDrive className="w-5 h-5 text-indigo-400" />
+            <span>সুপাবেজ ডাটাবেজ সেটআপ</span>
           </button>
 
           {showConfig && (
             <motion.div 
                initial={{ height: 0, opacity: 0 }}
                animate={{ height: 'auto', opacity: 1 }}
-               className="bg-slate-800 p-6 rounded-3xl space-y-4 border border-slate-700"
+               className="bg-slate-800 p-6 rounded-3xl space-y-4 border border-slate-700 text-left"
             >
-               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Apps Script URL</label>
-               <input 
-                  type="text"
-                  value={customScriptUrl}
-                  onChange={(e) => setCustomScriptUrl(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl text-xs text-white font-mono"
-                  placeholder="https://script.google.com/..."
-               />
+               <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider mb-2">সুপাবেজ টেবিল স্কিমা (PostgreSQL)</h4>
+               <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+                 আপনার Supabase Dashboard থেকে **SQL Editor** এ গিয়ে নিচের সম্পূর্ণ কোডটি পেস্ট করে **Run** বাটন প্রেস করুন:
+               </p>
+               <pre className="w-full bg-slate-950 p-4 rounded-xl text-[10px] text-emerald-400 font-mono overflow-x-auto border border-slate-900 select-all max-h-48 overflow-y-auto">
+{`-- 1. Books Table
+CREATE TABLE IF NOT EXISTS books (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  title text NOT NULL,
+  author text,
+  category text,
+  price text DEFAULT '৳০',
+  cover text,
+  "isEBook" boolean DEFAULT false,
+  "ebookUrl" text,
+  "bookId" text,
+  "shelfNo" text DEFAULT 'N/A',
+  status text DEFAULT 'available',
+  stock integer DEFAULT 1,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. Members Table
+CREATE TABLE IF NOT EXISTS members (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  email text,
+  phone text NOT NULL,
+  role text DEFAULT 'Member',
+  join_date text,
+  status text DEFAULT 'pending',
+  dues numeric DEFAULT 0,
+  photo text,
+  address text,
+  occupation text,
+  password text DEFAULT 'password123',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. Donors Table
+CREATE TABLE IF NOT EXISTS donors (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  name text NOT NULL,
+  type text DEFAULT 'Individual',
+  total_donation text DEFAULT '৳০',
+  last_donation_date text,
+  impact text,
+  description text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4. Issues Table
+CREATE TABLE IF NOT EXISTS issues (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  book_title text NOT NULL,
+  member_name text NOT NULL,
+  issue_date text,
+  due_date text,
+  status text DEFAULT 'Active',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. Finances Table
+CREATE TABLE IF NOT EXISTS finances (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  type text NOT NULL,
+  category text,
+  amount numeric DEFAULT 0,
+  date text,
+  status text DEFAULT 'Completed',
+  note text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);`}
+               </pre>
                <button 
                   onClick={() => {
-                    localStorage.setItem('script_url', customScriptUrl);
-                    alert('সেটিংস সেভ করা হয়েছে!');
-                    setShowConfig(false);
+                    navigator.clipboard.writeText(`-- 1. Books Table
+CREATE TABLE IF NOT EXISTS books (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  title text NOT NULL,
+  author text,
+  category text,
+  price text DEFAULT '৳০',
+  cover text,
+  "isEBook" boolean DEFAULT false,
+  "ebookUrl" text,
+  "bookId" text,
+  "shelfNo" text DEFAULT 'N/A',
+  status text DEFAULT 'available',
+  stock integer DEFAULT 1,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. Members Table
+CREATE TABLE IF NOT EXISTS members (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  email text,
+  phone text NOT NULL,
+  role text DEFAULT 'Member',
+  join_date text,
+  status text DEFAULT 'pending',
+  dues numeric DEFAULT 0,
+  photo text,
+  address text,
+  occupation text,
+  password text DEFAULT 'password123',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. Donors Table
+CREATE TABLE IF NOT EXISTS donors (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  name text NOT NULL,
+  type text DEFAULT 'Individual',
+  total_donation text DEFAULT '৳০',
+  last_donation_date text,
+  impact text,
+  description text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4. Issues Table
+CREATE TABLE IF NOT EXISTS issues (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  book_title text NOT NULL,
+  member_name text NOT NULL,
+  issue_date text,
+  due_date text,
+  status text DEFAULT 'Active',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. Finances Table
+CREATE TABLE IF NOT EXISTS finances (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  type text NOT NULL,
+  category text,
+  amount numeric DEFAULT 0,
+  date text,
+  status text DEFAULT 'Completed',
+  note text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);`);
+                    alert('SQL সফলভাবে ক্লিপবোর্ডে কপি করা হয়েছে!');
                   }}
-                  className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-black"
+                  className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-black hover:bg-indigo-700 transition-all active:scale-95"
                >
-                  আপডেট করুন
+                  কোড কপি করুন
                </button>
             </motion.div>
           )}
@@ -218,6 +372,46 @@ export default function AdminInventory() {
             <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
             <span>ডেটা সিঙ্ক করুন</span>
           </button>
+
+          {isUsingSheet && books.length > 0 && (
+            <button 
+              type="button"
+              onClick={async () => {
+                if (!window.confirm('আপনি কি গুগল শিটের সকল বই সুপাবেজে ডেটাবেজে এক্সপোর্ট করতে চান?')) return;
+                setLoading(true);
+                try {
+                  const booksToInsert = books.map(b => ({
+                    title: b.title,
+                    author: b.author,
+                    category: b.category,
+                    cover: b.cover || '',
+                    bookId: b.bookId || `ID-${Math.floor(Math.random() * 1050)}`,
+                    shelfNo: b.shelfNo || 'N/A',
+                    status: 'available' as 'available' | 'pre-order',
+                    price: b.price || '৳০',
+                    stock: b.stock || 1,
+                    isEBook: !!b.isEBook,
+                    ebookUrl: b.ebookUrl || ''
+                  }));
+
+                  for (const book of booksToInsert) {
+                    await db.saveBook(book);
+                  }
+                  alert('সকল বই সফলভাবে সুপাবেজে এক্সপোর্ট করা হয়েছে!');
+                  loadBooks();
+                } catch (e: any) {
+                  console.error(e);
+                  alert('এক্সপোর্ট করতে সমস্যা হয়েছে: ' + (e.message || e));
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="w-full py-5 bg-emerald-600 text-white rounded-3xl font-black flex items-center justify-center space-x-3 hover:bg-emerald-700 transition-all active:scale-95 z-10 animate-pulse"
+            >
+              <ArrowUpRight className="w-5 h-5" />
+              <span>শিটের বইসমূহ সুপাবেজে সেভ করুন</span>
+            </button>
+          )}
         </motion.div>
       </div>
 
@@ -313,10 +507,18 @@ export default function AdminInventory() {
                     
                     <div className="mt-auto flex items-center justify-between pt-6 border-t border-slate-50">
                        <div className="flex gap-2">
-                          <button className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all">
+                          <button 
+                            type="button"
+                            onClick={() => handleEditClick(book)}
+                            className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all"
+                          >
                              <Edit2 className="w-4 h-4" />
                           </button>
-                          <button className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all">
+                          <button 
+                            type="button"
+                            onClick={() => handleDeleteBook(book.id, book.title)}
+                            className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all"
+                          >
                              <Trash2 className="w-4 h-4" />
                           </button>
                        </div>
@@ -386,9 +588,20 @@ export default function AdminInventory() {
                            </td>
                            <td className="px-8 py-6 text-right">
                               <div className="flex justify-end gap-2">
-                                 <button className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all shadow-sm"><Edit2 className="w-4 h-4" /></button>
-                                 <button className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm"><Trash2 className="w-4 h-4" /></button>
-                                 <button className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100"><MoreVertical className="w-4 h-4" /></button>
+                                 <button 
+                                   type="button"
+                                   onClick={() => handleEditClick(book)}
+                                   className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all shadow-sm"
+                                 >
+                                   <Edit2 className="w-4 h-4" />
+                                 </button>
+                                 <button 
+                                   type="button"
+                                   onClick={() => handleDeleteBook(book.id, book.title)}
+                                   className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm"
+                                 >
+                                   <Trash2 className="w-4 h-4" />
+                                 </button>
                               </div>
                            </td>
                         </tr>
@@ -422,7 +635,7 @@ export default function AdminInventory() {
                   <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-600">
                     <Plus className="w-6 h-6" />
                   </div>
-                  নতুন বই যোগ করুন
+                  {editingBookId ? 'বইয়ের তথ্য আপডেট করুন' : 'নতুন বই যোগ করুন'}
                 </h3>
                 <button 
                   onClick={() => setIsModalOpen(false)}
@@ -432,7 +645,7 @@ export default function AdminInventory() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddBook} className="space-y-8">
+              <form onSubmit={handleSaveBook} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-3">
                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">বইয়ের নাম</label>
@@ -507,18 +720,38 @@ export default function AdminInventory() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">কভার ইমেজ (URL / Drive Link)</label>
-                  <div className="relative">
-                    <div className="absolute left-6 top-1/2 -translate-y-1/2 p-2 bg-slate-200 text-slate-500 rounded-lg">
-                      <ImageIcon className="w-5 h-5" />
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">কভার ইমেজ (লিংক অথবা আপলোড করুন - ১ মেগাবাইটের কম)</label>
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 p-2 bg-slate-200 text-slate-500 rounded-lg">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                      <input 
+                        type="url" 
+                        placeholder="কভার ইমেজ লিংক (যেমন: https://...)"
+                        value={newBook.cover.startsWith('data:') ? '' : newBook.cover}
+                        onChange={(e) => setNewBook({...newBook, cover: e.target.value})}
+                        className="w-full pl-16 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm"
+                      />
                     </div>
-                    <input 
-                      type="url" 
-                      placeholder="https://..."
-                      value={newBook.cover}
-                      onChange={(e) => setNewBook({...newBook, cover: e.target.value})}
-                      className="w-full pl-16 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm"
-                    />
+                    <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                      <span className="text-xs font-bold text-slate-500">অথবা ডিভাইস থেকে আপলোড করুন</span>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer"
+                      />
+                    </div>
+                    {newBook.cover && (
+                      <div className="flex items-center gap-4 p-3 bg-indigo-50/30 rounded-2xl border border-indigo-100">
+                        <img src={newBook.cover} alt="Preview" className="w-12 h-16 object-cover rounded-md shadow-sm" referrerPolicy="no-referrer" />
+                        <div className="flex-1">
+                          <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block">কভার ইমেজ প্রিভিউ</span>
+                          <button type="button" onClick={() => setNewBook({...newBook, cover: ''})} className="text-xs text-rose-500 font-bold hover:underline">কভার রিমুভ করুন</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -578,7 +811,7 @@ export default function AdminInventory() {
                     className="flex-[2] py-6 bg-indigo-600 text-white rounded-[32px] font-black flex items-center justify-center gap-3 shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all active:scale-95 disabled:opacity-50"
                   >
                     {submitting ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
-                    <span>{submitting ? 'সংরক্ষণ করা হচ্ছে...' : 'ক্যাটালগে যুক্ত করুন'}</span>
+                    <span>{submitting ? 'সংরক্ষণ করা হচ্ছে...' : (editingBookId ? 'তথ্য আপডেট করুন' : 'ক্যাটালগে যুক্ত করুন')}</span>
                   </button>
                 </div>
               </form>

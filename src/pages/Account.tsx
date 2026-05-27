@@ -2,7 +2,7 @@ import { TrendingUp, TrendingDown, Wallet, User as UserIcon, Phone, MapPin, AtSi
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SheetMember, SheetIssue, fetchIssuesForMember } from '@/src/lib/googleSheets';
+import { db, SupabaseMember as SheetMember, SupabaseIssue as SheetIssue } from '@/src/lib/supabaseDatabase';
 import { cn } from '@/src/lib/utils';
 
 export default function Account() {
@@ -23,13 +23,18 @@ export default function Account() {
     setUser(parsedUser);
 
     const loadData = async () => {
-      const issuesUrl = import.meta.env.VITE_GOOGLE_SHEET_ISSUES_URL || localStorage.getItem('sheet_issues');
-      if (issuesUrl) {
-        // We match by name or ID (whoever is logged in)
-        const userIssues = await fetchIssuesForMember(issuesUrl, parsedUser.name);
+      try {
+        const queryIssues = await db.getIssues();
+        const userIssues = queryIssues.filter(i => 
+          i.memberName.toLowerCase().includes(parsedUser.name.toLowerCase()) ||
+          (parsedUser.id && i.memberName.toLowerCase().includes(String(parsedUser.id).toLowerCase()))
+        );
         setIssues(userIssues);
+      } catch (err) {
+        console.error('Failed to load user issues:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     loadData();

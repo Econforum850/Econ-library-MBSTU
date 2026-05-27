@@ -9,7 +9,7 @@ import { cn } from '@/src/lib/utils';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchBooksFromSheet, fetchMembersFromSheet, fetchIssuesFromSheet, fetchDonorsFromSheet, fetchFinancesFromSheet } from '@/src/lib/googleSheets';
+import { db } from '@/src/lib/supabaseDatabase';
 
 const data = [
   { name: 'Jan', income: 4000, expense: 2400 },
@@ -31,42 +31,29 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadStats = async () => {
-      const inventoryUrl = import.meta.env.VITE_GOOGLE_SHEET_URL || localStorage.getItem('sheet_inventory');
-      const membersUrl = import.meta.env.VITE_GOOGLE_SHEET_MEMBERS_URL || localStorage.getItem('sheet_members');
-      const issuesUrl = import.meta.env.VITE_GOOGLE_SHEET_ISSUES_URL || localStorage.getItem('sheet_issues');
-      const donorsUrl = import.meta.env.VITE_GOOGLE_SHEET_DONORS_URL || localStorage.getItem('sheet_donors');
-      const shopUrl = import.meta.env.VITE_GOOGLE_SHEET_SHOP_URL || localStorage.getItem('sheet_shop');
-      const financesUrl = localStorage.getItem('sheet_finances');
-
       setIsLoading(true);
       try {
-        if (inventoryUrl) {
-          const books = await fetchBooksFromSheet(inventoryUrl);
-          setBookCount(books.length);
-        }
-        if (membersUrl) {
-          const members = await fetchMembersFromSheet(membersUrl);
-          const acceptedCount = members.filter(m => String(m.status || '').toLowerCase() === 'accepted').length;
-          setMemberCount(acceptedCount);
-        }
-        if (issuesUrl) {
-          const issues = await fetchIssuesFromSheet(issuesUrl);
-          setIssueCount(issues.filter(i => i.status === 'Active').length);
-        }
-        if (donorsUrl) {
-          const donors = await fetchDonorsFromSheet(donorsUrl);
-          setDonorCount(donors.length);
-        }
-        if (shopUrl) {
-          const shopBooks = await fetchBooksFromSheet(shopUrl);
-          setShopCount(shopBooks.length);
-        }
-        if (financesUrl) {
-          const txs = await fetchFinancesFromSheet(financesUrl);
-          const inc = txs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-          const exp = txs.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-          setBalance(inc - exp);
-        }
+        const books = await db.getBooks();
+        setBookCount(books.length);
+
+        const members = await db.getMembers();
+        const acceptedCount = members.filter(m => String(m.status || '').toLowerCase() === 'accepted').length;
+        setMemberCount(acceptedCount);
+
+        const issues = await db.getIssues();
+        setIssueCount(issues.filter(i => i.status === 'Active').length);
+
+        const donors = await db.getDonors();
+        setDonorCount(donors.length);
+
+        // Filter books categorized in shop or keep a dynamic shopCount
+        const shopBooks = books.filter(b => b.price && b.price !== '৳০');
+        setShopCount(shopBooks.length);
+
+        const txs = await db.getTransactions();
+        const inc = txs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const exp = txs.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        setBalance(inc - exp);
       } catch (err) {
         console.error('Failed to load dashboard stats:', err);
       } finally {

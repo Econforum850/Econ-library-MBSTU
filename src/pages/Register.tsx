@@ -1,18 +1,22 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Link } from 'react-router-dom';
-import { User, Phone, MapPin, AtSign, Lock, ShieldCheck, CreditCard, Library, ArrowRight, Camera, CheckCircle2, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { User, Phone, MapPin, AtSign, Lock, ShieldCheck, CreditCard, Library, ArrowRight, Camera, CheckCircle2, Loader2, Mail, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/src/lib/utils';
-import { submitToGoogleScript } from '@/src/lib/googleSheets';
+import { supabase } from '@/src/supabaseClient';
+import { db } from '@/src/lib/supabaseDatabase';
 
 export default function Register() {
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'library'>('online');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    email: '',
     occupation: '',
     password: '',
     address: '',
@@ -22,31 +26,69 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const scriptUrl = localStorage.getItem('registration_script_url') || 'https://script.google.com/macros/s/AKfycbx8JvVk5nvS7XO6jXPwHb9BhCbaNUBgTxycqI1NguV_LoixqY4xYfVbZF6hTvpbo4Dfug/exec';
-    
+    setError(null);
     setIsSubmitting(true);
     
     try {
-      const result = await submitToGoogleScript(scriptUrl, {
-        ...formData,
-        paymentMethod,
-        photo: photo ? "Photo Attached" : "No Photo",
-        timestamp: new Date().toISOString(),
-        type: 'registration',
-        role: 'Member',
-        status: 'pending',
-        joinDate: new Date().toLocaleDateString('bn-BD'),
-        id: formData.phone // Initial ID as phone number
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: formData.email.trim(),
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            phone: formData.phone,
+            occupation: formData.occupation,
+            address: formData.address,
+            paymentMethod,
+            senderNumber: formData.senderNumber,
+            trxId: formData.trxId,
+            photo: photo || '',
+            role: 'Member',
+            status: 'accepted'
+          }
+        }
       });
-      
-      if (result.success) {
-        setIsSubmitted(true);
-      } else {
-        throw new Error(result.message);
+
+      if (authError) {
+        throw authError;
       }
-    } catch (err) {
+
+      if (data?.user) {
+        // Save profile to central database table
+        await db.saveMember({
+          id: data.user.id,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          role: 'Member',
+          joinDate: new Date().toLocaleDateString('bn-BD'),
+          status: 'accepted',
+          dues: 0,
+          photo: photo || '',
+          address: formData.address,
+          occupation: formData.occupation,
+          password: formData.password
+        }).catch(err => {
+          console.warn('Profile write to DB deferred/failed:', err);
+        });
+
+        const loggedInUserObj = {
+          id: data.user.id,
+          email: data.user.email || '',
+          name: data.user.user_metadata?.name || '',
+          phone: data.user.user_metadata?.phone || '',
+          occupation: data.user.user_metadata?.occupation || '',
+          address: data.user.user_metadata?.address || '',
+          photo: data.user.user_metadata?.photo || '',
+          status: data.user.user_metadata?.status || 'accepted',
+          role: data.user.user_metadata?.role || 'Member'
+        };
+        localStorage.setItem('loggedInUser', JSON.stringify(loggedInUserObj));
+        navigate('/');
+      }
+    } catch (err: any) {
       console.error(err);
-      alert('নিবন্ধন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      setError(err.message || 'নিবন্ধন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
     } finally {
       setIsSubmitting(false);
     }
@@ -137,6 +179,20 @@ export default function Register() {
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                     placeholder="উদা: আরমান আলী" 
+                    className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-[28px] focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all font-bold" 
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-4">ইমেইল এড্রেস (Email Address)</label>
+                <div className="relative group">
+                  <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                  <input 
+                    required 
+                    type="email" 
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    placeholder="উদা: arman@example.com" 
                     className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-[28px] focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all font-bold" 
                   />
                 </div>
@@ -254,6 +310,13 @@ export default function Register() {
                  )}
                </AnimatePresence>
           </div>
+
+          {error && (
+            <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center space-x-3 text-rose-600 text-sm font-bold animate-shake">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <button 
             type="submit" 

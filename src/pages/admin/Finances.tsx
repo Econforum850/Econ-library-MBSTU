@@ -6,7 +6,7 @@ import {
 import { cn } from '@/src/lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useState, useEffect } from 'react';
-import { fetchFinancesFromSheet, SheetTransaction } from '@/src/lib/googleSheets';
+import { db, SupabaseTransaction as SheetTransaction } from '@/src/lib/supabaseDatabase';
 
 export default function AdminFinances() {
   const [transactions, setTransactions] = useState<SheetTransaction[]>([]);
@@ -15,12 +15,9 @@ export default function AdminFinances() {
 
   useEffect(() => {
     const loadFinances = async () => {
-      const sheetUrl = localStorage.getItem('sheet_finances');
-      if (!sheetUrl) return;
-
       try {
         setLoading(true);
-        const fetched = await fetchFinancesFromSheet(sheetUrl);
+        const fetched = await db.getTransactions();
         setTransactions(fetched);
         
         const inc = fetched.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);

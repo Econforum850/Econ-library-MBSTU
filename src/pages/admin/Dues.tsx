@@ -5,33 +5,30 @@ import {
   FileText, ArrowDownRight, User
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
-import { fetchMembersFromSheet, SheetMember } from '@/src/lib/googleSheets';
+import { db, SupabaseMember as SheetMember } from '@/src/lib/supabaseDatabase';
 
 export default function AdminDues() {
   const [searchTerm, setSearchTerm] = useState('');
   const [members, setMembers] = useState<SheetMember[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const loadMembers = async () => {
+    try {
+      setLoading(true);
+      const fetched = await db.getMembers();
+      // Filter those who have dues
+      setMembers(fetched.filter(m => {
+        const dueVal = String(m.dues || '0').replace(/[^0-9]/g, '');
+        return dueVal !== '0' && dueVal !== '';
+      }));
+    } catch (err) {
+      console.error('Dues fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadMembers = async () => {
-      const sheetUrl = import.meta.env.VITE_GOOGLE_SHEET_MEMBERS_URL || localStorage.getItem('sheet_members');
-      if (!sheetUrl) return;
-
-      try {
-        setLoading(true);
-        const fetched = await fetchMembersFromSheet(sheetUrl);
-        // Filter those who have dues
-        setMembers(fetched.filter(m => {
-          const dueVal = String(m.dues || '0').replace(/[^0-9]/g, '');
-          return dueVal !== '0' && dueVal !== '';
-        }));
-      } catch (err) {
-        console.error('Dues fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadMembers();
   }, []);
 

@@ -6,11 +6,11 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/src/lib/utils';
-import { fetchDonorsFromSheet, SheetDonor } from '@/src/lib/googleSheets';
+import { db, SupabaseDonor as SheetDonor } from '@/src/lib/supabaseDatabase';
 
 const initialDonors: SheetDonor[] = [
-  { id: 'D-001', name: 'প্রফেসর ড. সৈয়দ কামরুল আহসান টিটু', type: 'Individual', totalDonation: '৳৫০০০', lastDonationDate: '10 May 2024', impact: 'বুক শেলফ', description: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়' },
-  { id: 'D-002', name: 'পানধোয়া গ্রীন সিটি লিমিটেড', type: 'Organization', totalDonation: '৳২৫০০০', lastDonationDate: '01 May 2024', impact: 'রিনোভেশন', description: 'কর্পোরেট অনুদান' },
+  { id: '1', name: 'প্রফেসর ড. সৈয়দ কামরুল আহসান টিটু', type: 'Individual', totalDonation: '৳৫০০০', lastDonationDate: '10 May 2024', impact: 'বুক শেলফ', description: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়' },
+  { id: '2', name: 'পানধোয়া গ্রীন সিটি লিমিটেড', type: 'Organization', totalDonation: '৳২৫০০০', lastDonationDate: '01 May 2024', impact: 'রিনোভেশন', description: 'কর্পোরেট অনুদান' },
 ];
 
 export default function AdminDonors() {
@@ -20,20 +20,12 @@ export default function AdminDonors() {
   const [isUsingSheet, setIsUsingSheet] = useState(false);
 
   const loadDonors = async () => {
-    const sheetUrl = import.meta.env.VITE_GOOGLE_SHEET_DONORS_URL || localStorage.getItem('sheet_donors');
-    if (!sheetUrl) {
-      setDonors(initialDonors);
-      setIsUsingSheet(false);
-      return;
-    }
-
     try {
       setLoading(true);
-      const fetched = await fetchDonorsFromSheet(sheetUrl);
-      if (fetched.length > 0) {
-        setDonors(fetched);
-        setIsUsingSheet(true);
-      }
+      const fetched = await db.getDonors();
+      setDonors(fetched);
+      const isLive = await db.isSupabaseConnected();
+      setIsUsingSheet(isLive);
     } catch (err) {
       console.error('Donors fetch error:', err);
     } finally {

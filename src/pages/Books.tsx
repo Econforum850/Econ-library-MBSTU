@@ -4,9 +4,19 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/src/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../lib/cart';
-import { fetchBooksFromSheet, SheetBook, submitToGoogleScript } from '../lib/googleSheets';
+import { db } from '@/src/lib/supabaseDatabase';
 
-interface Book extends SheetBook {
+interface Book {
+  id: string;
+  title: string;
+  author: string;
+  category: string;
+  cover: string;
+  bookId: string;
+  shelfNo: string;
+  status: 'available' | 'pre-order';
+  price?: string;
+  stock?: number;
   isEBook?: boolean;
   ebookUrl?: string;
 }
@@ -68,52 +78,35 @@ export default function Books() {
     ebookUrl: ''
   });
 
+  const loadAllBooks = async () => {
+    try {
+      setLoading(true);
+      const allBooks = await db.getBooks();
+
+      // De-duplicate by ID if necessary and mark eBooks based on category or price
+      const processedBooks = allBooks.map(b => ({
+        ...b,
+        isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || b.price === 'Free' || b.isEBook
+      }));
+
+      setBooks(processedBooks);
+    } catch (err) {
+      console.error('Failed to fetch books:', err);
+      setError('বইয়ের তালিকা লোড করতে সমস্যা হয়েছে।');
+      setBooks(LOCAL_CATEGORIES.flatMap(cat => cat.books) as Book[]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadAllBooks = async () => {
-      const libraryUrl = import.meta.env.VITE_GOOGLE_SHEET_URL || localStorage.getItem('custom_sheet_url');
-      const shopUrl = import.meta.env.VITE_GOOGLE_SHEET_SHOP_URL || localStorage.getItem('sheet_shop');
-      
-      try {
-        setLoading(true);
-        let allBooks: Book[] = [];
-
-        if (libraryUrl) {
-          const libraryBooks = await fetchBooksFromSheet(libraryUrl);
-          allBooks = [...allBooks, ...libraryBooks];
-        }
-
-        if (shopUrl) {
-          const shopBooks = await fetchBooksFromSheet(shopUrl);
-          allBooks = [...allBooks, ...shopBooks];
-        }
-
-        if (allBooks.length === 0) {
-          allBooks = LOCAL_CATEGORIES.flatMap(cat => cat.books) as Book[];
-        }
-
-        // De-duplicate by ID if necessary and mark eBooks based on category or price
-        const processedBooks = allBooks.map(b => ({
-          ...b,
-          isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || b.price === 'Free'
-        }));
-
-        setBooks(processedBooks);
-      } catch (err) {
-        console.error('Failed to fetch books:', err);
-        setError('বইয়ের তালিকা লোড করতে সমস্যা হয়েছে।');
-        setBooks(LOCAL_CATEGORIES.flatMap(cat => cat.books) as Book[]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadAllBooks();
   }, []);
 
   const filteredBooks = useMemo(() => {
     let result = books.filter(book => 
-      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.author || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (book.category || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -164,38 +157,60 @@ export default function Books() {
     setIsAdded(true);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1 * 1024 * 1024) {
+      alert('সতর্কতা: ফাইলের সাইজ ১ মেগাবাইটের (1MB) কম হতে হবে!');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewBook(prev => ({ ...prev, cover: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
-    
-    if (scriptUrl) {
-      const res = await submitToGoogleScript(scriptUrl, {
-        ...newBook,
-        type: 'add_book',
-        sheetName: 'বই বাজার (Shop)',
-        timestamp: new Date().toISOString()
-      });
-      if (res.success) {
-        alert('বইটি সফলভাবে "বই বাজার (Shop)" তালিকায় যুক্ত করার জন্য পাঠানো হয়েছে!');
-        setShowAddModal(false);
-      }
-    } else {
-      // Local addition for demo
-      const bookToAdd: Book = {
-        id: `new-${Date.now()}`,
+    setLoading(true);
+    try {
+      const bookData: any = {
         title: newBook.title,
         author: newBook.author,
         category: newBook.category,
-        cover: newBook.cover || 'https://placehold.co/400x600/eee/999?text=New+Book',
         price: newBook.price || '৳০',
+        cover: newBook.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
+        isEBook: newBook.isEBook,
+        ebookUrl: newBook.ebookUrl || '',
         bookId: `ID-${Math.floor(Math.random() * 1000)}`,
         shelfNo: 'Pending',
-        status: 'pre-order',
-        isEBook: newBook.isEBook
+        status: 'available',
+        stock: 1
       };
-      setBooks([bookToAdd, ...books]);
+
+      await db.saveBook(bookData);
+
+      alert('বইটি সফলভাবে সুপাবেজে যুক্ত করা হয়েছে!');
       setShowAddModal(false);
-      alert('বইটি তালিকায় যুক্ত করা হয়েছে (ডেমো)।');
+      setNewBook({
+        title: '',
+        author: '',
+        category: 'সাধারণ',
+        price: '',
+        cover: '',
+        isEBook: false,
+        description: '',
+        ebookUrl: ''
+      });
+      loadAllBooks();
+    } catch (err: any) {
+      console.error('Failed to add book to Supabase:', err);
+      alert('সুপাবেজে বইটি যুক্ত করতে নিচে উল্লেখিত ত্রুটি হয়েছে:\n' + (err.message || err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -212,6 +227,18 @@ export default function Books() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-20">
+      {isAdmin && (
+        <div className="flex justify-end mb-6">
+          <button 
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center space-x-2 px-6 py-3.5 bg-indigo-600 text-white rounded-[24px] font-black text-xs hover:bg-slate-900 transition-all shadow-md active:scale-95 duration-200"
+          >
+            <Plus className="w-4 h-4" />
+            <span>নতুন বই যুক্ত করুন (Supabase)</span>
+          </button>
+        </div>
+      )}
       {/* Header with modern economics aesthetic */}
       <div className="text-center mb-16 relative">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-indigo-500/5 blur-[100px] -z-10 rounded-full" />
@@ -540,14 +567,35 @@ export default function Books() {
                       onChange={(e) => setNewBook({...newBook, price: e.target.value})}
                     />
                   </div>
-                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">কভার ইমেজ ডিরেক্ট লিংক</label>
-                    <input 
-                      type="url" 
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-600/10 font-bold"
-                      value={newBook.cover}
-                      onChange={(e) => setNewBook({...newBook, cover: e.target.value})}
-                    />
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">কভার ইমেজ (লিংক অথবা আপলোড করুন - ১ মেগাবাইটের কম/1MB Limit)</label>
+                    <div className="space-y-3">
+                      <input 
+                        type="url" 
+                        placeholder="কভার ইমেজ ডিরেক্ট লিংক (যেমন: https://...)"
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-600/10 font-bold text-sm"
+                        value={newBook.cover.startsWith('data:') ? '' : newBook.cover}
+                        onChange={(e) => setNewBook({...newBook, cover: e.target.value})}
+                      />
+                      <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                        <span className="text-xs font-bold text-slate-500">অথবা ডিভাইস থেকে আপলোড করুন</span>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer"
+                        />
+                      </div>
+                      {newBook.cover && (
+                        <div className="flex items-center gap-4 p-3 bg-indigo-50/30 rounded-2xl border border-indigo-100">
+                          <img src={newBook.cover} alt="Preview" className="w-12 h-16 object-cover rounded-md shadow-sm" />
+                          <div className="flex-1">
+                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block">কভার ইমেজ প্রিভিউ</span>
+                            <button type="button" onClick={() => setNewBook({...newBook, cover: ''})} className="text-xs text-rose-500 font-bold hover:underline">কভার রিমুভ করুন</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex items-center space-x-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">

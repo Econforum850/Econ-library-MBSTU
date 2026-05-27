@@ -6,12 +6,12 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/src/lib/utils';
-import { fetchIssuesFromSheet, SheetIssue } from '@/src/lib/googleSheets';
+import { db, SupabaseIssue as SheetIssue } from '@/src/lib/supabaseDatabase';
 
 const initialIssues: SheetIssue[] = [
-  { id: 'I-001', bookTitle: 'আমার বন্ধু রাশেদ', memberName: 'Tanvir Ahmed', issueDate: '10 May 2024', dueDate: '24 May 2024', status: 'Active' },
-  { id: 'I-002', bookTitle: 'চাদের পাহাড়', memberName: 'Alif Khan', issueDate: '01 May 2024', dueDate: '15 May 2024', status: 'Returned' },
-  { id: 'I-003', bookTitle: 'হিমু', memberName: 'Sabbir Hossain', issueDate: '20 April 2024', dueDate: '04 May 2024', status: 'Overdue' },
+  { id: '1', bookTitle: 'আমার বন্ধু রাশেদ', memberName: 'Tanvir Ahmed', issueDate: '10 May 2024', dueDate: '24 May 2024', status: 'Active' },
+  { id: '2', bookTitle: 'চাদের পাহাড়', memberName: 'Alif Khan', issueDate: '01 May 2024', dueDate: '15 May 2024', status: 'Returned' },
+  { id: '3', bookTitle: 'হিমু', memberName: 'Sabbir Hossain', issueDate: '20 April 2024', dueDate: '04 May 2024', status: 'Overdue' },
 ];
 
 export default function AdminIssues() {
@@ -21,20 +21,12 @@ export default function AdminIssues() {
   const [isUsingSheet, setIsUsingSheet] = useState(false);
 
   const loadIssues = async () => {
-    const sheetUrl = import.meta.env.VITE_GOOGLE_SHEET_ISSUES_URL || localStorage.getItem('sheet_issues');
-    if (!sheetUrl) {
-      setIssues(initialIssues);
-      setIsUsingSheet(false);
-      return;
-    }
-
     try {
       setLoading(true);
-      const fetched = await fetchIssuesFromSheet(sheetUrl);
-      if (fetched.length > 0) {
-        setIssues(fetched);
-        setIsUsingSheet(true);
-      }
+      const fetched = await db.getIssues();
+      setIssues(fetched);
+      const isLive = await db.isSupabaseConnected();
+      setIsUsingSheet(isLive);
     } catch (err) {
       console.error('Issues fetch error:', err);
     } finally {

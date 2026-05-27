@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { loginMember, fetchMembersFromSheet } from '@/src/lib/googleSheets';
+import { supabase } from '@/src/supabaseClient';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -16,74 +17,34 @@ export default function Login() {
     setError(null);
     setLoading(true);
 
-    const sheetUrl = import.meta.env.VITE_GOOGLE_SHEET_MEMBERS_URL || localStorage.getItem('sheet_members') || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjbvT42nJIt_6goEZeYH0vzeACzf6tmANoUJeUTFpSBIJzrbQJ7xMZwlTZ5g7KJiPDYR1gdjWVdfNt/pub?output=csv';
-    
-    if (!sheetUrl) {
-      setError('সদস্য তালিকা খুঁজে পাওয়া যায়নি। অ্যাডমিন প্যানেলে গিয়ে Members CSV URL সেট করুন।');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const members = await fetchMembersFromSheet(sheetUrl).catch((err) => {
-        console.error('Fetch members error:', err);
-        return [];
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: identifier.trim(),
+        password: password
       });
-      
-      if (members.length === 0) {
-        setError('শিট থেকে কোনো ডাটা পাওয়া যাচ্ছে না। শিটে ডাটা আছে কিনা বা ইউআরএল সঠিক কিনা নিশ্চিত করুন।');
-        setLoading(false);
-        return;
+
+      if (authError) {
+        throw authError;
       }
 
-      const user = await loginMember(sheetUrl, identifier, password);
-      if (user) {
-        localStorage.setItem('loggedInUser', JSON.stringify(user));
-        navigate('/account');
-      } else {
-        // Find why login failed
-        const id = identifier.trim();
-        const idNormalized = id.replace(/\D/g, '');
-
-        const userFound = members.find(m => {
-           const mId = String(m.id || '').trim();
-           const mName = String(m.name || '').trim().toLowerCase();
-           const mPhone = String(m.phone || '').trim();
-           const mEmail = String(m.email || '').trim().toLowerCase();
-           const mPhoneNormalized = mPhone.replace(/\D/g, '');
-           const idLower = id.toLowerCase();
-           
-           const phoneMatch = mPhoneNormalized !== '' && idNormalized !== '' && (
-             mPhoneNormalized === idNormalized || 
-             mPhoneNormalized.endsWith(idNormalized) || 
-             idNormalized.endsWith(mPhoneNormalized)
-           );
-
-           return mId === id || mName === idLower || mEmail === idLower || phoneMatch;
-        });
-
-        if (userFound) {
-            const mStatus = String(userFound.status || '').toLowerCase();
-            const mPass = String(userFound.password || '').trim();
-            
-            if (mPass !== password) {
-                setError('পাসওয়ার্ডটি সঠিক নয়। অনুগ্রহ করে পুনরায় সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন।');
-            } else if (mStatus !== 'accepted') {
-                if (mStatus === 'pending') {
-                    setError('আপনার সদস্যপদ এখনো পেন্ডিং রয়েছে। এডমিনের অনুমোদনের জন্য অপেক্ষা করুন।');
-                } else if (mStatus === 'rejected') {
-                    setError('আপনার সদস্যপদটি বাতিল করা হয়েছে। বিস্তারিত জানতে এডমিনের সাথে যোগাযোগ করুন।');
-                } else {
-                    setError('আপনার একাউন্টটি এখনো সক্রিয় করা হয়নি।');
-                }
-            }
-        } else {
-            setError('ইউজার আইডি বা ফোন নম্বরটি খুঁজে পাওয়া যায়নি। আপনি কি নিবন্ধন করেছেন?');
-        }
+      if (data?.user) {
+        const loggedInUserObj = {
+          id: data.user.id,
+          email: data.user.email || '',
+          name: data.user.user_metadata?.name || '',
+          phone: data.user.user_metadata?.phone || '',
+          occupation: data.user.user_metadata?.occupation || '',
+          address: data.user.user_metadata?.address || '',
+          photo: data.user.user_metadata?.photo || '',
+          status: data.user.user_metadata?.status || 'accepted',
+          role: data.user.user_metadata?.role || 'Member'
+        };
+        localStorage.setItem('loggedInUser', JSON.stringify(loggedInUserObj));
+        navigate('/');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login error:', err);
-      setError('লগইন ব্যর্থ হয়েছে। আপনার শিট কানেকশন বা ইন্টারনেট চেক করুন।');
+      setError(err.message || 'লগইন ব্যর্থ হয়েছে। অনুগ্রহ করে আপনার ইমেইল এবং পাসওয়ার্ড চেক করুন।');
     } finally {
       setLoading(false);
     }
@@ -103,7 +64,7 @@ export default function Login() {
         </div>
 
         <h1 className="text-3xl font-black text-slate-900 mb-2">স্বাগতম (WELCOME BACK)</h1>
-        <p className="text-slate-400 text-sm mb-12">আপনার ইউজারনেম এবং পাসওয়ার্ড দিয়ে লগইন করুন</p>
+        <p className="text-slate-400 text-sm mb-12">আপনার ইমেইল এবং পাসওয়ার্ড দিয়ে লগইন করুন</p>
 
         {error && (
           <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center space-x-3 text-rose-600 text-sm font-bold animate-shake">
@@ -114,15 +75,15 @@ export default function Login() {
 
         <form onSubmit={handleLogin} className="space-y-6 text-left">
           <div>
-             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 ml-2">ID / Phone / Email</label>
+             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 ml-2">ইমেইল এড্রেস (Email Address)</label>
              <div className="relative group">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
                 <input 
-                    type="text" 
+                    type="email" 
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required
-                    placeholder="আপনার আইডি বা ফোন নম্বর দিন"
+                    placeholder="আপনার ইমেইল এড্রেস দিন"
                     className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-slate-700"
                 />
              </div>
