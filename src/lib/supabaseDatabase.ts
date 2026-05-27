@@ -140,6 +140,8 @@ const saveLocalData = <T>(key: string, data: T[]) => {
 // ==========================================
 
 export const db = {
+  ordersTableMissing: false,
+
   // --- HEALTH CHECK ---
   async isSupabaseConnected(): Promise<boolean> {
     try {
@@ -781,6 +783,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
+        db.ordersTableMissing = false;
         const mapped = data.map(o => ({
           id: String(o.id),
           memberId: o.member_id || o.memberId || '',
@@ -796,8 +799,11 @@ export const db = {
         saveLocalData('db_orders', mapped);
         return mapped;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Supabase getOrders failed, loading from local:', err);
+      if (err && (String(err.message || '').includes('does not exist') || String(err.code) === '42P01')) {
+        db.ordersTableMissing = true;
+      }
     }
     return getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
   },
