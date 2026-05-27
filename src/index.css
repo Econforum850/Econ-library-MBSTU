@@ -40,3 +40,80 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-300;
 }
+
+/* Print Optimization for Admin layout and Tables */
+@media print {
+  aside,
+  header,
+  nav,
+  button,
+  form,
+  input,
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body, html {
+    background: white !important;
+    background-color: white !important;
+    color: black !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Make main component stack and take 100% width on prints */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: white !important;
+  }
+
+  /* Flatten design elements */
+  div, section, table, tbody, td, th, tr {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    text-shadow: none !important;
+    color: black !important;
+  }
+
+  /* Highlight specific tables and sheets and user profile summaries */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 15px !important;
+    margin-bottom: 15px !important;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  th, td {
+    padding: 8px 12px !important;
+    border: 1px solid #cbd5e1 !important;
+    text-align: left !important;
+    font-size: 9pt !important;
+  }
+
+  /* Extra spacing for section headers on paper */
+  h2, h3 {
+    page-break-after: avoid !important;
+    color: black !important;
+    font-family: inherit !important;
+    margin-top: 20px !important;
+    margin-bottom: 10px !important;
+  }
+}
+

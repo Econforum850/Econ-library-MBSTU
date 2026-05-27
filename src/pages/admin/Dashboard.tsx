@@ -1,9 +1,9 @@
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, BookOpen, Clock, Wallet, 
   Plus, ShoppingCart, MessageSquare, 
   ArrowRight, Activity, TrendingUp,
-  Loader2, CheckCircle2, Heart
+  Loader2, CheckCircle2, Heart, FileText, Bell, Check, X
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -28,6 +28,26 @@ export default function AdminDashboard() {
   const [shopCount, setShopCount] = useState<number>(0);
   const [balance, setBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
+
+  interface AppNotification {
+    id: string;
+    type: 'member' | 'issue';
+    title: string;
+    description: string;
+    timestamp: string;
+    isNew: boolean;
+  }
+
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [toastNotification, setToastNotification] = useState<AppNotification | null>(null);
+
+  const markAsSeen = (id: string, type: 'member' | 'issue') => {
+    localStorage.setItem(`seen_${type}_${id}`, 'true');
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    if (toastNotification?.id === id) {
+      setToastNotification(null);
+    }
+  };
 
   useEffect(() => {
     const loadStats = async () => {
@@ -64,6 +84,82 @@ export default function AdminDashboard() {
     loadStats();
   }, []);
 
+  // Real-time activity checking effect (polls membership/issues tables)
+  useEffect(() => {
+    const checkNewActivity = async () => {
+      try {
+        const membersList = await db.getMembers();
+        const issuesList = await db.getIssues();
+
+        const pendingMembers = membersList.filter(m => m.status === 'pending');
+        const activeIssues = issuesList.filter(i => i.status === 'Active');
+
+        const newAlerts: AppNotification[] = [];
+
+        pendingMembers.forEach((member) => {
+          const key = `seen_member_${member.id}`;
+          if (!localStorage.getItem(key)) {
+            newAlerts.push({
+              id: member.id,
+              type: 'member',
+              title: 'নতুন রেজিস্ট্রেশন অনুরোধ! 👤',
+              description: `${member.name} (${member.phone || 'ফোন নেই'}) সদস্যপদের জন্য আবেদন করেছেন।`,
+              timestamp: member.joinDate || 'আজ',
+              isNew: true
+            });
+          }
+        });
+
+        activeIssues.forEach((issue) => {
+          const key = `seen_issue_${issue.id}`;
+          if (!localStorage.getItem(key)) {
+            newAlerts.push({
+              id: issue.id,
+              type: 'issue',
+              title: 'বই ইস্যু ও ধার অনুরোধ! 📚',
+              description: `সদস্য ${issue.memberName} "${issue.bookTitle}" বইটি নেওয়ার অনুরোধ করেছেন।`,
+              timestamp: issue.issueDate || 'আজ',
+              isNew: true
+            });
+          }
+        });
+
+        if (newAlerts.length > 0) {
+          setNotifications(prev => {
+            const ids = new Set(newAlerts.map(n => n.id));
+            const filteredPrev = prev.filter(p => !ids.has(p.id));
+            return [...newAlerts, ...filteredPrev];
+          });
+
+          // Show the latest as a toast alert!
+          const latestItem = newAlerts[0];
+          setToastNotification(latestItem);
+
+          // Audio notification (pure synth beep)
+          try {
+            const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = context.createOscillator();
+            const gain = context.createGain();
+            osc.connect(gain);
+            gain.connect(context.destination);
+            osc.frequency.setValueAtTime(880, context.currentTime); 
+            gain.gain.setValueAtTime(0.04, context.currentTime);
+            osc.start();
+            osc.stop(context.currentTime + 0.12);
+          } catch (soundErr) {
+            // Safe fallback when audio is blocked
+          }
+        }
+      } catch (err) {
+        console.error('Notification lookup error:', err);
+      }
+    };
+
+    checkNewActivity();
+    const interval = setInterval(checkNewActivity, 10000); 
+    return () => clearInterval(interval);
+  }, []);
+
   const stats = [
     { label: 'সক্রিয় সদস্য', value: memberCount.toString(), icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50', change: 'Accepted' },
     { label: 'ক্যাটালগে বই', value: bookCount.toString(), icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50', change: 'Live Data' },
@@ -75,6 +171,39 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Real-time Toast Alert popup */}
+      <AnimatePresence>
+        {toastNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-6 right-6 z-50 max-w-md w-full bg-slate-900 border-2 border-indigo-500 rounded-3xl p-5 shadow-2xl flex items-start gap-4 text-white print:hidden"
+          >
+            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl animate-pulse shrink-0">
+              <Bell className="w-5 h-5 animate-bounce" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-extrabold text-sm text-indigo-300">{toastNotification.title}</h4>
+              <p className="text-xs text-slate-300 font-bold leading-normal mt-1">{toastNotification.description}</p>
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={() => markAsSeen(toastNotification.id, toastNotification.type)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black tracking-wider uppercase transition-all"
+                >
+                  দেখেছি (Dismiss)
+                </button>
+              </div>
+            </div>
+            <button 
+              onClick={() => setToastNotification(null)}
+              className="p-1 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Banner */}
       <div className="relative overflow-hidden bg-[#1e293b] rounded-[40px] p-10 text-white shadow-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
@@ -89,6 +218,13 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-4">
+            <button 
+              onClick={() => window.print()}
+              className="flex items-center space-x-3 px-8 py-5 bg-emerald-600 hover:bg-emerald-700 rounded-[28px] font-black shadow-xl transition-all active:scale-95 text-white"
+            >
+              <FileText className="w-5 h-5" />
+              <span>রিপোর্ট প্রিন্ট করুন</span>
+            </button>
             <Link to="/admin/users" className="flex items-center space-x-3 px-8 py-5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-[28px] font-bold backdrop-blur-md transition-all active:scale-95">
               <Users className="w-5 h-5" />
               <span>সদস্যগণ</span>
@@ -209,11 +345,71 @@ export default function AdminDashboard() {
             </div>
           </div>
           
-          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 min-h-[300px] flex flex-col items-center justify-center text-center">
-            <h3 className="text-xl font-black text-slate-900 mb-4 px-8 py-2 bg-slate-50 rounded-full">সাম্প্রতিক কার্যকলাপ</h3>
-            <div className="text-slate-400 font-bold max-w-sm mt-4">
-              রিয়েলটাইম আপডেট বন্ধ আছে (কোটা সংরক্ষণের জন্য)। ড্যাশবোর্ড রিফ্রেশ করুন।
+          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 min-h-[300px]">
+            <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+              <h3 className="text-xl font-black text-slate-900 font-sans tracking-tight">রিয়েল-টাইম কার্যক্রম ও নোটিফিকেশন ⚡</h3>
+              <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-wider">
+                {notifications.length} টি সচল নোটিফিকেশন
+              </span>
             </div>
+            
+            <AnimatePresence mode="popLayout">
+              {notifications.length === 0 ? (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="py-12 flex flex-col items-center justify-center text-center"
+                >
+                  <CheckCircle2 className="w-12 h-12 text-emerald-500 mb-3 animate-pulse" />
+                  <p className="text-slate-700 font-bold text-sm">সব কিছু আপ-টু-ডেট আছে!</p>
+                  <p className="text-xs text-slate-400 font-medium max-w-xs mt-1">
+                    কোনো নতুন রেজিস্ট্রেশন অনুরোধ বা পেন্ডিং বই ধার নেওয়ার রিকোয়েস্ট নেই।
+                  </p>
+                </motion.div>
+              ) : (
+                <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
+                  {notifications.map((notif) => (
+                    <motion.div
+                      key={notif.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      layout
+                      className="p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-100 hover:bg-indigo-50/20 transition-all flex items-start gap-4 text-left"
+                    >
+                      <div className={cn(
+                        "p-3 rounded-2xl shrink-0 text-white shadow-sm",
+                        notif.type === 'member' ? "bg-indigo-500" : "bg-purple-500"
+                      )}>
+                        {notif.type === 'member' ? <Users className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-extrabold text-xs text-slate-800 leading-tight">{notif.title}</h4>
+                          <span className="text-[9px] text-slate-400 font-semibold font-mono whitespace-nowrap">{notif.timestamp}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-bold mt-1 leading-normal">{notif.description}</p>
+                        <div className="flex items-center gap-2 mt-3">
+                          <Link 
+                            to={notif.type === 'member' ? "/admin/users" : "/admin/issues"} 
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-black rounded-xl transition-all shadow-sm"
+                          >
+                            রিভিউ করুন
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => markAsSeen(notif.id, notif.type)}
+                            className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[9px] font-black rounded-xl transition-all"
+                          >
+                            বাতিল করুন
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

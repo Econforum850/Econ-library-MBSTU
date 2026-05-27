@@ -11,6 +11,7 @@ import {
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, SupabaseBook } from '@/src/lib/supabaseDatabase';
+import { SUPABASE_URL, SUPABASE_PUBLIC_KEY } from '@/src/supabaseClient';
 
 interface ExtendedBook extends SupabaseBook {}
 
@@ -25,6 +26,8 @@ export default function AdminInventory() {
   const [showConfig, setShowConfig] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [customScriptUrl, setCustomScriptUrl] = useState(localStorage.getItem('script_url') || 'https://script.google.com/macros/s/AKfycbyt-HKZBQZ3WWQ5tJ-S5GmVY-wyi2OPRNPHyXFGjMuux5SrhN1ywTX_SlR8yocdC3Z-jQ/exec');
+  const [tempUrl, setTempUrl] = useState(SUPABASE_URL);
+  const [tempKey, setTempKey] = useState(SUPABASE_PUBLIC_KEY);
 
   const [newBook, setNewBook] = useState({
     title: '',
@@ -149,6 +152,43 @@ export default function AdminInventory() {
     }
   };
 
+  const exportToCSV = () => {
+    if (books.length === 0) {
+      alert('এক্সপোর্ট করার জন্য কোনো বই ক্যাটালগে নেই!');
+      return;
+    }
+    const headers = ['Book ID', 'Title', 'Author', 'Category', 'Price', 'Stock', 'EBook', 'EBook URL', 'Shelf No', 'Status'];
+    const rows = books.map(book => [
+      book.bookId || '',
+      book.title || '',
+      book.author || '',
+      book.category || '',
+      book.price || '',
+      book.stock || 1,
+      book.isEBook ? 'Yes' : 'No',
+      book.ebookUrl || '',
+      book.shelfNo || 'N/A',
+      book.status || 'available'
+    ]);
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map(value => {
+          const stringVal = String(value).replace(/"/g, '""');
+          return `"${stringVal}"`;
+        }).join(',')
+      )
+    ].join('\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `book_catalog_backup_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const filteredBooks = useMemo(() => {
     return books.filter(book => 
       book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -212,9 +252,75 @@ export default function AdminInventory() {
                animate={{ height: 'auto', opacity: 1 }}
                className="bg-slate-800 p-6 rounded-3xl space-y-4 border border-slate-700 text-left"
             >
-               <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider mb-2">সুপাবেজ টেবিল স্কিমা (PostgreSQL)</h4>
+               {/* credentials form */}
+               <div className="bg-slate-900/60 p-6 rounded-2xl border border-slate-700/50 space-y-4 text-slate-200">
+                 <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider">সুপাবেজ ক্রেডেনশিয়াল আপডেট করুন 🛠️</h4>
+                 <p className="text-[11px] text-slate-400 font-bold leading-normal">
+                   আপনার Supabase Dashboard থেকে Project URL এবং Anon API Key কপি করে নিচে পেস্ট করুন। এটি দিয়ে কোনো কারিগরি কোডিং ছাড়াই আপনার ব্রাউজার সরাসরি লাইভ ক্লাউড ডাটাবেজের সাথে সুরক্ষিত সংযোগ স্থাপন করবে।
+                 </p>
+                 <div className="space-y-3">
+                   <div>
+                     <label className="block text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mb-1">Project URL</label>
+                     <input 
+                       type="text" 
+                       value={tempUrl} 
+                       onChange={(e) => setTempUrl(e.target.value)}
+                       placeholder="https://your-project-id.supabase.co"
+                       className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 font-bold placeholder:text-slate-600"
+                     />
+                   </div>
+                   <div>
+                     <label className="block text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mb-1">Anon API Key (Anon Public Token)</label>
+                     <input 
+                       type="text" 
+                       value={tempKey} 
+                       onChange={(e) => setTempKey(e.target.value)}
+                       placeholder="eyJhbGciOi..."
+                       className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 font-bold placeholder:text-slate-600"
+                     />
+                   </div>
+                   <div className="flex gap-2 pt-1">
+                     <button
+                       type="button"
+                       onClick={() => {
+                         if (!tempUrl.toLowerCase().startsWith('http')) {
+                           alert('সঠিক URL প্রদান করুন (অবশ্যই http:// বা https:// দিয়ে শুরু হতে হবে)।');
+                           return;
+                         }
+                         if (tempKey.length < 15) {
+                           alert('অনুগ্রহ করে সঠিক Anon API Key দিন (সাধারণত একটি দীর্ঘ JWT টোকেন)।');
+                           return;
+                         }
+                         localStorage.setItem('supabase_url', tempUrl.trim());
+                         localStorage.setItem('supabase_anon_key', tempKey.trim());
+                         alert('মাস্টার সুপাবেজ ক্রেডেনশিয়াল সফলভাবে সংরক্ষণ করা হয়েছে! লাইভ রি-কানেক্টের জন্য পেজটি রিলোড হচ্ছে...');
+                         window.location.reload();
+                       }}
+                       className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black transition-all"
+                     >
+                       কী (Key) সেভ করুন
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => {
+                         if (window.confirm('আপনি কি ডিফল্ট সিস্টেমে ফিরে যেতে চান?')) {
+                           localStorage.removeItem('supabase_url');
+                           localStorage.removeItem('supabase_anon_key');
+                           alert('ক্রেডেনশিয়াল রিসেট করা হয়েছে! পেজটি রিলোড করা হচ্ছে...');
+                           window.location.reload();
+                         }
+                       }}
+                       className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-[10px] font-black transition-all"
+                     >
+                       রিসেট ডিফল্ট
+                     </button>
+                   </div>
+                 </div>
+               </div>
+
+               <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider mb-2 pt-2">সুপাবেজ টেবিল স্কিমা (PostgreSQL)</h4>
                <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
-                 আপনার Supabase Dashboard থেকে **SQL Editor** এ গিয়ে নিচের সম্পূর্ণ কোডটি পেস্ট করে **Run** বাটন প্রেস করুন:
+                 আপনার Supabase Dashboard থেকে **SQL Editor** এ গিয়ে নিচের সম্পূর্ণ কোডটি পেস্ট করে **Run** বাটন প্রেস করুন (এর ফলে ৫টি টেবিল তৈরি হবে এবং RLS নিরাপত্তা পলিসি নিষ্ক্রিয় হয়ে যাবে, যাতে পৃথিবীর যেকোনো দেশ থেকে ডাটা সিঙ্ক ও আপলোড করা যায়):
                </p>
                <pre className="w-full bg-slate-950 p-4 rounded-xl text-[10px] text-emerald-400 font-mono overflow-x-auto border border-slate-900 select-all max-h-48 overflow-y-auto">
 {`-- 1. Books Table
@@ -284,7 +390,15 @@ CREATE TABLE IF NOT EXISTS finances (
   status text DEFAULT 'Completed',
   note text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
-);`}
+);
+
+-- Row Level Security (RLS) পলিসি নিষ্ক্রিয় করুন যাতে পৃথিবীর যেকোনো স্থান থেকে সরাসরি রিড এবং রাইট করা যায়
+ALTER TABLE books DISABLE ROW LEVEL SECURITY;
+ALTER TABLE members DISABLE ROW LEVEL SECURITY;
+ALTER TABLE donors DISABLE ROW LEVEL SECURITY;
+ALTER TABLE issues DISABLE ROW LEVEL SECURITY;
+ALTER TABLE finances DISABLE ROW LEVEL SECURITY;
+`}
                </pre>
                <button 
                   onClick={() => {
@@ -355,7 +469,15 @@ CREATE TABLE IF NOT EXISTS finances (
   status text DEFAULT 'Completed',
   note text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
-);`);
+);
+
+-- Row Level Security (RLS) পলিসি নিষ্ক্রিয় করুন যাতে পৃথিবীর যেকোনো স্থান থেকে সরাসরি রিড এবং রাইট করা যায়
+ALTER TABLE books DISABLE ROW LEVEL SECURITY;
+ALTER TABLE members DISABLE ROW LEVEL SECURITY;
+ALTER TABLE donors DISABLE ROW LEVEL SECURITY;
+ALTER TABLE issues DISABLE ROW LEVEL SECURITY;
+ALTER TABLE finances DISABLE ROW LEVEL SECURITY;
+`);
                     alert('SQL সফলভাবে ক্লিপবোর্ডে কপি করা হয়েছে!');
                   }}
                   className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-black hover:bg-indigo-700 transition-all active:scale-95"
@@ -415,6 +537,38 @@ CREATE TABLE IF NOT EXISTS finances (
         </motion.div>
       </div>
 
+      {!isUsingSheet && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-rose-50 border-2 border-rose-200 rounded-[35px] p-6 text-rose-800 flex flex-col md:flex-row items-center gap-4 justify-between"
+        >
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-rose-100 rounded-full text-rose-600 shrink-0 mt-0.5 animate-bounce">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black font-sans">সুপাবেজ ক্লাউড সংযোগ বিচ্ছিন্ন (অফলাইন মোড অ্যাক্টিভ) ⚠️</h3>
+              <p className="text-xs font-bold leading-relaxed text-rose-700 mt-1">
+                আপনার কনফিগার করা Project URL অথবা public anon API Key-টি ভুল বা কাজ করছে না। 
+                বর্তমানে কোনো লাইভ কানেকশন সচল নেই, তাই আপনার যুক্ত করা সকল ডেটা শুধুমাত্র আপনার নিজের ব্রাউজারে অফলাইনে (Local Storage) সেভ হচ্ছে। 
+                পৃথিবীর অন্য কোনো ব্যক্তি বা কম্পিউটার থেকে এটি দেখা যাবে না। সচল করতে নিচে আপনার সঠিক ক্রেডেনশিয়াল দিন।
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => {
+              setShowConfig(true);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black transition-all shadow-md shrink-0"
+          >
+            কী (Keys) ঠিক করুন
+          </button>
+        </motion.div>
+      )}
+
       {/* Control Bar */}
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/50 backdrop-blur-md p-4 rounded-[40px] border border-white/20 shadow-sm sticky top-4 z-40">
         <div className="relative w-full md:w-96 group">
@@ -443,6 +597,15 @@ CREATE TABLE IF NOT EXISTS finances (
                <ListIcon className="w-5 h-5" />
              </button>
           </div>
+          
+          <button 
+            type="button"
+            onClick={exportToCSV}
+            className="flex items-center space-x-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[24px] text-xs font-black transition-all shadow-sm"
+          >
+            <Download className="w-4 h-4" />
+            <span>CSV এক্সপোর্ট</span>
+          </button>
           
           <button className="flex items-center space-x-2 px-6 py-4 bg-white border border-slate-200 rounded-[24px] text-xs font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
             <Filter className="w-5 h-5" />
