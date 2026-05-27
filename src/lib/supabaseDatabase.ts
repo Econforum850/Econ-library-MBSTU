@@ -160,7 +160,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
-        return data.map(b => ({
+        const mapped = data.map(b => ({
           id: String(b.id),
           title: b.title || '',
           author: b.author || '',
@@ -174,6 +174,8 @@ export const db = {
           isEBook: b.isEBook ?? b.is_ebook ?? false,
           ebookUrl: b.ebookUrl || b.ebook_url || ''
         }));
+        saveLocalData('db_books', mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase getBooks failed, loading from local:', err);
@@ -274,7 +276,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
-        return data.map(m => ({
+        const mapped = data.map(m => ({
           id: String(m.id),
           name: m.name || '',
           email: m.email || '',
@@ -288,6 +290,8 @@ export const db = {
           occupation: m.occupation || '',
           password: m.password || ''
         }));
+        saveLocalData('db_members', mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase getMembers failed, loading from local:', err);
@@ -398,7 +402,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
-        return data.map(d => ({
+        const mapped = data.map(d => ({
           id: String(d.id),
           name: d.name || '',
           type: d.type || 'Individual',
@@ -407,6 +411,8 @@ export const db = {
           impact: d.impact || '',
           description: d.description || ''
         }));
+        saveLocalData('db_donors', mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase getDonors failed, loading from local:', err);
@@ -493,7 +499,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
-        return data.map(i => ({
+        const mapped = data.map(i => ({
           id: String(i.id),
           bookTitle: i.bookTitle || i.book_title || '',
           memberName: i.memberName || i.member_name || '',
@@ -501,6 +507,8 @@ export const db = {
           dueDate: i.dueDate || i.due_date || '',
           status: i.status || 'Active'
         }));
+        saveLocalData('db_issues', mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase getIssues failed, loading from local:', err);
@@ -582,7 +590,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
-        return data.map(t => ({
+        const mapped = data.map(t => ({
           id: String(t.id),
           type: t.type || 'income',
           category: t.category || '',
@@ -591,6 +599,8 @@ export const db = {
           status: t.status || 'Completed',
           note: t.note || ''
         }));
+        saveLocalData('db_finances', mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase getTransactions failed, loading from local:', err);
@@ -674,7 +684,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
-        return data.map(e => ({
+        const mapped = data.map(e => ({
           id: String(e.id),
           title: e.title || '',
           date: e.date || '',
@@ -684,6 +694,8 @@ export const db = {
           image: e.image || '',
           fbLink: e.fb_link || e.fbLink || ''
         }));
+        saveLocalData('db_events', mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase getEvents failed, loading from local:', err);
@@ -769,7 +781,7 @@ export const db = {
 
       if (error) throw error;
       if (data) {
-        return data.map(o => ({
+        const mapped = data.map(o => ({
           id: String(o.id),
           memberId: o.member_id || o.memberId || '',
           customerName: o.customer_name || o.customerName || '',
@@ -781,6 +793,8 @@ export const db = {
           items: o.items || '',
           status: o.status || 'Pending'
         }));
+        saveLocalData('db_orders', mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase getOrders failed, loading from local:', err);

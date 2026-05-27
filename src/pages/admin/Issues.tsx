@@ -88,7 +88,7 @@ export default function AdminIssues() {
     if (selectedMemberId) {
       const targetMember = members.find(m => m.id === selectedMemberId);
       if (targetMember) {
-        memberName = targetMember.name;
+        memberName = `${targetMember.name} (#${targetMember.id})`;
       }
     }
 

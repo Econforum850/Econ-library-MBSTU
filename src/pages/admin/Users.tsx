@@ -64,6 +64,56 @@ export default function AdminUsers() {
     }
   };
 
+  const handleStatusUpdate = async (member: SupabaseMember, newStatus: 'accepted' | 'rejected') => {
+    if (!window.confirm(`আপনি কি নিশ্চিত যে এই সদস্যকে ${newStatus === 'accepted' ? 'সক্রিয়' : 'বাতিল'} করতে চান?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const updated = {
+        ...member,
+        status: newStatus
+      };
+      await db.saveMember(updated);
+      setSelectedMember(updated);
+      await loadMembers();
+      alert(`সদস্যের স্ট্যাটাস সফলভাবে ${newStatus === 'accepted' ? 'সক্রিয়' : 'বাতিল'} করা হয়েছে!`);
+    } catch (err: any) {
+      console.error('Failed to update status:', err);
+      alert('স্ট্যাটাস সংরক্ষণে সমস্যা হয়েছে: ' + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePayDues = async (member: SupabaseMember) => {
+    const amountStr = window.prompt(`প্রবেশ করান পরিশোধিত পরিমাণ (সর্বোচ্চ ৳${member.dues}):`, String(member.dues));
+    if (amountStr === null) return;
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0 || amount > member.dues) {
+      alert('সদস্যের বকেয়া পরিশোধের জন্য সঠিক ও বৈধ পরিমাণ দিন!');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const updated = {
+        ...member,
+        dues: member.dues - amount
+      };
+      await db.saveMember(updated);
+      setSelectedMember(updated);
+      await loadMembers();
+      alert(`৳${amount} সফলভাবে পরিশোধ করা হয়েছে! অবশিষ্ট বকেয়া: ৳${updated.dues}`);
+    } catch (err: any) {
+      console.error('Failed to update dues:', err);
+      alert('বকেয়া পরিশোধ সংরক্ষণে সমস্যা হয়েছে: ' + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredMembers = members.filter(m => 
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -251,13 +301,41 @@ export default function AdminUsers() {
                   <div className="flex gap-3 print:hidden">
                     <button 
                       onClick={handlePrint}
-                      className="w-14 h-14 bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-3xl flex items-center justify-center border border-slate-100 transition-all shadow-sm active:scale-95"
+                      className="w-14 h-14 bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-[22px] flex items-center justify-center border border-slate-100 transition-all shadow-sm active:scale-95"
+                      title="প্রিন্ট করুন"
                     >
                       <Printer className="w-6 h-6" />
                     </button>
-                    <button className="px-8 py-4 bg-indigo-600 text-white rounded-[24px] font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">
-                      এডিট প্রোফাইল
-                    </button>
+                    {selectedMember.status === 'pending' ? (
+                      <>
+                        <button 
+                          onClick={() => handleStatusUpdate(selectedMember, 'accepted')}
+                          className="px-6 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs shrink-0"
+                        >
+                          সক্রিয় করুন
+                        </button>
+                        <button 
+                          onClick={() => handleStatusUpdate(selectedMember, 'rejected')}
+                          className="px-6 py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs shrink-0"
+                        >
+                          বাতিল করুন
+                        </button>
+                      </>
+                    ) : selectedMember.status === 'accepted' || selectedMember.status === 'active' ? (
+                      <button 
+                        onClick={() => handleStatusUpdate(selectedMember, 'rejected')}
+                        className="px-6 py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs"
+                      >
+                        নিষ্ক্রিয়/বাতিল করুন
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => handleStatusUpdate(selectedMember, 'accepted')}
+                        className="px-6 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs"
+                      >
+                        সক্রিয় করুন
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -331,9 +409,16 @@ export default function AdminUsers() {
                     <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-[40px] text-emerald-900 flex items-center justify-between">
                        <div>
                          <p className="text-[10px] font-black uppercase opacity-60 mb-1">মোট বকেয়া</p>
-                         <p className="text-3xl font-black">৳{selectedMember.dues}</p>
+                         <p className="text-3xl font-black">৳ {selectedMember.dues}</p>
                        </div>
-                       <button className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-xs shadow-lg shadow-emerald-200">পরিশোধ করুন</button>
+                       {selectedMember.dues > 0 && (
+                         <button 
+                           onClick={() => handlePayDues(selectedMember)}
+                           className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs shadow-lg shadow-emerald-200 transition-all active:scale-95"
+                         >
+                           পরিশোধ করুন
+                         </button>
+                       )}
                     </div>
 
                     {/* Notice Section */}
