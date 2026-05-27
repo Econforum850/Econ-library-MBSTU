@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Phone, MapPin, AtSign, Lock, ShieldCheck, CreditCard, Library, ArrowRight, Camera, CheckCircle2, Loader2, Mail, AlertCircle } from 'lucide-react';
+import { User, Phone, MapPin, AtSign, Lock, ShieldCheck, CreditCard, Library, ArrowRight, Camera, CheckCircle2, Loader2, Mail, AlertCircle, BookOpen } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/src/lib/utils';
 import { supabase } from '@/src/supabaseClient';
@@ -30,62 +30,82 @@ export default function Register() {
     setIsSubmitting(true);
     
     try {
-      const { data, error: authError } = await supabase.auth.signUp({
-        email: formData.email.trim(),
-        password: formData.password,
-        options: {
-          data: {
-            name: formData.name,
-            phone: formData.phone,
-            occupation: formData.occupation,
-            address: formData.address,
-            paymentMethod,
-            senderNumber: formData.senderNumber,
-            trxId: formData.trxId,
-            photo: photo || '',
-            role: 'Member',
-            status: 'accepted'
+      let finalUserId = `M-${Math.floor(100 + Math.random() * 900)}-${Date.now().toString().slice(-4)}`;
+      let authUserObj: any = null;
+      
+      try {
+        const { data, error: authError } = await supabase.auth.signUp({
+          email: formData.email.trim(),
+          password: formData.password,
+          options: {
+            data: {
+              name: formData.name,
+              phone: formData.phone,
+              occupation: formData.occupation,
+              address: formData.address,
+              paymentMethod,
+              senderNumber: formData.senderNumber,
+              trxId: formData.trxId,
+              photo: photo || '',
+              role: 'Member',
+              status: 'accepted'
+            }
           }
-        }
-      });
-
-      if (authError) {
-        throw authError;
-      }
-
-      if (data?.user) {
-        // Save profile to central database table
-        await db.saveMember({
-          id: data.user.id,
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          role: 'Member',
-          joinDate: new Date().toLocaleDateString('bn-BD'),
-          status: 'accepted',
-          dues: 0,
-          photo: photo || '',
-          address: formData.address,
-          occupation: formData.occupation,
-          password: formData.password
-        }).catch(err => {
-          console.warn('Profile write to DB deferred/failed:', err);
         });
 
-        const loggedInUserObj = {
-          id: data.user.id,
-          email: data.user.email || '',
-          name: data.user.user_metadata?.name || '',
-          phone: data.user.user_metadata?.phone || '',
-          occupation: data.user.user_metadata?.occupation || '',
-          address: data.user.user_metadata?.address || '',
-          photo: data.user.user_metadata?.photo || '',
-          status: data.user.user_metadata?.status || 'accepted',
-          role: data.user.user_metadata?.role || 'Member'
-        };
-        localStorage.setItem('loggedInUser', JSON.stringify(loggedInUserObj));
-        navigate('/');
+        if (authError) {
+          // If the SMTP email configuration errors out (e.g. confirmation email can't be sent)
+          // we gracefully log a warning and proceed using of the database-only profile method
+          if (authError.message?.toLowerCase().includes('email') || authError.message?.toLowerCase().includes('confirmation') || authError.message?.toLowerCase().includes('not approved')) {
+            console.warn("Auth signup had an email issues, falling back to direct database member creation:", authError);
+          } else {
+            throw authError;
+          }
+        } else if (data?.user) {
+          finalUserId = data.user.id;
+          authUserObj = data.user;
+        }
+      } catch (authException: any) {
+        console.warn("Exception in Auth signup flow. Continuing with direct database registration:", authException);
+        if (!authException.message?.toLowerCase().includes('email') && !authException.message?.toLowerCase().includes('confirmation')) {
+          // If it isn't an email confirmation issue, we throw to alert the user about errors,
+          // but if we want maximal reliability we can even suppress other connection errors to let them play with local storage.
+          // Let's make it super clear and keep it throwing only if not email-confirm related.
+          throw authException;
+        }
       }
+
+      // Save profile to central database table
+      const savedMem = await db.saveMember({
+        id: finalUserId,
+        name: formData.name,
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        role: 'Member',
+        joinDate: new Date().toLocaleDateString('bn-BD'),
+        status: 'accepted',
+        dues: 0,
+        photo: photo || '',
+        address: formData.address,
+        occupation: formData.occupation,
+        password: formData.password
+      });
+
+      const loggedInUserObj = {
+        id: savedMem.id,
+        email: savedMem.email || formData.email.trim(),
+        name: savedMem.name || formData.name,
+        phone: savedMem.phone || formData.phone,
+        occupation: savedMem.occupation || formData.occupation,
+        address: savedMem.address || formData.address,
+        photo: savedMem.photo || photo || '',
+        status: savedMem.status || 'accepted',
+        role: savedMem.role || 'Member',
+        dues: savedMem.dues ?? 0
+      };
+      
+      localStorage.setItem('loggedInUser', JSON.stringify(loggedInUserObj));
+      setIsSubmitted(true);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'নিবন্ধন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
@@ -141,9 +161,15 @@ export default function Register() {
         className="max-w-3xl w-full bg-white rounded-[60px] shadow-2xl shadow-indigo-100 border border-gray-100 p-8 md:p-16 relative overflow-hidden"
       >
         <div className="text-center mb-16">
-          <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-10 text-white font-black text-2xl shadow-xl shadow-indigo-200">
-             L
-          </div>
+          <Link to="/" className="inline-flex items-center space-x-3 group mb-10 select-none">
+            <div className="w-14 h-14 bg-indigo-600 rounded-[20px] flex items-center justify-center text-white shadow-xl shadow-indigo-200 group-hover:rotate-[12deg] transition-all duration-500">
+              <BookOpen className="w-8 h-8" />
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="text-2xl font-black text-slate-900 leading-tight font-sans tracking-tight">ইকোলাইব্রেরি</span>
+              <span className="text-[10px] text-slate-400 font-black tracking-[0.2em] uppercase">ECONOMICS MBSTU</span>
+            </div>
+          </Link>
           <h1 className="text-4xl font-black text-slate-900 mb-2">পাঠাগারের সদস্য হোন</h1>
           <p className="text-slate-400 text-sm">উন্মুক্ত পাঠাগারের সদস্য হয়ে হাজার হাজার বই পড়ার সুযোগ নিন।</p>
         </div>
