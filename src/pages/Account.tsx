@@ -1,15 +1,20 @@
-import { TrendingUp, TrendingDown, Wallet, User as UserIcon, Phone, MapPin, AtSign, Book as BookIcon, History, LogOut, Loader2, AlertCircle } from 'lucide-react';
+import { 
+  TrendingUp, TrendingDown, Wallet, User as UserIcon, Phone, MapPin, 
+  AtSign, Book as BookIcon, History, LogOut, Loader2, AlertCircle, ShoppingCart, 
+  Receipt, Calendar, ShieldAlert 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, SupabaseMember as SheetMember, SupabaseIssue as SheetIssue } from '@/src/lib/supabaseDatabase';
+import { db, SupabaseMember as SheetMember, SupabaseIssue as SheetIssue, SupabaseOrder } from '@/src/lib/supabaseDatabase';
 import { cn } from '@/src/lib/utils';
 
 export default function Account() {
   const [user, setUser] = useState<SheetMember | null>(null);
   const [issues, setIssues] = useState<SheetIssue[]>([]);
+  const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
+  const [activeTab, setActiveTab] = useState<'current' | 'history' | 'orders'>('current');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,14 +29,24 @@ export default function Account() {
 
     const loadData = async () => {
       try {
+        setLoading(true);
+        // Fetch book loans
         const queryIssues = await db.getIssues();
         const userIssues = queryIssues.filter(i => 
           i.memberName.toLowerCase().includes(parsedUser.name.toLowerCase()) ||
           (parsedUser.id && i.memberName.toLowerCase().includes(String(parsedUser.id).toLowerCase()))
         );
         setIssues(userIssues);
+
+        // Fetch store / shop orders
+        const queryOrders = await db.getOrders();
+        const userOrders = queryOrders.filter(o => 
+          o.memberId === parsedUser.id || 
+          o.customerEmail.toLowerCase() === parsedUser.email.toLowerCase()
+        );
+        setOrders(userOrders);
       } catch (err) {
-        console.error('Failed to load user issues:', err);
+        console.error('Failed to load user account data:', err);
       } finally {
         setLoading(false);
       }
@@ -76,7 +91,7 @@ export default function Account() {
               )}
             </div>
             <div className={cn(
-              "absolute -bottom-2 -right-2 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg",
+              "absolute -bottom-2 -right-2 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg animate-fade-in",
               user.status === 'accepted' || user.status === 'active' ? "bg-emerald-500 text-white" : 
               user.status === 'pending' ? "bg-amber-500 text-white" : "bg-rose-500 text-white"
             )}>
@@ -99,21 +114,21 @@ export default function Account() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
               <div className="flex items-center space-x-3 text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <Phone className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-bold">{user.phone}</span>
+                <Phone className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span className="text-xs font-bold truncate">{user.phone}</span>
               </div>
               <div className="flex items-center space-x-3 text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <AtSign className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-bold">{user.email}</span>
+                <AtSign className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span className="text-xs font-bold truncate">{user.email}</span>
               </div>
               <div className="flex items-center space-x-3 text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <UserIcon className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-bold">{user.occupation || 'Member'}</span>
+                <UserIcon className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span className="text-xs font-bold truncate">{user.occupation || 'Member'}</span>
               </div>
               <div className="flex items-center space-x-3 text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <MapPin className="w-4 h-4 text-indigo-400" />
+                <MapPin className="w-4 h-4 text-indigo-400 shrink-0" />
                 <span className="text-xs font-bold truncate">{user.address || 'Address not set'}</span>
               </div>
             </div>
@@ -122,8 +137,8 @@ export default function Account() {
       </div>
 
       {/* Stats Quick View */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+        <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm text-left">
            <div className="flex items-center space-x-3 mb-4">
               <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
                  <BookIcon className="w-5 h-5" />
@@ -133,17 +148,27 @@ export default function Account() {
            <div className="text-4xl font-black text-slate-900">{currentBooks.length} টি</div>
         </div>
 
-        <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
+        <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm text-left">
            <div className="flex items-center space-x-3 mb-4">
               <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
                  <History className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মোট পড়া বই</span>
            </div>
-           <div className="text-4xl font-black text-slate-900">{issues.length} টি</div>
+           <div className="text-4xl font-black text-slate-900">{pastBooks.length} টি</div>
         </div>
 
-        <div className="bg-slate-900 p-8 rounded-[32px] shadow-xl shadow-indigo-100 relative overflow-hidden group">
+        <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm text-left animate-in fade-in">
+           <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                 <Receipt className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মোট শপ অর্ডার</span>
+           </div>
+           <div className="text-4xl font-black text-slate-900">{orders.length} টি</div>
+        </div>
+
+        <div className="bg-slate-900 p-8 rounded-[32px] shadow-xl shadow-indigo-100 relative overflow-hidden group text-left">
            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform" />
            <div className="relative z-10">
               <div className="flex items-center space-x-3 mb-4">
@@ -157,20 +182,26 @@ export default function Account() {
         </div>
       </div>
 
-      {/* Books List Section */}
-      <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-8 border-b border-slate-50 flex items-center space-x-8">
+      {/* Books & Orders List Section */}
+      <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden text-left">
+        <div className="p-8 border-b border-slate-50 flex flex-wrap gap-4 md:space-x-8">
            <button 
             onClick={() => setActiveTab('current')}
-            className={`text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'current' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
+            className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'current' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
            >
-             বইয়ের তথ্য ({currentBooks.length})
+             বর্তমানে পঠিত বই ({currentBooks.length})
            </button>
            <button 
             onClick={() => setActiveTab('history')}
-            className={`text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'history' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
+            className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'history' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
            >
-             পুরানো রেকর্ড ({pastBooks.length})
+             পুরানো পঠিত রেকর্ড ({pastBooks.length})
+           </button>
+           <button 
+            onClick={() => setActiveTab('orders')}
+            className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'orders' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
+           >
+             আমার বুক অর্ডার শপ ({orders.length})
            </button>
         </div>
 
@@ -183,7 +214,57 @@ export default function Account() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {(activeTab === 'current' ? currentBooks : pastBooks).length === 0 ? (
+              {activeTab === 'orders' ? (
+                orders.length === 0 ? (
+                  <div className="py-20 text-center">
+                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Receipt className="w-10 h-10 text-slate-200" />
+                     </div>
+                     <p className="text-slate-400 font-bold">আপনি শপ থেকে এখনো কোনো বই অর্ডার করেননি</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {orders.map((order) => (
+                      <div key={order.id} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl transition-all">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">ID: #{order.id}</span>
+                          <span className="text-xs text-slate-400 font-bold flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            {order.date}
+                          </span>
+                        </div>
+                        
+                        <h3 className="font-extrabold text-slate-800 text-base mb-2 leading-snug line-clamp-2">{order.items}</h3>
+                        
+                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-slate-500 font-bold">পেমেন্ট স্ট্যাটাস:</span>
+                            <span className="text-xs font-black text-slate-700">পরিশোধিত (M-Wallet)</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs font-bold">
+                            <span className="text-slate-400 font-bold">মোট বইয়ের মূল্য:</span>
+                            <span className="text-emerald-500 font-extrabold text-base">৳ {order.total}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2">
+                             <span className="text-xs font-bold text-slate-400">অর্ডার স্ট্যাটাস:</span>
+                             <span className={cn(
+                               "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                               order.status === 'Pending' ? "bg-amber-100 text-amber-700 border border-amber-200" :
+                               order.status === 'Shipped' || order.status === 'Delivered' ? "bg-emerald-100 text-emerald-700 border border-emerald-200" :
+                               "bg-rose-100 text-rose-700 border border-rose-200"
+                             )}>
+                               {order.status === 'Pending' ? 'পেন্ডিং (অ্যাডমিন রিভিউ)' : 
+                                order.status === 'Shipped' ? 'গৃহীত ও শিপড (Accepted)' : 
+                                order.status === 'Delivered' ? 'ডেলিভার্ড সম্পন্ন' : 
+                                'বাতিল করা হয়েছে'}
+                             </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (activeTab === 'current' ? currentBooks : pastBooks).length === 0 ? (
                 <div className="py-20 text-center">
                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
                       <BookIcon className="w-10 h-10 text-slate-200" />

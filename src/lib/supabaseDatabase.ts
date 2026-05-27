@@ -63,6 +63,29 @@ export interface SupabaseTransaction {
   note: string;
 }
 
+export interface SupabaseEvent {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  description: string;
+  image?: string;
+  fbLink?: string;
+}
+
+export interface SupabaseOrder {
+  id: string;
+  memberId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  date: string;
+  total: number;
+  items: string;
+  status: 'Pending' | 'Shipped' | 'Delivered' | 'Cancelled';
+}
+
 // ==========================================
 // PREFILLED OFFLINE FALLBACK DATA
 // ==========================================
@@ -99,6 +122,54 @@ const INITIAL_TRANSACTIONS: SupabaseTransaction[] = [
   { id: 't-2', type: 'income', category: 'অনুদান', amount: 5000, date: '১০ মে, ২০২৬', status: 'Completed', note: 'টিটু স্যারের অনুদান' },
   { id: 't-3', type: 'expense', category: 'নতুন বই ক্রয়', amount: 2400, date: '০৮ মে, ২০২৬', status: 'Completed', note: 'রকমারি বুক পার্চেজ' },
   { id: 't-4', type: 'expense', category: 'বিদ্যুৎ বিল', amount: 850, date: '০৫ মে, ২০২৬', status: 'Completed', note: 'লাইব্রেরি কক্ষ কারেন্ট বিল' }
+];
+
+const INITIAL_EVENTS: SupabaseEvent[] = [
+  {
+    id: 'e-1',
+    title: 'বার্ষিক বইমেলা ও সাহিত্য আলোচনা ২০২৬',
+    date: '০৫ জুন, ২০২৬',
+    time: 'বিকাল ৩:০০ টা',
+    location: 'অর্থনীতি বিভাগ সেমিনার কক্ষ, MBSTU',
+    description: 'আমাদের লাইব্রেরির উদ্যোগে এবং অর্থনীতি বিভাগের সহযোগিতায় আয়োজিত হতে যাচ্ছে বার্ষিক সাহিত্য উৎসব ও বই বিনিময় মেলা। সবাইকে উপস্থিত থাকার জন্য আমন্ত্রণ জানানো হলো।',
+    image: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=600',
+    fbLink: 'https://www.facebook.com/ecombstu/'
+  },
+  {
+    id: 'e-2',
+    title: 'নতুন বই সংযোজন ও পাঠক আড্ডা',
+    date: '১২ জুন, ২০২৬',
+    time: 'সকাল ১১:০০ টা',
+    location: 'পানধোয়া গ্রীন সিটি লাইব্রেরি কর্নার',
+    description: 'পাঠাগারে নতুন ২শতাধিক একাডেমিক ও সাহিত্য বিষয়ক বই যোগ করা হচ্ছে। বইগুলোর পরিচিতি এবং পাঠকদের আড্ডা ও অভিজ্ঞতা শেয়ারিং সেশন অনুষ্ঠিত হবে।',
+    image: 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&q=80&w=600',
+    fbLink: 'https://www.facebook.com/ecombstu/'
+  }
+];
+
+const INITIAL_ORDERS: SupabaseOrder[] = [
+  {
+    id: 'ORD-1234',
+    memberId: 'M-101',
+    customerName: 'Tanvir Ahmed',
+    customerEmail: 'tanvir@example.com',
+    customerPhone: '01712000000',
+    date: '১২ মে, ২০২৬',
+    total: 350,
+    items: 'গীতাঞ্জলি (x১), চরিত্রহীন (x১)',
+    status: 'Pending'
+  },
+  {
+    id: 'ORD-1235',
+    memberId: 'M-102',
+    customerName: 'Alif Khan',
+    customerEmail: 'alif@example.com',
+    customerPhone: '01854000000',
+    date: '১০ মে, ২০২৬',
+    total: 300,
+    items: 'হিমু সমগ্র (x১)',
+    status: 'Delivered'
+  }
 ];
 
 // Load fallback databases helper
@@ -631,6 +702,199 @@ export const db = {
     const local = getLocalData<SupabaseTransaction>('db_finances', INITIAL_TRANSACTIONS);
     const filtered = local.filter(t => t.id !== id);
     saveLocalData('db_finances', filtered);
+    return true;
+  },
+
+  // --- EVENTS SERVICES ---
+  async getEvents(): Promise<SupabaseEvent[]> {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data.map(e => ({
+          id: String(e.id),
+          title: e.title || '',
+          date: e.date || '',
+          time: e.time || '',
+          location: e.location || '',
+          description: e.description || '',
+          image: e.image || '',
+          fbLink: e.fb_link || e.fbLink || ''
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase getEvents failed, loading from local:', err);
+    }
+    return getLocalData<SupabaseEvent>('db_events', INITIAL_EVENTS);
+  },
+
+  async saveEvent(event: Partial<SupabaseEvent>): Promise<SupabaseEvent> {
+    const isEdit = !!event.id;
+    const finalId = event.id || `e-${Date.now()}`;
+    const finalizedEvent: SupabaseEvent = {
+      id: finalId,
+      title: event.title || 'শিরোনামহীন ইভেন্ট',
+      date: event.date || new Date().toLocaleDateString('bn-BD'),
+      time: event.time || '১২:০০ টা',
+      location: event.location || 'পাঠাগার কক্ষ',
+      description: event.description || '',
+      image: event.image || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=600',
+      fbLink: event.fbLink || ''
+    };
+
+    try {
+      const dbPayload = {
+        title: finalizedEvent.title,
+        date: finalizedEvent.date,
+        time: finalizedEvent.time,
+        location: finalizedEvent.location,
+        description: finalizedEvent.description,
+        image: finalizedEvent.image,
+        fb_link: finalizedEvent.fbLink
+      };
+
+      if (isEdit) {
+        const numericId = parseInt(finalId);
+        if (!isNaN(numericId)) {
+          await supabase.from('events').update(dbPayload).eq('id', numericId);
+        } else {
+          await supabase.from('events').update(dbPayload).eq('id', finalId);
+        }
+      } else {
+        await supabase.from('events').insert([dbPayload]);
+      }
+    } catch (err) {
+      console.warn('Supabase saveEvent failed, applying locally:', err);
+    }
+
+    const local = getLocalData<SupabaseEvent>('db_events', INITIAL_EVENTS);
+    const index = local.findIndex(e => e.id === finalId);
+    if (index > -1) {
+      local[index] = finalizedEvent;
+    } else {
+      local.push(finalizedEvent);
+    }
+    saveLocalData('db_events', local);
+    return finalizedEvent;
+  },
+
+  async deleteEvent(id: string): Promise<boolean> {
+    try {
+      const numericId = parseInt(id);
+      if (!isNaN(numericId)) {
+        await supabase.from('events').delete().eq('id', numericId);
+      } else {
+        await supabase.from('events').delete().eq('id', id);
+      }
+    } catch (err) {
+      console.warn('Supabase deleteEvent failed, applying locally:', err);
+    }
+
+    const local = getLocalData<SupabaseEvent>('db_events', INITIAL_EVENTS);
+    const filtered = local.filter(e => e.id !== id);
+    saveLocalData('db_events', filtered);
+    return true;
+  },
+
+  // --- ORDERS SERVICES ---
+  async getOrders(): Promise<SupabaseOrder[]> {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data.map(o => ({
+          id: String(o.id),
+          memberId: o.member_id || o.memberId || '',
+          customerName: o.customer_name || o.customerName || '',
+          customerEmail: o.customer_email || o.customerEmail || '',
+          customerPhone: o.customer_phone || o.customerPhone || '',
+          date: o.date || '',
+          total: parseFloat(o.total ?? '0'),
+          items: o.items || '',
+          status: o.status || 'Pending'
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase getOrders failed, loading from local:', err);
+    }
+    return getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
+  },
+
+  async saveOrder(order: Partial<SupabaseOrder>): Promise<SupabaseOrder> {
+    const isEdit = !!order.id;
+    const finalId = order.id || `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+    const finalizedOrder: SupabaseOrder = {
+      id: finalId,
+      memberId: order.memberId || '',
+      customerName: order.customerName || 'বেনামী ক্রেতা',
+      customerEmail: order.customerEmail || '',
+      customerPhone: order.customerPhone || '',
+      date: order.date || new Date().toLocaleDateString('bn-BD'),
+      total: order.total || 0,
+      items: order.items || 'বই নেই',
+      status: order.status || 'Pending'
+    };
+
+    try {
+      const dbPayload = {
+        member_id: finalizedOrder.memberId,
+        customer_name: finalizedOrder.customerName,
+        customer_email: finalizedOrder.customerEmail,
+        customer_phone: finalizedOrder.customerPhone,
+        date: finalizedOrder.date,
+        total: finalizedOrder.total,
+        items: finalizedOrder.items,
+        status: finalizedOrder.status
+      };
+
+      if (isEdit) {
+        const numericId = parseInt(finalId);
+        if (!isNaN(numericId)) {
+          await supabase.from('orders').update(dbPayload).eq('id', numericId);
+        } else {
+          await supabase.from('orders').update(dbPayload).eq('id', finalId);
+        }
+      } else {
+        await supabase.from('orders').insert([{ id: finalId, ...dbPayload }]);
+      }
+    } catch (err) {
+      console.warn('Supabase saveOrder failed, applying locally:', err);
+    }
+
+    const local = getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
+    const index = local.findIndex(o => o.id === finalId);
+    if (index > -1) {
+      local[index] = finalizedOrder;
+    } else {
+      local.push(finalizedOrder);
+    }
+    saveLocalData('db_orders', local);
+    return finalizedOrder;
+  },
+
+  async deleteOrder(id: string): Promise<boolean> {
+    try {
+      const numericId = parseInt(id);
+      if (!isNaN(numericId)) {
+        await supabase.from('orders').delete().eq('id', numericId);
+      } else {
+        await supabase.from('orders').delete().eq('id', id);
+      }
+    } catch (err) {
+      console.warn('Supabase deleteOrder failed, applying locally:', err);
+    }
+
+    const local = getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
+    const filtered = local.filter(o => o.id !== id);
+    saveLocalData('db_orders', filtered);
     return true;
   }
 };

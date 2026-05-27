@@ -24,6 +24,7 @@ import AdminShop from './pages/admin/Shop';
 import AdminOrders from './pages/admin/Orders';
 import AdminStickers from './pages/admin/Stickers';
 import AdminDues from './pages/admin/Dues';
+import AdminEvents from './pages/admin/Events';
 
 export default function App() {
   return (
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="shop" element={<AdminShop />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="dues" element={<AdminDues />} />
+            <Route path="events" element={<AdminEvents />} />
             <Route path="donors" element={<AdminDonors />} />
             <Route path="finances" element={<AdminFinances />} />
             <Route path="settings" element={<AdminSettings />} />

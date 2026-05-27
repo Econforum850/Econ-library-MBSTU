@@ -2,5 +2,5 @@
   "name": "Econ-library-MBSTU",
   "description": "Econ-library-MBSTU: A modern library management system for the Economics department of MBSTU.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
