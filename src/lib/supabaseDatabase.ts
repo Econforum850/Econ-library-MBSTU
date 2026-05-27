@@ -818,9 +818,29 @@ export const db = {
       status: order.status || 'Pending'
     };
 
+    let supabaseId = finalId;
+
     try {
+      let verifiedMemberId: string | null = null;
+      if (finalizedOrder.memberId && finalizedOrder.memberId !== 'M-GUEST') {
+        try {
+          const { data: memberExists } = await supabase.from('members').select('id').eq('id', finalizedOrder.memberId).maybeSingle();
+          if (memberExists) {
+            verifiedMemberId = finalizedOrder.memberId;
+          } else {
+            const numericId = parseInt(finalizedOrder.memberId);
+            if (!isNaN(numericId)) {
+              const { data: numExists } = await supabase.from('members').select('id').eq('id', numericId).maybeSingle();
+              if (numExists) verifiedMemberId = String(numericId);
+            }
+          }
+        } catch (e) {
+          console.warn('Checking member existence failed:', e);
+        }
+      }
+
       const dbPayload = {
-        member_id: finalizedOrder.memberId,
+        member_id: verifiedMemberId,
         customer_name: finalizedOrder.customerName,
         customer_email: finalizedOrder.customerEmail,
         customer_phone: finalizedOrder.customerPhone,
@@ -833,20 +853,33 @@ export const db = {
 
       if (isEdit) {
         const numericId = parseInt(finalId);
+        let error;
         if (!isNaN(numericId)) {
-          await supabase.from('orders').update(dbPayload).eq('id', numericId);
+          const res = await supabase.from('orders').update(dbPayload).eq('id', numericId);
+          error = res.error;
         } else {
-          await supabase.from('orders').update(dbPayload).eq('id', finalId);
+          const res = await supabase.from('orders').update(dbPayload).eq('id', finalId);
+          error = res.error;
         }
+        if (error) throw error;
       } else {
-        await supabase.from('orders').insert([{ id: finalId, ...dbPayload }]);
+        // Try inserting WITHOUT ID first in case the database column is auto-increment bigint
+        const { data, error } = await supabase.from('orders').insert([dbPayload]).select();
+        if (error) {
+          console.warn('Insert without id failed, falling back to inserting with string id:', error);
+          const { error: fallbackError } = await supabase.from('orders').insert([{ id: finalId, ...dbPayload }]);
+          if (fallbackError) throw fallbackError;
+        } else if (data && data.length > 0) {
+          supabaseId = String(data[0].id);
+        }
       }
+      finalizedOrder.id = supabaseId;
     } catch (err) {
       console.warn('Supabase saveOrder failed, applying locally:', err);
     }
 
     const local = getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
-    const index = local.findIndex(o => o.id === finalId);
+    const index = local.findIndex(o => o.id === finalizedOrder.id || o.id === finalId);
     if (index > -1) {
       local[index] = finalizedOrder;
     } else {
