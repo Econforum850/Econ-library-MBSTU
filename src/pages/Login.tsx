@@ -4,6 +4,7 @@ import { Mail, Lock, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { loginMember, fetchMembersFromSheet } from '@/src/lib/googleSheets';
 import { supabase } from '@/src/supabaseClient';
+import { db } from '@/src/lib/supabaseDatabase';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -28,16 +29,28 @@ export default function Login() {
       }
 
       if (data?.user) {
+        let dbMember: any = null;
+        try {
+          const members = await db.getMembers();
+          dbMember = members.find(m => 
+            (m.email && m.email.toLowerCase() === (data?.user?.email || '').toLowerCase()) ||
+            m.id === data?.user?.id
+          );
+        } catch (findErr) {
+          console.warn("Could not load member data on login, falling back:", findErr);
+        }
+
         const loggedInUserObj = {
-          id: data.user.id,
-          email: data.user.email || '',
-          name: data.user.user_metadata?.name || '',
-          phone: data.user.user_metadata?.phone || '',
-          occupation: data.user.user_metadata?.occupation || '',
-          address: data.user.user_metadata?.address || '',
-          photo: data.user.user_metadata?.photo || '',
-          status: data.user.user_metadata?.status || 'accepted',
-          role: data.user.user_metadata?.role || 'Member'
+          id: dbMember?.id || data.user.id,
+          email: dbMember?.email || data.user.email || '',
+          name: dbMember?.name || data.user.user_metadata?.name || '',
+          phone: dbMember?.phone || data.user.user_metadata?.phone || '',
+          occupation: dbMember?.occupation || data.user.user_metadata?.occupation || '',
+          address: dbMember?.address || data.user.user_metadata?.address || '',
+          photo: dbMember?.photo || data.user.user_metadata?.photo || '',
+          status: dbMember?.status || data.user.user_metadata?.status || 'accepted',
+          role: dbMember?.role || data.user.user_metadata?.role || 'Member',
+          dues: dbMember?.dues ?? 0
         };
         localStorage.setItem('loggedInUser', JSON.stringify(loggedInUserObj));
         navigate('/');

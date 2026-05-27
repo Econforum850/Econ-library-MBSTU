@@ -30,20 +30,51 @@ export default function Account() {
     const loadData = async () => {
       try {
         setLoading(true);
+
+        let upToDateUser = parsedUser;
+        try {
+          const members = await db.getMembers();
+          const found = members.find(m => 
+            (m.email && m.email.toLowerCase() === (parsedUser.email || '').toLowerCase()) ||
+            m.id === parsedUser.id
+          );
+          if (found) {
+            upToDateUser = found;
+            setUser(found);
+            localStorage.setItem('loggedInUser', JSON.stringify(found));
+          }
+        } catch (mErr) {
+          console.warn('Failed to refresh user profile from database on Account page:', mErr);
+        }
+
         // Fetch book loans
         const queryIssues = await db.getIssues();
-        const userIssues = queryIssues.filter(i => 
-          i.memberName.toLowerCase().includes(parsedUser.name.toLowerCase()) ||
-          (parsedUser.id && i.memberName.toLowerCase().includes(String(parsedUser.id).toLowerCase()))
-        );
+        const userIssues = queryIssues.filter(i => {
+          if (!upToDateUser || !upToDateUser.name) return false;
+
+          const issueMemberName = (i.memberName || '').trim().toLowerCase();
+          const currentMemberName = upToDateUser.name.trim().toLowerCase();
+
+          if (currentMemberName.length < 2) return false;
+
+          // Robust mapping criteria
+          const isExactName = issueMemberName === currentMemberName;
+          const isIdMatch = upToDateUser.id && issueMemberName.includes(String(upToDateUser.id).toLowerCase());
+          const isPhoneMatch = upToDateUser.phone && upToDateUser.phone.length > 5 && issueMemberName.includes(upToDateUser.phone);
+          const isEmailMatch = upToDateUser.email && upToDateUser.email.length > 5 && issueMemberName.includes(upToDateUser.email.toLowerCase());
+
+          return isExactName || isIdMatch || isPhoneMatch || isEmailMatch;
+        });
         setIssues(userIssues);
 
         // Fetch store / shop orders
         const queryOrders = await db.getOrders();
-        const userOrders = queryOrders.filter(o => 
-          o.memberId === parsedUser.id || 
-          o.customerEmail.toLowerCase() === parsedUser.email.toLowerCase()
-        );
+        const userOrders = queryOrders.filter(o => {
+          if (!upToDateUser) return false;
+          const matchesId = o.memberId === upToDateUser.id;
+          const matchesEmail = upToDateUser.email && o.customerEmail && o.customerEmail.toLowerCase() === upToDateUser.email.toLowerCase();
+          return matchesId || matchesEmail;
+        });
         setOrders(userOrders);
       } catch (err) {
         console.error('Failed to load user account data:', err);

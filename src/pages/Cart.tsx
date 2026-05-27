@@ -4,10 +4,11 @@ import { useCart } from '../lib/cart';
 import { 
   Minus, Plus, Trash2, ArrowLeft, CreditCard, ShoppingBag, 
   BookOpen, AlertCircle, ShoppingCart, Target, ShieldCheck, MapPin, Phone, 
-  DollarSign, CheckSquare, Sparkles, Send, Award
+  DollarSign, CheckSquare, Sparkles, Send, Award, Loader2
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db, SupabaseOrder } from '../lib/supabaseDatabase';
+import { cn } from '../lib/utils';
 
 export default function Cart() {
   const { items, updateQuantity, removeItem, totalPrice, totalItems, clearCart } = useCart();
@@ -77,6 +78,7 @@ export default function Cart() {
         customerName: currentUser?.name || 'পরিচিত সদস্য',
         customerEmail: currentUser?.email || '',
         customerPhone: phone,
+        address: address,
         date: new Date().toLocaleDateString('bn-BD'),
         total: totalPrice,
         items: orderItemsStr,
@@ -164,7 +166,7 @@ export default function Cart() {
     );
   }
 
-  if (items.length === 0 && checkoutStep !== 'completed') {
+  if (items.length === 0 && (checkoutStep as string) !== 'completed') {
     return (
       <div className="max-w-7xl mx-auto px-4 py-32 text-center">
         <motion.div

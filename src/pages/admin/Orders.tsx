@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { 
   Package, ShoppingCart, Search, RefreshCw, 
   Loader2, CheckCircle2, ChevronRight, X,

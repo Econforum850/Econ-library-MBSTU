@@ -25,6 +25,7 @@ import AdminOrders from './pages/admin/Orders';
 import AdminStickers from './pages/admin/Stickers';
 import AdminDues from './pages/admin/Dues';
 import AdminEvents from './pages/admin/Events';
+import AdminScanner from './pages/admin/Scanner';
 
 export default function App() {
   return (
@@ -51,7 +52,7 @@ export default function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="inventory" element={<AdminInventory />} />
             <Route path="stickers" element={<AdminStickers />} />
-            <Route path="scanner" element={<div className="p-8"><h1 className="text-4xl font-black mb-8">বারকোড স্ক্যানার</h1><div className="bg-white p-20 rounded-[40px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 font-bold italic">ক্যামেরা এক্সেস প্রয়োজন...</div></div>} />
+            <Route path="scanner" element={<AdminScanner />} />
             <Route path="issues" element={<AdminIssues />} />
             <Route path="shop" element={<AdminShop />} />
             <Route path="orders" element={<AdminOrders />} />

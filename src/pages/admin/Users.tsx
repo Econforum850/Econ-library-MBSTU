@@ -12,11 +12,7 @@ import { cn } from '@/src/lib/utils';
 import { db, SupabaseMember } from '@/src/lib/supabaseDatabase';
 import { motion, AnimatePresence } from 'motion/react';
 
-const initialMembers = [
-  { id: 'M-101', name: 'Tanvir Ahmed', email: 'tanvir@example.com', phone: '01712000000', role: 'Premium', status: 'accepted', joinDate: '12 May 2024', dues: 0 },
-  { id: 'M-102', name: 'Alif Khan', email: 'alif@example.com', phone: '01854000000', role: 'Basic', status: 'accepted', joinDate: '15 May 2024', dues: 0 },
-  { id: 'M-103', name: 'Sabbir Hossain', email: 'sabbir@example.com', phone: '01923000000', role: 'Premium', status: 'pending', joinDate: '01 April 2024', dues: 50 },
-];
+const initialMembers: any[] = [];
 
 export default function AdminUsers() {
   const location = useLocation();

@@ -80,6 +80,7 @@ export interface SupabaseOrder {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  address?: string;
   date: string;
   total: number;
   items: string;
@@ -90,87 +91,13 @@ export interface SupabaseOrder {
 // PREFILLED OFFLINE FALLBACK DATA
 // ==========================================
 
-const INITIAL_BOOKS: SupabaseBook[] = [
-  { id: 'b-1', title: 'গীতাঞ্জলি', author: 'রবীন্দ্রনাথ ঠাকুর', category: 'কাব্যগ্রন্থ', cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400', bookId: 'R-101', shelfNo: 'A-১', status: 'available', price: '৳১৫০', stock: 5, isEBook: false },
-  { id: 'b-2', title: 'চরিত্রহীন', author: 'শরৎচন্দ্র চট্টোপাধ্যায়', category: 'উপন্যাস', cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400', bookId: 'S-202', shelfNo: 'A-২', status: 'available', price: '৳২০০', stock: 3, isEBook: false },
-  { id: 'b-3', title: 'অগ্নিবীণা', author: 'কাজী নজরুল ইসলাম', category: 'কাব্যগ্রন্থ', cover: 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&q=80&w=400', bookId: 'K-303', shelfNo: 'B-১', status: 'available', price: '৳১২০', stock: 4, isEBook: false },
-  { id: 'b-4', title: 'সঞ্চয়িতা', author: 'রবীন্দ্রনাথ ঠাকুর', category: 'কাব্যগ্রন্থ', cover: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400', bookId: 'R-102', shelfNo: 'A-১', status: 'available', price: '৳২৫০', stock: 2, isEBook: true, ebookUrl: 'https://pdf.example.com/sanchayita' },
-  { id: 'b-5', title: 'হিমু সমগ্র', author: 'হুমায়ূন আহমেদ', category: 'উপন্যাস', cover: 'https://images.unsplash.com/photo-1618666012174-83b441c0bc76?auto=format&fit=crop&q=80&w=400', bookId: 'H-401', shelfNo: 'C-১', status: 'available', price: '৳৩০০', stock: 6, isEBook: false }
-];
-
-const INITIAL_MEMBERS: SupabaseMember[] = [
-  { id: 'M-101', name: 'Tanvir Ahmed', email: 'tanvir@example.com', phone: '01712000000', role: 'Premium', joinDate: '১২ মে ২০২৪', status: 'accepted', dues: 0, password: 'password123', occupation: 'ছাত্র', address: 'পানধোয়া, সাভার' },
-  { id: 'M-102', name: 'Alif Khan', email: 'alif@example.com', phone: '01854000000', role: 'Basic', joinDate: '১৫ মে ২০২৪', status: 'accepted', dues: 0, password: 'password123', occupation: 'সফটওয়্যার ইঞ্জিনিয়ার', address: 'ঢাকা' },
-  { id: 'M-103', name: 'Sabbir Hossain', email: 'sabbir@example.com', phone: '01923000000', role: 'Premium', joinDate: '০১ এপ্রিল ২০২৪', status: 'pending', dues: 50, password: 'password123', occupation: 'শিক্ষক', address: 'পানধোয়া' }
-];
-
-const INITIAL_DONORS: SupabaseDonor[] = [
-  { id: 'd-1', name: 'প্রফেসর ড. সৈয়দ কামরুল আহসান টিটু', type: 'Individual', totalDonation: '৳১০,০০০', lastDonationDate: '১২ মে, ২০২৬', impact: '২৫টি নতুন বই উপহার', description: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয় ক্যাম্পাস' },
-  { id: 'd-2', name: 'আব্দুল হাই মো: তারক', type: 'Individual', totalDonation: '৳৫,০০০', lastDonationDate: '১০ মে, ২০২৬', impact: 'বুকশেলফ নির্মাণ', description: 'পানধোয়া' },
-  { id: 'd-3', name: 'আবু বকর মোসাদ্দ তাহের', type: 'Individual', totalDonation: '৳১২,০০০', lastDonationDate: '০৫ মে, ২০২৬', impact: 'আইটি ডেস্ক সেটআপ', description: 'পানধোয়া গ্রীন সিটি' },
-  { id: 'd-4', name: 'পানধোয়া যুব সমিতি', type: 'Organization', totalDonation: '৳২০,০০০', lastDonationDate: '০১ মে, ২০২৬', impact: 'সাধারণ সংস্কার তহবিল', description: 'পানধোয়া সঙ্ঘ' }
-];
-
-const INITIAL_ISSUES: SupabaseIssue[] = [
-  { id: 'i-1', bookTitle: 'গীতাঞ্জলি', memberName: 'Tanvir Ahmed', issueDate: '১২ মে ২০২৪', dueDate: '২৬ মে ২০২৪', status: 'Returned' },
-  { id: 'i-2', bookTitle: 'চরিত্রহীন', memberName: 'Alif Khan', issueDate: '১৫ মে ২০২৪', dueDate: '২৯ মে ২০২৪', status: 'Active' },
-  { id: 'i-3', bookTitle: 'হিমু সমগ্র', memberName: 'Sabbir Hossain', issueDate: '১০ মে ২০২৪', dueDate: '২৪ মে ২০২৪', status: 'Overdue' }
-];
-
-const INITIAL_TRANSACTIONS: SupabaseTransaction[] = [
-  { id: 't-1', type: 'income', category: 'আউটডোর মেম্বার সাবস্ক্রিপশন', amount: 1500, date: '১২ মে, ২০২৬', status: 'Completed', note: 'নতুন ৩ সদস্য অন্তর্ভুক্তি' },
-  { id: 't-2', type: 'income', category: 'অনুদান', amount: 5000, date: '১০ মে, ২০২৬', status: 'Completed', note: 'টিটু স্যারের অনুদান' },
-  { id: 't-3', type: 'expense', category: 'নতুন বই ক্রয়', amount: 2400, date: '০৮ মে, ২০২৬', status: 'Completed', note: 'রকমারি বুক পার্চেজ' },
-  { id: 't-4', type: 'expense', category: 'বিদ্যুৎ বিল', amount: 850, date: '০৫ মে, ২০২৬', status: 'Completed', note: 'লাইব্রেরি কক্ষ কারেন্ট বিল' }
-];
-
-const INITIAL_EVENTS: SupabaseEvent[] = [
-  {
-    id: 'e-1',
-    title: 'বার্ষিক বইমেলা ও সাহিত্য আলোচনা ২০২৬',
-    date: '০৫ জুন, ২০২৬',
-    time: 'বিকাল ৩:০০ টা',
-    location: 'অর্থনীতি বিভাগ সেমিনার কক্ষ, MBSTU',
-    description: 'আমাদের লাইব্রেরির উদ্যোগে এবং অর্থনীতি বিভাগের সহযোগিতায় আয়োজিত হতে যাচ্ছে বার্ষিক সাহিত্য উৎসব ও বই বিনিময় মেলা। সবাইকে উপস্থিত থাকার জন্য আমন্ত্রণ জানানো হলো।',
-    image: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=600',
-    fbLink: 'https://www.facebook.com/ecombstu/'
-  },
-  {
-    id: 'e-2',
-    title: 'নতুন বই সংযোজন ও পাঠক আড্ডা',
-    date: '১২ জুন, ২০২৬',
-    time: 'সকাল ১১:০০ টা',
-    location: 'পানধোয়া গ্রীন সিটি লাইব্রেরি কর্নার',
-    description: 'পাঠাগারে নতুন ২শতাধিক একাডেমিক ও সাহিত্য বিষয়ক বই যোগ করা হচ্ছে। বইগুলোর পরিচিতি এবং পাঠকদের আড্ডা ও অভিজ্ঞতা শেয়ারিং সেশন অনুষ্ঠিত হবে।',
-    image: 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&q=80&w=600',
-    fbLink: 'https://www.facebook.com/ecombstu/'
-  }
-];
-
-const INITIAL_ORDERS: SupabaseOrder[] = [
-  {
-    id: 'ORD-1234',
-    memberId: 'M-101',
-    customerName: 'Tanvir Ahmed',
-    customerEmail: 'tanvir@example.com',
-    customerPhone: '01712000000',
-    date: '১২ মে, ২০২৬',
-    total: 350,
-    items: 'গীতাঞ্জলি (x১), চরিত্রহীন (x১)',
-    status: 'Pending'
-  },
-  {
-    id: 'ORD-1235',
-    memberId: 'M-102',
-    customerName: 'Alif Khan',
-    customerEmail: 'alif@example.com',
-    customerPhone: '01854000000',
-    date: '১০ মে, ২০২৬',
-    total: 300,
-    items: 'হিমু সমগ্র (x১)',
-    status: 'Delivered'
-  }
-];
+const INITIAL_BOOKS: SupabaseBook[] = [];
+const INITIAL_MEMBERS: SupabaseMember[] = [];
+const INITIAL_DONORS: SupabaseDonor[] = [];
+const INITIAL_ISSUES: SupabaseIssue[] = [];
+const INITIAL_TRANSACTIONS: SupabaseTransaction[] = [];
+const INITIAL_EVENTS: SupabaseEvent[] = [];
+const INITIAL_ORDERS: SupabaseOrder[] = [];
 
 // Load fallback databases helper
 const getLocalData = <T>(key: string, initial: T[]): T[] => {
@@ -178,6 +105,28 @@ const getLocalData = <T>(key: string, initial: T[]): T[] => {
   if (!data) {
     localStorage.setItem(key, JSON.stringify(initial));
     return initial;
+  }
+  try {
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed)) {
+      const hasMock = parsed.some((item: any) => 
+        (item && (
+          item.id === 'M-101' || item.id === 'M-102' || item.id === 'M-103' ||
+          item.id === 'b-1' || item.id === 'b-2' ||
+          item.id === 'd-1' || item.id === 'd-2' ||
+          item.id === 'i-1' ||
+          item.id === 't-1' ||
+          item.id === 'e-1' ||
+          item.id === 'ORD-1234'
+        ))
+      );
+      if (hasMock) {
+        localStorage.setItem(key, JSON.stringify([]));
+        return [];
+      }
+    }
+  } catch (e) {
+    console.warn("Clean legacy local data error:", e);
   }
   return JSON.parse(data);
 };
@@ -210,7 +159,7 @@ export const db = {
         .order('id', { ascending: true });
 
       if (error) throw error;
-      if (data && data.length > 0) {
+      if (data) {
         return data.map(b => ({
           id: String(b.id),
           title: b.title || '',
@@ -324,14 +273,14 @@ export const db = {
         .order('name', { ascending: true });
 
       if (error) throw error;
-      if (data && data.length > 0) {
+      if (data) {
         return data.map(m => ({
           id: String(m.id),
           name: m.name || '',
           email: m.email || '',
           phone: m.phone || '',
           role: m.role || 'Member',
-          joinDate: m.joinDate || m.join_date || new Date().toLocaleDateString('bn-BD'),
+          joinDate: m.joinDate || m.join_date || m.joinDate || new Date().toLocaleDateString('bn-BD'),
           status: m.status || 'pending',
           dues: parseFloat(m.dues ?? '0'),
           photo: m.photo || '',
@@ -379,7 +328,17 @@ export const db = {
         password: finalizedMem.password
       };
 
+      let exists = false;
       if (isEdit) {
+        try {
+          const { data: existing } = await supabase.from('members').select('id').eq('id', finalId).maybeSingle();
+          if (existing) exists = true;
+        } catch (singleErr) {
+          console.warn('Checking single member failed:', singleErr);
+        }
+      }
+
+      if (isEdit && exists) {
         const { error } = await supabase.from('members').update(dbPayload).eq('id', finalId);
         if (error) {
           const numericId = parseInt(finalId);
@@ -438,7 +397,7 @@ export const db = {
         .order('id', { ascending: true });
 
       if (error) throw error;
-      if (data && data.length > 0) {
+      if (data) {
         return data.map(d => ({
           id: String(d.id),
           name: d.name || '',
@@ -533,7 +492,7 @@ export const db = {
         .order('id', { ascending: true });
 
       if (error) throw error;
-      if (data && data.length > 0) {
+      if (data) {
         return data.map(i => ({
           id: String(i.id),
           bookTitle: i.bookTitle || i.book_title || '',
@@ -622,7 +581,7 @@ export const db = {
         .order('id', { ascending: true });
 
       if (error) throw error;
-      if (data && data.length > 0) {
+      if (data) {
         return data.map(t => ({
           id: String(t.id),
           type: t.type || 'income',
@@ -714,7 +673,7 @@ export const db = {
         .order('id', { ascending: true });
 
       if (error) throw error;
-      if (data && data.length > 0) {
+      if (data) {
         return data.map(e => ({
           id: String(e.id),
           title: e.title || '',
@@ -809,13 +768,14 @@ export const db = {
         .order('id', { ascending: false });
 
       if (error) throw error;
-      if (data && data.length > 0) {
+      if (data) {
         return data.map(o => ({
           id: String(o.id),
           memberId: o.member_id || o.memberId || '',
           customerName: o.customer_name || o.customerName || '',
           customerEmail: o.customer_email || o.customerEmail || '',
           customerPhone: o.customer_phone || o.customerPhone || '',
+          address: o.address || '',
           date: o.date || '',
           total: parseFloat(o.total ?? '0'),
           items: o.items || '',
@@ -837,6 +797,7 @@ export const db = {
       customerName: order.customerName || 'বেনামী ক্রেতা',
       customerEmail: order.customerEmail || '',
       customerPhone: order.customerPhone || '',
+      address: order.address || '',
       date: order.date || new Date().toLocaleDateString('bn-BD'),
       total: order.total || 0,
       items: order.items || 'বই নেই',
@@ -849,6 +810,7 @@ export const db = {
         customer_name: finalizedOrder.customerName,
         customer_email: finalizedOrder.customerEmail,
         customer_phone: finalizedOrder.customerPhone,
+        address: finalizedOrder.address,
         date: finalizedOrder.date,
         total: finalizedOrder.total,
         items: finalizedOrder.items,

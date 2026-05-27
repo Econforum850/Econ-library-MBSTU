@@ -3,25 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { db } from '@/src/lib/supabaseDatabase';
 
-const initialDonors = [
-  { name: 'প্রফেসর ড. সৈয়দ কামরুল আহসান টিটু', title: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়', location: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়' },
-  { name: 'আব্দুল হাই মো: তারক', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'মো: লুৎফর রহমান', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'আবু বকর মোসাদ্দ তাহের', title: 'দাতা সদস্য', location: 'পানধোয়া গ্রীন সিটি' },
-  { name: 'প্রফেসর আব্দুল সালাম', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'সার্জেন্ট শফিউল আলম (অব)', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'আমিরুল ইসলাম', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'মো: আবু বকর সিদ্দিক', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'মো: মোশাররফ হোসেন', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'সাইদুর রহমান আকন', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'নূর মোহাম্মদ শিমুল', title: 'দাতা সদস্য', location: 'পানধোয়া' },
-  { name: 'মো: রুবেল হোসেন', title: 'ব্যবসায়ী', location: 'রিয়াদিয়া স্টোর' },
-];
+const initialDonors: any[] = [];
 
-const recentDonations = [
-  { name: 'অজ্ঞাতনামা', amount: 500, date: '১২ মে, ২০২৬', message: 'লাইব্রেরির জন্য সামান্য অবদান।' },
-  { name: 'সায়েম আহমেদ', amount: 1000, date: '১০ মে, ২০২৬', message: 'বই কেনার জন্য।' },
-];
+const recentDonations: any[] = [];
 
 export default function Donors() {
   const [activeTab, setActiveTab] = useState<'members' | 'donations' | 'media'>('members');
@@ -41,18 +25,14 @@ export default function Donors() {
       try {
         setLoading(true);
         const fetched = await db.getDonors();
-        if (fetched.length > 0) {
-          setDonors(fetched.map((d: any) => ({
-            name: d.name,
-            title: d.type,
-            location: d.impact || d.lastDonationDate || d.description || ''
-          })));
-        } else {
-          setDonors(initialDonors);
-        }
+        setDonors(fetched.map((d: any) => ({
+          name: d.name,
+          title: d.type,
+          location: d.impact || d.lastDonationDate || d.description || ''
+        })));
       } catch (err) {
         console.error('Donors fetch error:', err);
-        setDonors(initialDonors);
+        setDonors([]);
       } finally {
         setLoading(false);
       }
