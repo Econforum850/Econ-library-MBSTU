@@ -101,8 +101,8 @@ export default function Account() {
 
   if (!user) return null;
 
-  const currentBooks = issues.filter(i => i.status !== 'Returned');
-  const pastBooks = issues.filter(i => i.status === 'Returned');
+  const currentBooks = issues.filter(i => i.status !== 'Returned' && i.status !== 'Rejected');
+  const pastBooks = issues.filter(i => i.status === 'Returned' || i.status === 'Rejected');
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 bg-slate-50 min-h-screen">
@@ -300,35 +300,63 @@ export default function Account() {
                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
                       <BookIcon className="w-10 h-10 text-slate-200" />
                    </div>
-                   <p className="text-slate-400 font-bold">কোনো রেকর্ড পাওয়া যায়নি</p>
+                   <p className="text-slate-400 font-bold">কোনো লোন বা ধারের রেকর্ড পাওয়া যায়নি</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {(activeTab === 'current' ? currentBooks : pastBooks).map((issue) => (
-                    <div key={issue.id} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl transition-all">
-                       <h3 className="font-black text-slate-800 mb-4 group-hover:text-indigo-600 transition-colors">{issue.bookTitle}</h3>
-                       <div className="space-y-3">
-                          <div className="flex justify-between text-xs font-bold">
-                            <span className="text-slate-400">ইস্যু তারিখ:</span>
-                            <span className="text-slate-600">{issue.issueDate}</span>
-                          </div>
-                          <div className="flex justify-between text-xs font-bold">
-                            <span className="text-slate-400">ফেরত তারিখ:</span>
-                            <span className={`px-2 py-0.5 rounded-lg ${issue.status === 'Overdue' ? 'bg-rose-50 text-rose-600' : 'text-slate-600'}`}>
-                                {issue.dueDate}
-                            </span>
-                          </div>
-                          <div className="pt-4 flex items-center justify-between">
-                             <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
-                               issue.status === 'Returned' ? 'bg-emerald-100 text-emerald-600' : 
-                               issue.status === 'Overdue' ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'
-                             }`}>
-                               {issue.status}
-                             </span>
-                             {issue.status === 'Overdue' && (
-                                <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse" />
+                    <div key={issue.id} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl transition-all flex flex-col justify-between">
+                       <div>
+                          <h3 className="font-black text-slate-800 mb-4 group-hover:text-indigo-600 transition-colors">{issue.bookTitle}</h3>
+                          
+                          <div className="space-y-3">
+                             <div className="flex justify-between text-xs font-bold">
+                               <span className="text-slate-400">{issue.status === 'Pending' ? 'আবেদনের তারিখ:' : 'ইস্যু তারিখ:'}</span>
+                               <span className="text-slate-600">{issue.issueDate}</span>
+                             </div>
+                             
+                             {issue.status !== 'Pending' && (
+                               <div className="flex justify-between text-xs font-bold">
+                                 <span className="text-slate-400">ফেরত তারিখ:</span>
+                                 <span className={`px-2 py-0.5 rounded-lg ${issue.status === 'Overdue' ? 'bg-rose-50 text-rose-600' : 'text-slate-600'}`}>
+                                     {issue.dueDate}
+                                 </span>
+                               </div>
+                             )}
+
+                             {issue.pickupDate && (
+                               <div className="p-3 bg-indigo-50/70 border border-indigo-150 rounded-2xl text-xs font-bold text-slate-700 leading-snug mt-2">
+                                 <p className="text-indigo-800 font-extrabold mb-1 flex items-center gap-1.5 pt-0.5">
+                                   <Calendar className="w-4 h-4 shrink-0 text-indigo-600 animate-bounce" />
+                                   বই সংগ্রহের নির্ধারিত সময়:
+                                 </p>
+                                 <p className="text-[11px] bg-white px-2.5 py-1 text-indigo-700 font-extrabold rounded-lg border border-indigo-100 mt-1 inline-block">{issue.pickupDate}</p>
+                               </div>
+                             )}
+
+                             {issue.status === 'Pending' && (
+                               <div className="p-3 bg-amber-50/70 border border-amber-150 rounded-2xl text-[10px] font-bold text-slate-500 leading-relaxed mt-2 italic">
+                                 ⏳ আপনার আবেদনটি সফলভাবে জমা হয়েছে। কো-অর্ডিনেটর কর্তৃক পর্যালোচনার পর সংগ্রহের সময় ও দিন জানিয়ে দেওয়া হবে।
+                               </div>
                              )}
                           </div>
+                       </div>
+
+                       <div className="pt-4 mt-6 flex items-center justify-between border-t border-slate-100/60">
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
+                            issue.status === 'Returned' ? 'bg-emerald-100 text-emerald-600' : 
+                            issue.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200 animate-pulse' :
+                            issue.status === 'Rejected' ? 'bg-rose-100 text-rose-600' :
+                            issue.status === 'Overdue' ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'
+                          }`}>
+                            {issue.status === 'Pending' ? 'আবেদন পেন্ডিং' :
+                             issue.status === 'Rejected' ? 'বাতিল' :
+                             issue.status === 'Returned' ? 'ফেরত সম্পন্ন' : 
+                             issue.status === 'Overdue' ? 'মেয়াদ উত্তীর্ণ' : 'চলতি লোন'}
+                          </span>
+                          {issue.status === 'Overdue' && (
+                             <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse" />
+                          )}
                        </div>
                     </div>
                   ))}

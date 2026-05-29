@@ -45,6 +45,12 @@ export default function Books() {
   const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'pre-order'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [isBorrowModalOpen, setIsBorrowModalOpen] = useState(false);
+  const [borrowNotes, setBorrowNotes] = useState('');
+  const [borrowPhone, setBorrowPhone] = useState('');
+  const [borrowName, setBorrowName] = useState('');
+  const [isBorrowing, setIsBorrowing] = useState(false);
+  const [borrowSuccess, setBorrowSuccess] = useState(false);
   
   const { addItem, totalItems } = useCart();
   const navigate = useNavigate();
@@ -169,6 +175,57 @@ export default function Books() {
     });
     setSelectedBook(book);
     setIsAdded(true);
+  };
+
+  const handleOpenBorrowModal = (book: Book) => {
+    if (!loggedInUser) {
+      navigate('/login?redirect=books');
+      return;
+    }
+    if (loggedInUser.role !== 'Admin') {
+      if (loggedInUser.status === 'pending') {
+        alert('আপনার অ্যাকাউন্ট বর্তমানে পেন্ডিং রয়েছে। এডমিন এটি সক্রিয় করার আগে আপনি আবেদন করতে পারবেন না।');
+        return;
+      }
+      if (loggedInUser.status === 'rejected') {
+        alert('দুঃখিত, আপনার অ্যাকাউন্ট বাতিল (Rejected) করা হয়েছে। আপনি আবেদন করতে পারবেন না।');
+        return;
+      }
+    }
+    setBorrowName(loggedInUser.name || '');
+    setBorrowPhone(loggedInUser.phone || '');
+    setBorrowNotes('');
+    setIsBorrowModalOpen(true);
+  };
+
+  const handleBorrowSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBook) return;
+    try {
+      setIsBorrowing(true);
+      
+      const newIssueData = {
+        bookTitle: selectedBook.title,
+        memberName: `${borrowName} (#${loggedInUser?.id || 'GUEST'})`,
+        issueDate: new Date().toLocaleDateString('bn-BD'),
+        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('bn-BD'),
+        status: 'Pending' as const,
+        memberId: loggedInUser?.id || '',
+        bookId: selectedBook.id,
+        notes: borrowNotes,
+        pickupDate: ''
+      };
+
+      await db.saveIssue(newIssueData);
+      
+      setIsBorrowModalOpen(false);
+      setBorrowSuccess(true);
+    } catch (err) {
+      console.error('Failed to submit borrow request:', err);
+      alert('আবেদন জমা দিতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+    } finally {
+      setIsBorrowing(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -740,13 +797,23 @@ export default function Books() {
                   </div>
                 )}
 
-                <button 
-                  onClick={() => handleAddToCart(selectedBook)}
-                  className="w-full py-7 bg-indigo-600 text-white rounded-[35px] font-black flex items-center justify-center space-x-5 shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all transform active:scale-95"
-                >
-                  <ShoppingCart className="w-8 h-8" />
-                  <span className="text-2xl">কার্টে যোগ করুন (Order)</span>
-                </button>
+                {(!selectedBook.isEBook && (selectedBook.price === '৳০' || selectedBook.price?.toLowerCase() === 'free' || !selectedBook.price)) ? (
+                  <button 
+                    onClick={() => handleOpenBorrowModal(selectedBook)}
+                    className="w-full py-7 bg-indigo-600 hover:bg-slate-900 text-white rounded-[35px] font-black flex items-center justify-center space-x-5 shadow-2xl shadow-indigo-100 transition-all transform active:scale-95 duration-200 animate-pulse"
+                  >
+                    <BookOpen className="w-8 h-8 text-indigo-300" />
+                    <span className="text-2xl">ধার নেওয়ার আবেদন (Borrow Request)</span>
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => handleAddToCart(selectedBook)}
+                    className="w-full py-7 bg-emerald-600 hover:bg-slate-900 text-white rounded-[35px] font-black flex items-center justify-center space-x-5 shadow-2xl shadow-emerald-100 transition-all transform active:scale-95 duration-200"
+                  >
+                    <ShoppingCart className="w-8 h-8" />
+                    <span className="text-2xl">কার্টে যোগ করুন (Buy / Order)</span>
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
@@ -770,6 +837,112 @@ export default function Books() {
                   </div>
                </motion.div>
             </div>
+        )}
+      </AnimatePresence>
+
+      {/* Borrow Request Confirmation Modal */}
+      <AnimatePresence>
+        {isBorrowModalOpen && selectedBook && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" 
+              onClick={() => setIsBorrowModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 30 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.95, opacity: 0, y: 30 }}
+              className="relative bg-white p-8 md:p-10 rounded-[40px] shadow-2xl text-left max-w-lg w-full overflow-hidden border border-slate-100"
+            >
+              <h3 className="text-2xl font-black text-slate-900 mb-2 flex items-center gap-3">
+                <BookOpen className="w-6 h-6 text-indigo-600" />
+                <span>বই ধার নেওয়ার আবেদন</span>
+              </h3>
+              <p className="text-xs font-bold text-slate-400 mb-6 uppercase tracking-wider">ডিপার্টমেন্টাল লাইব্রেরি বই ইস্যুর তথ্যসমূহ</p>
+              
+              <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl mb-6 flex gap-3 text-xs text-slate-600 leading-relaxed">
+                <img src={selectedBook.cover} alt={selectedBook.title} className="w-12 h-16 object-cover rounded-lg shadow-sm" />
+                <div>
+                  <h4 className="font-extrabold text-indigo-900 text-sm line-clamp-1">{selectedBook.title}</h4>
+                  <p className="font-bold text-slate-400 mt-0.5">{selectedBook.author}</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleBorrowSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">আবেদনকারীর নাম</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={borrowName} 
+                    onChange={(e) => setBorrowName(e.target.value)}
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">যোগাযোগের মোবাইল নম্বর</label>
+                  <input 
+                    type="tel" 
+                    required 
+                    value={borrowPhone} 
+                    onChange={(e) => setBorrowPhone(e.target.value)}
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">কন্টক / মন্তব্য (Optional Notes/Purpose)</label>
+                  <textarea 
+                    placeholder="কোন্ উদ্দেশ্যে বইটি প্রয়োজন বা ব্যবহারের সময়কাল সম্পর্কে সংক্ষেপে লিখতে পারেন..." 
+                    value={borrowNotes} 
+                    onChange={(e) => setBorrowNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 resize-none"
+                  />
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-2xl text-[10px] font-bold text-slate-400 leading-relaxed">
+                  💡 আবেদন সফল করার পর অ্যাডমিন রিভিউ করে বইটি সংগ্রহের জন্য একটি নির্দিষ্ট তারিখ ও বেলা সময় নির্ধারণ করে দেবেন। আপনি আপনার প্রোফাইলের "বর্তমানের আবেদন" ট্যাব থেকে সংগ্রহ সময় পরিলক্ষণ করতে পারবেন।
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+                  <button type="button" onClick={() => setIsBorrowModalOpen(false)} className="px-6 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl text-xs">বাতিল</button>
+                  <button type="submit" disabled={isBorrowing} className="px-8 py-3 bg-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-indigo-150 flex items-center justify-center gap-2">
+                    {isBorrowing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>প্রক্রিয়াধীন...</span>
+                      </>
+                    ) : (
+                      <span>আবেদন নিশ্চিত করুন</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Borrow Success Toast Modal */}
+      <AnimatePresence>
+        {borrowSuccess && (
+          <div className="fixed inset-0 z-[125] flex items-center justify-center p-4">
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-white p-12 rounded-[50px] shadow-2xl text-center max-w-sm w-full">
+                <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-8">
+                   <CheckCircle2 className="w-10 h-10" />
+                </div>
+                <h3 className="text-2xl font-black mb-4">আবেদন সফল হয়েছে!</h3>
+                <p className="text-slate-500 text-sm font-bold mb-10 leading-relaxed">বইটি ধার নেওয়ার আবেদন সফলভাবে এডমিন প্যানেলে পৌঁছেছে। সংগ্রহের শিডিউল জানতে প্রোফাইল চেক করুন।</p>
+                <div className="space-y-3">
+                   <button onClick={() => { setBorrowSuccess(false); navigate('/account'); }} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black shadow-lg">প্রোফাইল দেখুন</button>
+                   <button onClick={() => setBorrowSuccess(false)} className="w-full py-5 bg-slate-100 text-slate-605 rounded-3xl font-black">ঠিক আছে</button>
+                </div>
+             </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

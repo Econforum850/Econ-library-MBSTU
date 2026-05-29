@@ -50,7 +50,11 @@ export interface SupabaseIssue {
   memberName: string;
   issueDate: string;
   dueDate: string;
-  status: 'Active' | 'Returned' | 'Overdue';
+  status: 'Pending' | 'Active' | 'Returned' | 'Overdue' | 'Rejected';
+  memberId?: string;
+  bookId?: string;
+  pickupDate?: string;
+  notes?: string;
 }
 
 export interface SupabaseTransaction {
@@ -507,7 +511,11 @@ export const db = {
           memberName: i.memberName || i.member_name || '',
           issueDate: i.issueDate || i.issue_date || '',
           dueDate: i.dueDate || i.due_date || '',
-          status: i.status || 'Active'
+          status: (i.status || 'Active') as any,
+          memberId: i.memberId || i.member_id || '',
+          bookId: i.bookId || i.book_id || '',
+          pickupDate: i.pickupDate || i.pickup_date || '',
+          notes: i.notes || ''
         }));
         saveLocalData('db_issues', mapped);
         return mapped;
@@ -527,7 +535,11 @@ export const db = {
       memberName: issue.memberName || '',
       issueDate: issue.issueDate || new Date().toLocaleDateString('bn-BD'),
       dueDate: issue.dueDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('bn-BD'),
-      status: issue.status || 'Active'
+      status: issue.status || 'Active',
+      memberId: issue.memberId || '',
+      bookId: issue.bookId || '',
+      pickupDate: issue.pickupDate || '',
+      notes: issue.notes || ''
     };
 
     try {
@@ -536,7 +548,11 @@ export const db = {
         member_name: finalizedIssue.memberName,
         issue_date: finalizedIssue.issueDate,
         due_date: finalizedIssue.dueDate,
-        status: finalizedIssue.status
+        status: finalizedIssue.status,
+        member_id: finalizedIssue.memberId || null,
+        book_id: finalizedIssue.bookId || null,
+        pickup_date: finalizedIssue.pickupDate || null,
+        notes: finalizedIssue.notes || null
       };
 
       if (isEdit) {
@@ -547,14 +563,20 @@ export const db = {
           await supabase.from('issues').update(dbPayload).eq('id', finalId);
         }
       } else {
-        await supabase.from('issues').insert([dbPayload]);
+        const { data, error } = await supabase.from('issues').insert([dbPayload]).select();
+        if (error) {
+          console.warn('Insert issue without ID failed, fallback to payload with ID:', error);
+          await supabase.from('issues').insert([{ id: finalId, ...dbPayload }]);
+        } else if (data && data.length > 0) {
+          finalizedIssue.id = String(data[0].id);
+        }
       }
     } catch (err) {
       console.warn('Supabase saveIssue failed, applying locally:', err);
     }
 
     const local = getLocalData<SupabaseIssue>('db_issues', INITIAL_ISSUES);
-    const index = local.findIndex(i => i.id === finalId);
+    const index = local.findIndex(i => i.id === finalizedIssue.id || i.id === finalId);
     if (index > -1) {
       local[index] = finalizedIssue;
     } else {
