@@ -8,10 +8,11 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    background-color: #f8fafc;
   }
   
   body {
-    @apply text-slate-900 antialiased bg-slate-50;
+    @apply text-slate-800 antialiased bg-[#f8fafc];
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
@@ -24,21 +25,23 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom gorgeous scrollbar styled for light mode */
 ::-webkit-scrollbar {
-  width: 10px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-200 rounded-full border-4 border-solid border-slate-50;
+  background: #cbd5e1;
+  border-radius: 9999px;
+  border: 2px solid #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-300;
+  background: #94a3b8;
 }
 
 /* Print Optimization for Admin layout and Tables */
@@ -63,7 +66,6 @@
     padding: 0 !important;
   }
 
-  /* Make main component stack and take 100% width on prints */
   main {
     padding: 0 !important;
     margin: 0 !important;
@@ -72,7 +74,6 @@
     background: white !important;
   }
 
-  /* Flatten design elements */
   div, section, table, tbody, td, th, tr {
     background: transparent !important;
     background-color: transparent !important;
@@ -82,7 +83,6 @@
     color: black !important;
   }
 
-  /* Highlight specific tables and sheets and user profile summaries */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
@@ -107,7 +107,6 @@
     font-size: 9pt !important;
   }
 
-  /* Extra spacing for section headers on paper */
   h2, h3 {
     page-break-after: avoid !important;
     color: black !important;
@@ -116,4 +115,3 @@
     margin-bottom: 10px !important;
   }
 }
-

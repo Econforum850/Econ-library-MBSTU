@@ -1,9 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Globe, LogIn, Menu, X, ShoppingCart, BookOpen, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Globe, LogIn, Menu, X, BookOpen, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { useCart } from '../../lib/cart';
 import { isAdminAuthenticated } from '@/src/lib/adminAuth';
 
 const navLinksBN = [
@@ -24,7 +23,6 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [lang, setLang] = useState<'BN' | 'EN'>('BN');
   const location = useLocation();
-  const { totalItems } = useCart();
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState<any>(null);
 
@@ -50,8 +48,8 @@ export default function Navbar() {
         <div className="flex justify-between h-20 items-center">
           {/* Logo Section */}
           <Link to="/" id="nav-logo" className="flex items-center space-x-3 group">
-            <div className="w-12 h-12 bg-indigo-600 rounded-[18px] flex items-center justify-center text-white shadow-xl shadow-indigo-100 group-hover:rotate-[15deg] transition-all duration-500">
-              <BookOpen className="w-7 h-7" />
+            <div className="w-12 h-12 rounded-[18px] flex items-center justify-center shadow-xl shadow-slate-100 group-hover:scale-110 group-hover:rotate-[10deg] transition-all duration-500 overflow-hidden border border-slate-100/50 bg-white">
+              <img src="/src/assets/images/logo_gold.png" alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
             </div>
             <div className="flex flex-col">
               <span className="text-xl font-black text-slate-900 leading-tight font-sans tracking-tight">ইকোলাইব্রেরি</span>
@@ -80,15 +78,6 @@ export default function Navbar() {
             
             {/* Actions */}
             <div className="flex items-center space-x-3">
-              <Link to="/cart" className="relative p-3 bg-slate-50 text-slate-600 hover:text-indigo-600 rounded-2xl transition-all hover:bg-indigo-50 border border-slate-100">
-                <ShoppingCart className="w-5 h-5" />
-                {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 w-6 h-6 bg-rose-500 text-white text-[11px] rounded-full flex items-center justify-center font-black shadow-lg ring-2 ring-white">
-                    {totalItems}
-                  </span>
-                )}
-              </Link>
-
               <button 
                 onClick={() => setLang(lang === 'BN' ? 'EN' : 'BN')}
                 className="flex items-center space-x-2 px-5 py-3 bg-white border border-slate-200 rounded-[22px] text-[11px] font-black text-slate-600 hover:bg-slate-50 transition-all hover:border-indigo-200 shadow-sm"
@@ -140,14 +129,6 @@ export default function Navbar() {
 
           {/* Mobile menu button */}
           <div className="lg:hidden flex items-center space-x-3">
-             <Link to="/cart" className="relative p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-100">
-                <ShoppingCart className="w-5 h-5" />
-                {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-black">
-                    {totalItems}
-                  </span>
-                )}
-              </Link>
             <button
               onClick={() => setIsOpen(!isOpen)}
               id="mobile-menu-btn"

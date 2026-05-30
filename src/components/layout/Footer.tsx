@@ -9,8 +9,8 @@ export default function Footer() {
           {/* Brand section */}
           <div className="space-y-8">
             <Link to="/" className="flex items-center space-x-3 group">
-              <div className="w-12 h-12 bg-indigo-600 rounded-[18px] flex items-center justify-center text-white font-black shadow-xl shadow-indigo-100 group-hover:rotate-12 transition-all">
-                <BookOpen className="w-7 h-7" />
+              <div className="w-12 h-12 rounded-[18px] flex items-center justify-center shadow-xl shadow-slate-100 group-hover:scale-110 group-hover:rotate-[10deg] transition-all duration-500 overflow-hidden border border-slate-100 bg-white">
+                <img src="/src/assets/images/logo_gold.png" alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-black text-slate-900 leading-tight">ইকোলাইব্রেরি</span>

@@ -202,7 +202,10 @@ export default function Register() {
         photo: photo || '',
         address: formData.address,
         occupation: formData.occupation,
-        password: formData.password
+        password: formData.password,
+        paymentMethod,
+        senderNumber: paymentMethod === 'online' ? formData.senderNumber : '',
+        trxId: paymentMethod === 'online' ? formData.trxId : formData.receiptNumber,
       });
 
       const loggedInUserObj = {
@@ -271,8 +274,8 @@ export default function Register() {
             className="space-y-3 relative z-10 text-left"
           >
             <Link to="/" className="inline-flex items-center space-x-3.5 group select-none">
-              <div className="w-12 h-12 bg-gradient-to-tr from-indigo-550 to-purple-650 rounded-2xl flex items-center justify-center text-white shadow-xl group-hover:rotate-[6deg] transition-all">
-                <BookOpen className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center p-1 border border-slate-700/30 overflow-hidden shadow-xl group-hover:rotate-[6deg] transition-all">
+                <img src="/src/assets/images/logo_gold.png" alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-black text-white leading-none tracking-wide">ইকোলাইব্রেরি</span>
@@ -550,11 +553,11 @@ export default function Register() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-1.5">
                         <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                        <span className="text-xs font-black tracking-wide text-slate-850">নিবন্ধন ফি পেমেন্ট বিবরণ</span>
+                        <span className="text-xs font-black tracking-wide text-slate-850">মেম্বারশিপ সাবস্ক্রিপশন বিবরণ</span>
                       </div>
                       <div className="px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-1">
-                        <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wide">নিবন্ধন ফি:</span>
-                        <span className="text-xs font-mono font-black text-emerald-600">৳৫০</span>
+                        <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wide">মাসিক ফি (১ বছরের জন্য):</span>
+                        <span className="text-xs font-mono font-black text-emerald-600">৳৫০ / মাস</span>
                       </div>
                     </div>
 
@@ -602,7 +605,7 @@ export default function Register() {
                           <div className="text-center py-2.5 bg-indigo-50/40 rounded-xl border border-indigo-100">
                             <span className="text-[9px] font-black text-indigo-700 uppercase tracking-wider block mb-1">পার্সোনাল সেন্ড মানি নাম্বার (বিকাশ / নগদ)</span>
                             <div className="text-lg font-mono font-black text-indigo-905 tracking-widest">০১৮৮০৪১২১২৯</div>
-                            <span className="text-[9px] text-slate-400 font-bold block mt-0.5">টাকা পাঠানোর পর প্রেরক নম্বর ও ট্রানজেকশন আইডি দিন</span>
+                            <span className="text-[9px] text-slate-400 font-bold block mt-0.5">মাসিক ৫০ টাকা হিসেবে ১ বছরের জন্য মোট ৬০০ টাকা পাঠানোর পর প্রেরক নম্বর ও ট্রানজেকশন আইডি দিন</span>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -641,7 +644,7 @@ export default function Register() {
                           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">
                             <h5 className="text-[11px] font-black text-indigo-650 mb-1">💡 রসিদ রুল নির্দেশনা:</h5>
                             <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-                              সরাসরি অর্থনীতি বিভাগের পাঠাগার কাউন্টারে গিয়ে ৫০ টাকা নিবন্ধন ফি ক্যাশ প্রদান করে একটি পে-স্লিপ সংগ্রহ করুন এবং রসিদে উল্লেখিত স্লিপ নম্বরটি নিচে লিখুন।
+                              সরাসরি অর্থনীতি বিভাগের পাঠাগার কাউন্টারে গিয়ে মাসিক ৫০ টাকা হিসেবে ১ বছরের জন্য মোট ৬০০ টাকা মেম্বারশিপ ফি ক্যাশ প্রদান করে একটি পে-স্লিপ সংগ্রহ করুন এবং রসিদে উল্লেখিত স্লিপ নম্বরটি নিচে লিখুন।
                             </p>
                           </div>
 

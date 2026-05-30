@@ -7,9 +7,7 @@ import Donors from './pages/Donors';
 import Account from './pages/Account';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import { CartProvider } from './lib/cart';
 
-import Cart from './pages/Cart';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
@@ -29,41 +27,38 @@ import AdminScanner from './pages/admin/Scanner';
 
 export default function App() {
   return (
-    <CartProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="books" element={<Books />} />
-            <Route path="events" element={<Events />} />
-            <Route path="cart" element={<Cart />} />
-            <Route path="donors" element={<Donors />} />
-            <Route path="account" element={<Account />} />
-            <Route path="login" element={<Login />} />
-            <Route path="register" element={<Register />} />
-          </Route>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="books" element={<Books />} />
+          <Route path="events" element={<Events />} />
+          <Route path="donors" element={<Donors />} />
+          <Route path="account" element={<Account />} />
+          <Route path="login" element={<Login />} />
+          <Route path="register" element={<Register />} />
+        </Route>
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="profile" element={<AdminProfile />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="inventory" element={<AdminInventory />} />
-            <Route path="stickers" element={<AdminStickers />} />
-            <Route path="scanner" element={<AdminScanner />} />
-            <Route path="issues" element={<AdminIssues />} />
-            <Route path="shop" element={<AdminShop />} />
-            <Route path="orders" element={<AdminOrders />} />
-            <Route path="dues" element={<AdminDues />} />
-            <Route path="events" element={<AdminEvents />} />
-            <Route path="donors" element={<AdminDonors />} />
-            <Route path="finances" element={<AdminFinances />} />
-            <Route path="settings" element={<AdminSettings />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </CartProvider>
+        {/* Admin Routes */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="profile" element={<AdminProfile />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="inventory" element={<AdminInventory />} />
+          <Route path="stickers" element={<AdminStickers />} />
+          <Route path="scanner" element={<AdminScanner />} />
+          <Route path="issues" element={<AdminIssues />} />
+          <Route path="shop" element={<AdminShop />} />
+          <Route path="orders" element={<AdminOrders />} />
+          <Route path="dues" element={<AdminDues />} />
+          <Route path="events" element={<AdminEvents />} />
+          <Route path="donors" element={<AdminDonors />} />
+          <Route path="finances" element={<AdminFinances />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }

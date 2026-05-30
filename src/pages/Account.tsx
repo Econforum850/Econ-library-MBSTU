@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, SupabaseMember as SheetMember, SupabaseIssue as SheetIssue, SupabaseOrder } from '@/src/lib/supabaseDatabase';
 import { cn } from '@/src/lib/utils';
+import IdCardDownloader from '../components/admin/IdCardDownloader';
 
 export default function Account() {
   const [user, setUser] = useState<SheetMember | null>(null);
@@ -213,158 +214,177 @@ export default function Account() {
         </div>
       </div>
 
-      {/* Books & Orders List Section */}
-      <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden text-left">
-        <div className="p-8 border-b border-slate-50 flex flex-wrap gap-4 md:space-x-8">
-           <button 
-            onClick={() => setActiveTab('current')}
-            className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'current' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
-           >
-             বর্তমানে পঠিত বই ({currentBooks.length})
-           </button>
-           <button 
-            onClick={() => setActiveTab('history')}
-            className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'history' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
-           >
-             পুরানো পঠিত রেকর্ড ({pastBooks.length})
-           </button>
-           <button 
-            onClick={() => setActiveTab('orders')}
-            className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'orders' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
-           >
-             আমার বুক অর্ডার শপ ({orders.length})
-           </button>
-        </div>
+      {/* Books & Orders List Section in responsive columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div className="lg:col-span-2 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden text-left">
+          <div className="p-8 border-b border-slate-50 flex flex-wrap gap-4 md:space-x-8">
+             <button 
+              onClick={() => setActiveTab('current')}
+              className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'current' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
+             >
+               বর্তমানে পঠিত বই ({currentBooks.length})
+             </button>
+             <button 
+              onClick={() => setActiveTab('history')}
+              className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'history' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
+             >
+               পুরানো পঠিত রেকর্ড ({pastBooks.length})
+             </button>
+             <button 
+              onClick={() => setActiveTab('orders')}
+              className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'orders' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
+             >
+               আমার বুক অর্ডার শপ ({orders.length})
+             </button>
+          </div>
 
-        <div className="p-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeTab === 'orders' ? (
-                orders.length === 0 ? (
+          <div className="p-8">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {activeTab === 'orders' ? (
+                  orders.length === 0 ? (
+                    <div className="py-20 text-center">
+                       <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                          <Receipt className="w-10 h-10 text-slate-200" />
+                       </div>
+                       <p className="text-slate-400 font-bold">আপনি শপ থেকে এখনো কোনো বই অর্ডার করেননি</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {orders.map((order) => (
+                        <div key={order.id} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl transition-all">
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">ID: #{order.id}</span>
+                            <span className="text-xs text-slate-400 font-bold flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {order.date}
+                            </span>
+                          </div>
+                          
+                          <h3 className="font-extrabold text-slate-800 text-base mb-2 leading-snug line-clamp-2">{order.items}</h3>
+                          
+                          <div className="space-y-3 pt-4 border-t border-slate-100">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-slate-500 font-bold">পেমেন্ট স্ট্যাটাস:</span>
+                              <span className="text-xs font-black text-slate-700">পরিশোধিত (M-Wallet)</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs font-bold">
+                              <span className="text-slate-400 font-bold">মোট বইয়ের মূল্য:</span>
+                              <span className="text-emerald-500 font-extrabold text-base">৳ {order.total}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-2">
+                               <span className="text-xs font-bold text-slate-400">অর্ডার স্ট্যাটাস:</span>
+                               <span className={cn(
+                                 "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                                 order.status === 'Pending' ? "bg-amber-100 text-amber-700 border border-amber-200" :
+                                 order.status === 'Shipped' || order.status === 'Delivered' ? "bg-emerald-100 text-emerald-700 border border-emerald-200" :
+                                 "bg-rose-100 text-rose-700 border border-rose-200"
+                               )}>
+                                 {order.status === 'Pending' ? 'পেন্ডিং (অ্যাডমিন রিভিউ)' : 
+                                  order.status === 'Shipped' ? 'গৃহীত ও শিপড (Accepted)' : 
+                                  order.status === 'Delivered' ? 'ডেলিভার্ড সম্পন্ন' : 
+                                  'বাতিল করা হয়েছে'}
+                               </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (activeTab === 'current' ? currentBooks : pastBooks).length === 0 ? (
                   <div className="py-20 text-center">
                      <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <Receipt className="w-10 h-10 text-slate-200" />
+                        <BookIcon className="w-10 h-10 text-slate-200" />
                      </div>
-                     <p className="text-slate-400 font-bold">আপনি শপ থেকে এখনো কোনো বই অর্ডার করেননি</p>
+                     <p className="text-slate-400 font-bold">কোনো লোন বা ধারের রেকর্ড পাওয়া যায়নি</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {orders.map((order) => (
-                      <div key={order.id} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl transition-all">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">ID: #{order.id}</span>
-                          <span className="text-xs text-slate-400 font-bold flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" />
-                            {order.date}
-                          </span>
-                        </div>
-                        
-                        <h3 className="font-extrabold text-slate-800 text-base mb-2 leading-snug line-clamp-2">{order.items}</h3>
-                        
-                        <div className="space-y-3 pt-4 border-t border-slate-100">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-slate-500 font-bold">পেমেন্ট স্ট্যাটাস:</span>
-                            <span className="text-xs font-black text-slate-700">পরিশোধিত (M-Wallet)</span>
-                          </div>
-                          <div className="flex justify-between items-center text-xs font-bold">
-                            <span className="text-slate-400 font-bold">মোট বইয়ের মূল্য:</span>
-                            <span className="text-emerald-500 font-extrabold text-base">৳ {order.total}</span>
-                          </div>
-                          <div className="flex justify-between items-center pt-2">
-                             <span className="text-xs font-bold text-slate-400">অর্ডার স্ট্যাটাস:</span>
-                             <span className={cn(
-                               "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
-                               order.status === 'Pending' ? "bg-amber-100 text-amber-700 border border-amber-200" :
-                               order.status === 'Shipped' || order.status === 'Delivered' ? "bg-emerald-100 text-emerald-700 border border-emerald-200" :
-                               "bg-rose-100 text-rose-700 border border-rose-200"
-                             )}>
-                               {order.status === 'Pending' ? 'পেন্ডিং (অ্যাডমিন রিভিউ)' : 
-                                order.status === 'Shipped' ? 'গৃহীত ও শিপড (Accepted)' : 
-                                order.status === 'Delivered' ? 'ডেলিভার্ড সম্পন্ন' : 
-                                'বাতিল করা হয়েছে'}
-                             </span>
-                          </div>
-                        </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {(activeTab === 'current' ? currentBooks : pastBooks).map((issue) => (
+                      <div key={issue.id} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl transition-all flex flex-col justify-between">
+                         <div>
+                            <h3 className="font-black text-slate-800 mb-4 group-hover:text-indigo-600 transition-colors">{issue.bookTitle}</h3>
+                            
+                            <div className="space-y-3">
+                               <div className="flex justify-between text-xs font-bold">
+                                 <span className="text-slate-400">{issue.status === 'Pending' ? 'আবেদনের তারিখ:' : 'ইস্যু তারিখ:'}</span>
+                                 <span className="text-slate-600">{issue.issueDate}</span>
+                               </div>
+                               
+                               {issue.status !== 'Pending' && (
+                                 <div className="flex justify-between text-xs font-bold">
+                                   <span className="text-slate-400">ফেরত তারিখ:</span>
+                                   <span className={`px-2 py-0.5 rounded-lg ${issue.status === 'Overdue' ? 'bg-rose-50 text-rose-600' : 'text-slate-600'}`}>
+                                       {issue.dueDate}
+                                   </span>
+                                 </div>
+                               )}
+
+                               {issue.pickupDate && (
+                                 <div className="p-3 bg-indigo-50/70 border border-indigo-150 rounded-2xl text-xs font-bold text-slate-700 leading-snug mt-2">
+                                   <p className="text-indigo-800 font-extrabold mb-1 flex items-center gap-1.5 pt-0.5">
+                                     <Calendar className="w-4 h-4 shrink-0 text-indigo-600 animate-bounce" />
+                                     বই সংগ্রহের নির্ধারিত সময়:
+                                   </p>
+                                   <p className="text-[11px] bg-white px-2.5 py-1 text-indigo-700 font-extrabold rounded-lg border border-indigo-100 mt-1 inline-block">{issue.pickupDate}</p>
+                                 </div>
+                               )}
+
+                               {issue.status === 'Pending' && (
+                                 <div className="p-3 bg-amber-50/70 border border-amber-150 rounded-2xl text-[10px] font-bold text-slate-500 leading-relaxed mt-2 italic">
+                                   ⏳ আপনার আবেদনটি সফলভাবে জমা হয়েছে। কো-অর্ডিনেটর কর্তৃক পর্যালোচনার পর সংগ্রহের সময় ও দিন জানিয়ে দেওয়া হবে।
+                                 </div>
+                               )}
+                            </div>
+                         </div>
+
+                         <div className="pt-4 mt-6 flex items-center justify-between border-t border-slate-100/60">
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
+                              issue.status === 'Returned' ? 'bg-emerald-100 text-emerald-600' : 
+                              issue.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200 animate-pulse' :
+                              issue.status === 'Rejected' ? 'bg-rose-100 text-rose-600' :
+                              issue.status === 'Overdue' ? 'bg-rose-105 text-rose-600' : 'bg-indigo-100 text-indigo-600'
+                            }`}>
+                              {issue.status === 'Pending' ? 'আবেদন পেন্ডিং' :
+                               issue.status === 'Rejected' ? 'বাতিল' :
+                               issue.status === 'Returned' ? 'ফেরত সম্পন্ন' : 
+                               issue.status === 'Overdue' ? 'মেয়াদ উত্তীর্ণ' : 'চলতি লোন'}
+                            </span>
+                            {issue.status === 'Overdue' && (
+                               <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse" />
+                            )}
+                         </div>
                       </div>
                     ))}
                   </div>
-                )
-              ) : (activeTab === 'current' ? currentBooks : pastBooks).length === 0 ? (
-                <div className="py-20 text-center">
-                   <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <BookIcon className="w-10 h-10 text-slate-200" />
-                   </div>
-                   <p className="text-slate-400 font-bold">কোনো লোন বা ধারের রেকর্ড পাওয়া যায়নি</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {(activeTab === 'current' ? currentBooks : pastBooks).map((issue) => (
-                    <div key={issue.id} className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 group hover:bg-white hover:shadow-xl transition-all flex flex-col justify-between">
-                       <div>
-                          <h3 className="font-black text-slate-800 mb-4 group-hover:text-indigo-600 transition-colors">{issue.bookTitle}</h3>
-                          
-                          <div className="space-y-3">
-                             <div className="flex justify-between text-xs font-bold">
-                               <span className="text-slate-400">{issue.status === 'Pending' ? 'আবেদনের তারিখ:' : 'ইস্যু তারিখ:'}</span>
-                               <span className="text-slate-600">{issue.issueDate}</span>
-                             </div>
-                             
-                             {issue.status !== 'Pending' && (
-                               <div className="flex justify-between text-xs font-bold">
-                                 <span className="text-slate-400">ফেরত তারিখ:</span>
-                                 <span className={`px-2 py-0.5 rounded-lg ${issue.status === 'Overdue' ? 'bg-rose-50 text-rose-600' : 'text-slate-600'}`}>
-                                     {issue.dueDate}
-                                 </span>
-                               </div>
-                             )}
-
-                             {issue.pickupDate && (
-                               <div className="p-3 bg-indigo-50/70 border border-indigo-150 rounded-2xl text-xs font-bold text-slate-700 leading-snug mt-2">
-                                 <p className="text-indigo-800 font-extrabold mb-1 flex items-center gap-1.5 pt-0.5">
-                                   <Calendar className="w-4 h-4 shrink-0 text-indigo-600 animate-bounce" />
-                                   বই সংগ্রহের নির্ধারিত সময়:
-                                 </p>
-                                 <p className="text-[11px] bg-white px-2.5 py-1 text-indigo-700 font-extrabold rounded-lg border border-indigo-100 mt-1 inline-block">{issue.pickupDate}</p>
-                               </div>
-                             )}
-
-                             {issue.status === 'Pending' && (
-                               <div className="p-3 bg-amber-50/70 border border-amber-150 rounded-2xl text-[10px] font-bold text-slate-500 leading-relaxed mt-2 italic">
-                                 ⏳ আপনার আবেদনটি সফলভাবে জমা হয়েছে। কো-অর্ডিনেটর কর্তৃক পর্যালোচনার পর সংগ্রহের সময় ও দিন জানিয়ে দেওয়া হবে।
-                               </div>
-                             )}
-                          </div>
-                       </div>
-
-                       <div className="pt-4 mt-6 flex items-center justify-between border-t border-slate-100/60">
-                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
-                            issue.status === 'Returned' ? 'bg-emerald-100 text-emerald-600' : 
-                            issue.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200 animate-pulse' :
-                            issue.status === 'Rejected' ? 'bg-rose-100 text-rose-600' :
-                            issue.status === 'Overdue' ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'
-                          }`}>
-                            {issue.status === 'Pending' ? 'আবেদন পেন্ডিং' :
-                             issue.status === 'Rejected' ? 'বাতিল' :
-                             issue.status === 'Returned' ? 'ফেরত সম্পন্ন' : 
-                             issue.status === 'Overdue' ? 'মেয়াদ উত্তীর্ণ' : 'চলতি লোন'}
-                          </span>
-                          {issue.status === 'Overdue' && (
-                             <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse" />
-                          )}
-                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
+
+        {/* Dynamic Digital Member ID card download sideboard */}
+        {(user.status === 'accepted' || user.status === 'active') ? (
+          <div className="w-full">
+            <IdCardDownloader member={user} />
+          </div>
+        ) : (
+          <div className="bg-amber-50 border border-amber-100/60 p-8 rounded-[32px] text-left text-slate-700 space-y-4">
+            <h4 className="font-extrabold text-xs text-amber-800 uppercase tracking-widest flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 shrink-0" />
+              আইডি কার্ড তৈরি হচ্ছে…
+            </h4>
+            <p className="text-[11px] leading-relaxed text-slate-550 font-medium">
+              আপনার মেম্বারশিপ অ্যাকাউন্টটি সক্রিয় হলে আপনার স্বয়ংক্রিয় লাইভ ডিজিটাল পরিচয়পত্র (ID Card) এখানে প্রদর্শিত হবে। কো-অর্ডিনেটর কর্তৃক অনুমোদন সম্পন্ন হওয়া পর্যন্ত দয়া করে অপেক্ষা করুন।
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

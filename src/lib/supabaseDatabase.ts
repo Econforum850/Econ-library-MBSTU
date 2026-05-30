@@ -32,6 +32,9 @@ export interface SupabaseMember {
   address?: string;
   occupation?: string;
   password?: string;
+  paymentMethod?: string;
+  senderNumber?: string;
+  trxId?: string;
 }
 
 export interface SupabaseDonor {

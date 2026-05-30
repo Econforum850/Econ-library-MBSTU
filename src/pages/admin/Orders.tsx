@@ -134,8 +134,8 @@ export default function AdminOrders() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 leading-tight">বই বিক্রয় অর্ডার (Shop Orders)</h2>
-          <p className="text-sm font-bold text-slate-400 mt-1">শপ কার্ট থেকে কেনা বইয়ের ডেলিভারি ও স্ট্যাটাস আপডেট করুন</p>
+          <h2 className="text-3xl font-black text-slate-900 leading-tight">বই ধার ও শপ অর্ডার অনুরোধ (Borrow & Order Request List)</h2>
+          <p className="text-sm font-bold text-slate-400 mt-1">সদস্যদের বই ধার নেওয়ার আবেদন ও ক্যাটালগ শপের বই অর্ডারসমূহের স্ট্যাটাস ট্র্যাক ও আপডেট করুন</p>
         </div>
         <div className="flex items-center space-x-3 bg-slate-50 p-2 rounded-[28px] border border-slate-100">
           <div className="px-6 py-3 bg-white rounded-2xl shadow-sm hover:scale-105 transition-transform">

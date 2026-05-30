@@ -1,9 +1,8 @@
-import { Search, ChevronDown, BookOpen, Clock, X, ShoppingCart, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/src/lib/utils';
 import { useNavigate } from 'react-router-dom';
-import { useCart } from '../lib/cart';
 import { db } from '@/src/lib/supabaseDatabase';
 
 interface Book {
@@ -36,13 +35,11 @@ export default function Books() {
   const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'ebooks'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [isAdded, setIsAdded] = useState(false);
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'pre-order'>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [isBorrowModalOpen, setIsBorrowModalOpen] = useState(false);
@@ -52,7 +49,6 @@ export default function Books() {
   const [isBorrowing, setIsBorrowing] = useState(false);
   const [borrowSuccess, setBorrowSuccess] = useState(false);
   
-  const { addItem, totalItems } = useCart();
   const navigate = useNavigate();
 
   const loggedInUser = useMemo(() => {
@@ -122,18 +118,12 @@ export default function Books() {
       result = result.filter(b => b.category === selectedCategory);
     }
 
-    if (priceFilter === 'free') {
-      result = result.filter(b => b.price === '৳০' || b.price?.toLowerCase() === 'free');
-    } else if (priceFilter === 'paid') {
-      result = result.filter(b => b.price !== '৳০' && b.price?.toLowerCase() !== 'free');
-    }
-
     if (statusFilter !== 'all') {
       result = result.filter(b => b.status === statusFilter);
     }
 
     return result;
-  }, [books, searchTerm, activeTab, selectedCategory, priceFilter, statusFilter]);
+  }, [books, searchTerm, activeTab, selectedCategory, statusFilter]);
 
   const categoryGroups = useMemo(() => {
     const groups: { [key: string]: Book[] } = {};
@@ -149,33 +139,6 @@ export default function Books() {
     const uniqueCategories = Array.from(new Set(books.map(b => b.category)));
     return uniqueCategories.filter(c => c && c !== 'N/A');
   }, [books]);
-
-  const handleAddToCart = (book: Book) => {
-    if (!loggedInUser) {
-      navigate('/login?redirect=books');
-      return;
-    }
-    if (loggedInUser.role !== 'Admin') {
-      if (loggedInUser.status === 'pending') {
-        alert('আপনার অ্যাকাউন্ট বর্তমানে পেন্ডিং রয়েছে। এডমিন এটি সক্রিয় করার আগে আপনি অর্ডার করতে পারবেন না।');
-        return;
-      }
-      if (loggedInUser.status === 'rejected') {
-        alert('দুঃখিত, আপনার অ্যাকাউন্ট বাতিল (Rejected) করা হয়েছে। আপনি অর্ডার বা বই কিনতে পারবেন না।');
-        return;
-      }
-    }
-    const priceValue = parseInt(String(book.price || '0').replace(/[^0-9]/g, '')) || 0;
-    addItem({
-      id: book.id,
-      title: book.title,
-      price: priceValue,
-      quantity: 1,
-      cover: book.cover,
-    });
-    setSelectedBook(book);
-    setIsAdded(true);
-  };
 
   const handleOpenBorrowModal = (book: Book) => {
     if (!loggedInUser) {
@@ -370,15 +333,6 @@ export default function Books() {
             >
               <Filter className="w-6 h-6" />
             </button>
-            <button 
-              onClick={() => navigate('/cart')}
-              className="relative p-7 bg-white border-2 border-slate-100 rounded-[35px] text-slate-700 hover:bg-slate-50 transition-all shadow-xl active:scale-95 group"
-            >
-              <ShoppingCart className="w-6 h-6 group-hover:text-indigo-600" />
-              <span className="absolute -top-1 -right-1 w-8 h-8 bg-indigo-600 text-white text-[11px] rounded-full flex items-center justify-center font-black shadow-lg ring-4 ring-white">
-                {totalItems}
-              </span>
-            </button>
           </div>
         </div>
 
@@ -388,7 +342,7 @@ export default function Books() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="p-10 bg-slate-900 rounded-[45px] shadow-2xl grid grid-cols-1 md:grid-cols-3 gap-10 border border-slate-800"
+              className="p-10 bg-slate-900 rounded-[45px] shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-10 border border-slate-800"
             >
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -397,31 +351,11 @@ export default function Books() {
                 <select 
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-7 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white focus:outline-none focus:ring-4 focus:ring-indigo-600/20"
+                  className="w-full px-7 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white focus:outline-none focus:ring-4 focus:ring-indigo-600/20 font-sans cursor-pointer outline-none"
                 >
                   <option value="all" className="text-slate-900">সকল ক্যাটাগরি</option>
                   {categories.map(cat => <option key={cat} value={cat} className="text-slate-900">{cat}</option>)}
                 </select>
-              </div>
-
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-emerald-400" /> সংগ্রহের ধরণ
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['all', 'free', 'paid'] as const).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => setPriceFilter(p)}
-                      className={cn(
-                        "py-4 rounded-xl text-[10px] font-black uppercase transition-all",
-                        priceFilter === p ? "bg-white text-slate-900" : "bg-white/5 text-slate-400 hover:bg-white/10"
-                      )}
-                    >
-                      {p === 'all' ? 'সব' : p === 'free' ? 'লাইব্রেরি' : 'বিক্রয়'}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="space-y-4">
@@ -499,20 +433,20 @@ export default function Books() {
                           <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1">
                             <span className={cn(
                               "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest backdrop-blur-md border border-white/20 shadow-sm",
-                              book.isEBook ? "bg-indigo-600 text-white" : book.price !== '৳০' ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"
+                              book.isEBook ? "bg-indigo-600 text-white" : "bg-emerald-500 text-white"
                             )}>
-                              {book.isEBook ? 'E-Book' : book.price !== '৳০' ? 'Sell' : 'Library'}
+                              {book.isEBook ? 'E-Book' : 'Library'}
                             </span>
                           </div>
                         </div>
                         
                         <div className="px-1 pb-1 flex flex-col flex-1">
                           <h3 className="text-[10px] sm:text-[11px] font-black text-slate-900 mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
-                          <p className="text-[8px] sm:text-[9px] text-slate-400 mb-3 font-bold truncate opacity-80">{book.author}</p>
+                          <p className="text-[8px] sm:text-[9px] text-slate-400 mb-2 font-bold truncate opacity-80">{book.author}</p>
                           
                           <div className="mt-auto flex items-center justify-between gap-1">
-                             <div className="text-[9px] sm:text-[10px] font-black text-indigo-600 bg-indigo-50/50 px-2 py-0.5 rounded-md">
-                                {book.price === '৳০' ? 'Free' : book.price}
+                             <div className="text-[8px] sm:text-[9px] font-mono font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
+                                {book.isEBook ? 'Digital' : 'Hardcopy'}
                              </div>
                              <button 
                                onClick={() => setSelectedBook(book)}
@@ -698,7 +632,7 @@ export default function Books() {
 
       {/* Book Details Modal */}
       <AnimatePresence>
-        {selectedBook && !isAdded && (
+        {selectedBook && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
@@ -756,8 +690,8 @@ export default function Books() {
                       <span className="text-lg font-black text-slate-900">{selectedBook.status === 'available' ? 'Available Now' : 'Pre-Order Only'}</span>
                    </div>
                    <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Market Price</span>
-                      <span className="text-lg font-black text-slate-900">{selectedBook.price || 'Free / Library'}</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Book Type</span>
+                      <span className="text-lg font-black text-slate-900">{selectedBook.isEBook ? 'Digital E-Book' : 'Library Hardcopy'}</span>
                    </div>
                 </div>
 
@@ -797,21 +731,13 @@ export default function Books() {
                   </div>
                 )}
 
-                {(!selectedBook.isEBook && (selectedBook.price === '৳০' || selectedBook.price?.toLowerCase() === 'free' || !selectedBook.price)) ? (
+                {!selectedBook.isEBook && (
                   <button 
                     onClick={() => handleOpenBorrowModal(selectedBook)}
                     className="w-full py-7 bg-indigo-600 hover:bg-slate-900 text-white rounded-[35px] font-black flex items-center justify-center space-x-5 shadow-2xl shadow-indigo-100 transition-all transform active:scale-95 duration-200 animate-pulse"
                   >
                     <BookOpen className="w-8 h-8 text-indigo-300" />
                     <span className="text-2xl">ধার নেওয়ার আবেদন (Borrow Request)</span>
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => handleAddToCart(selectedBook)}
-                    className="w-full py-7 bg-emerald-600 hover:bg-slate-900 text-white rounded-[35px] font-black flex items-center justify-center space-x-5 shadow-2xl shadow-emerald-100 transition-all transform active:scale-95 duration-200"
-                  >
-                    <ShoppingCart className="w-8 h-8" />
-                    <span className="text-2xl">কার্টে যোগ করুন (Buy / Order)</span>
                   </button>
                 )}
               </div>
@@ -820,26 +746,6 @@ export default function Books() {
         )}
       </AnimatePresence>
       
-      {/* Success Modal */}
-      <AnimatePresence>
-        {isAdded && (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-               <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-white p-12 rounded-[50px] shadow-2xl text-center max-w-sm w-full">
-                  <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8">
-                     <CheckCircle2 className="w-10 h-10" />
-                  </div>
-                  <h3 className="text-2xl font-black mb-4">সফল হয়েছে!</h3>
-                  <p className="text-slate-500 font-medium mb-10">বইটি আপনার কার্টে যুক্ত করা হয়েছে।</p>
-                  <div className="space-y-4">
-                     <button onClick={() => navigate('/cart')} className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black shadow-lg">পেমেন্ট করুন</button>
-                     <button onClick={() => setIsAdded(false)} className="w-full py-5 bg-slate-100 text-slate-600 rounded-3xl font-black">আরও বই দেখুন</button>
-                  </div>
-               </motion.div>
-            </div>
-        )}
-      </AnimatePresence>
-
       {/* Borrow Request Confirmation Modal */}
       <AnimatePresence>
         {isBorrowModalOpen && selectedBook && (

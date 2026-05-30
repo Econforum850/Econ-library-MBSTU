@@ -16,8 +16,8 @@ const menuItems = [
   { icon: QrCode, label: 'স্টিকার ও QR (Stickers)', path: '/admin/stickers' },
   { icon: Scan, label: 'বারকোড স্ক্যানার', path: '/admin/scanner' },
   { icon: ArrowLeftRight, label: 'ইস্যু ও ফেরত (Issues)', path: '/admin/issues' },
-  { icon: ShoppingBag, label: 'শপ বই ব্যবস্থাপনা', path: '/admin/shop' },
-  { icon: Receipt, label: 'বই বিক্রয় অর্ডার', path: '/admin/orders' },
+  { icon: ShoppingBag, label: 'বই ও শপ ব্যবস্থাপনা (Catalog)', path: '/admin/shop' },
+  { icon: Receipt, label: 'বই ধার ও অর্ডার তালিকা (Borrow Request List)', path: '/admin/orders' },
   { icon: Wallet, label: 'সদস্যদের বকেয়া (Dues)', path: '/admin/dues' },
   { icon: Calendar, label: 'ইভেন্ট ও নোটিশ (Events)', path: '/admin/events' },
   { icon: Heart, label: 'দাতা সদস্য (Donors)', path: '/admin/donors' },
@@ -34,8 +34,8 @@ export default function AdminSidebar() {
       {/* Header */}
       <div className="p-6 border-b border-white/5">
         <Link to="/" className="flex items-center space-x-3 mb-8">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-            <BookOpen className="w-6 h-6" />
+          <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center p-1 border border-white/5 overflow-hidden shadow-inner">
+            <img src="/src/assets/images/logo_gold.png" alt="Library logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-black text-white leading-tight">Econ-library-MBSTU</span>
@@ -82,7 +82,12 @@ export default function AdminSidebar() {
                 "w-5 h-5 transition-colors",
                 isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"
               )} />
-              <span className="text-sm">{item.label}</span>
+              <span className={cn(
+                "text-xs font-black tracking-wide transition-all",
+                isActive ? "text-indigo-400 font-extrabold" : "text-slate-400 group-hover:text-slate-100 font-bold"
+              )}>
+                {item.label}
+              </span>
               {isActive && (
                 <div className="ml-auto w-1 h-1 bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(129,140,248,0.8)]" />
               )}
