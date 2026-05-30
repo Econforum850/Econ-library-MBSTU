@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/src/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { db } from '@/src/lib/supabaseDatabase';
+import { defaultEconBooks } from '@/src/lib/defaultEconBooks';
 
 interface Book {
   id: string;
@@ -48,6 +49,8 @@ export default function Books() {
   const [borrowName, setBorrowName] = useState('');
   const [isBorrowing, setIsBorrowing] = useState(false);
   const [borrowSuccess, setBorrowSuccess] = useState(false);
+  const [importingBooks, setImportingBooks] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
   
   const navigate = useNavigate();
 
@@ -491,10 +494,87 @@ export default function Books() {
 
       {/* No Results Fallback */}
       {filteredBooks.length === 0 && (
-         <div className="text-center py-40 bg-slate-50 rounded-[80px] border-4 border-dashed border-slate-100">
-            <Bookmark className="w-24 h-24 text-slate-200 mx-auto mb-8" />
-            <p className="text-slate-400 font-black text-2xl uppercase tracking-widest">No books found in this dimension</p>
-            <p className="text-slate-300 font-bold mt-4">Try adjusting your filters or search terms.</p>
+         <div className="text-center py-24 px-6 bg-slate-50 rounded-[80px] border-4 border-dashed border-slate-150 max-w-4xl mx-auto">
+            <Bookmark className="w-16 h-16 text-slate-300 mx-auto mb-6" />
+            <p className="text-slate-800 font-extrabold text-2xl mb-3">ক্যাটালগ বর্তমানে খালি রয়েছে</p>
+            <p className="text-slate-500 font-medium max-w-lg mx-auto text-sm leading-relaxed mb-8">
+              সুপাবেজ টেবিল তৈরি হওয়ার পর লাইব্রেরি ডাটাবেজটি বর্তমানে খালি রয়েছে। ডাটাবেজে ১০০টি অর্থনীতি সমৃদ্ধ টেক্সটবুক যুক্ত করতে নিচে ক্লিক করুন।
+            </p>
+            
+            {isAdmin ? (
+              <div className="max-w-md mx-auto p-6 bg-white rounded-3xl shadow-md border border-slate-100">
+                <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4">অ্যাডমিন অ্যাকশন প্যানেল</p>
+                <button 
+                  type="button"
+                  disabled={importingBooks}
+                  onClick={async () => {
+                    if (!window.confirm('আপনি কি সুপাবেজ লাইব্রেরি ডাটাবেজে ১০০টি রিয়ালিস্টিক অর্থনীতি বই (১০টি সেকশন বা ক্যাটাগরিতে বিভক্ত) যুক্ত করতে চান? এটি করতে কয়েক সেকেন্ড সময় লাগতে পারে।')) return;
+                    setImportingBooks(true);
+                    setImportProgress(0);
+                    try {
+                      let successCount = 0;
+                      for (let i = 0; i < defaultEconBooks.length; i++) {
+                        const book = defaultEconBooks[i];
+                        await db.saveBook({
+                          title: book.title,
+                          author: book.author,
+                          category: book.category,
+                          cover: book.cover,
+                          bookId: book.bookId,
+                          shelfNo: book.shelfNo,
+                          status: book.status as 'available' | 'pre-order',
+                          price: book.price,
+                          stock: book.stock,
+                          isEBook: book.isEBook,
+                          ebookUrl: book.ebookUrl || ''
+                        });
+                        successCount++;
+                        setImportProgress(Math.round(((i + 1) / defaultEconBooks.length) * 100));
+                      }
+
+                      // Append any newly imported categories to standard list
+                      const savedCats = localStorage.getItem('econ_library_categories');
+                      let cats = [
+                        'সাধারণ', 'উপন্যাস', 'কবিতা', 'ইসলামী বই', 'প্রবন্ধ', 'ই-বুক',
+                        'Microeconomics (ব্যষ্টিগত অর্থনীতি)', 'Macroeconomics (সমষ্টিগত অর্থনীতি)',
+                        'Econometrics (ইকোনোমেট্রিক্স)', 'Development Economics (উন্নয়ন অর্থনীতি)'
+                      ];
+                      if (savedCats) {
+                        try { cats = JSON.parse(savedCats); } catch(e) {}
+                      }
+                      const importedCats = Array.from(new Set(defaultEconBooks.map(b => b.category)));
+                      const updatedCats = Array.from(new Set([...cats, ...importedCats]));
+                      localStorage.setItem('econ_library_categories', JSON.stringify(updatedCats));
+
+                      alert(`সফলভাবে ১০০টি অর্থনীতি বিষয়ক বই যুক্ত করা হয়েছে!`);
+                      loadAllBooks();
+                    } catch (e: any) {
+                      console.error('Import econ books error:', e);
+                      alert(`বইসমূহ যুক্ত করতে সমস্যা হয়েছে: ` + (e.message || e));
+                    } finally {
+                      setImportingBooks(false);
+                    }
+                  }}
+                  className="w-full py-4 px-6 bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white rounded-2xl font-black text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {importingBooks ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>আপলোড হচ্ছে ({importProgress}%)</span>
+                    </>
+                  ) : (
+                    <>
+                      <BookOpen className="w-4 h-4" />
+                      <span>১০০টি অর্থনীতি বই যুক্ত করুন</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="inline-block px-6 py-3 bg-indigo-50 border border-indigo-100 rounded-2xl text-xs font-bold text-indigo-700">
+                অ্যাডমিন অ্যাকাউন্ট বা এডমিন ড্যাশবোর্ড থেকে বই সিঙ্ক/আপলোড করুন। আপনার ডিফল্ট এডমিনে লগইন করুন (Email: <span className="font-mono underline">eco24034@mbstu.ac.bd</span> অথবা অ্যাডমিন পাসওয়ার্ড দিয়ে)।
+              </div>
+            )}
          </div>
       )}
 

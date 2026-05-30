@@ -12,6 +12,7 @@ import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, SupabaseBook } from '@/src/lib/supabaseDatabase';
 import { SUPABASE_URL, SUPABASE_PUBLIC_KEY } from '@/src/supabaseClient';
+import { defaultEconBooks } from '@/src/lib/defaultEconBooks';
 
 interface ExtendedBook extends SupabaseBook {}
 
@@ -28,6 +29,39 @@ export default function AdminInventory() {
   const [customScriptUrl, setCustomScriptUrl] = useState(localStorage.getItem('script_url') || 'https://script.google.com/macros/s/AKfycbyt-HKZBQZ3WWQ5tJ-S5GmVY-wyi2OPRNPHyXFGjMuux5SrhN1ywTX_SlR8yocdC3Z-jQ/exec');
   const [tempUrl, setTempUrl] = useState(SUPABASE_URL);
   const [tempKey, setTempKey] = useState(SUPABASE_PUBLIC_KEY);
+  
+  // Dynamic Category state
+  const [categories, setCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('econ_library_categories');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [
+      'সাধারণ',
+      'উপন্যাস',
+      'কবিতা',
+      'ইসলামী বই',
+      'প্রবন্ধ',
+      'ই-বুক',
+      'Microeconomics (ব্যষ্টিগত অর্থনীতি)',
+      'Macroeconomics (সমষ্টিগত অর্থনীতি)',
+      'Econometrics (ইকোনোমেট্রিক্স)',
+      'Development Economics (উন্নয়ন অর্থনীতি)',
+      'International Economics (আন্তর্জাতিক অর্থনীতি)',
+      'Bangladesh Economy (বাংলাদেশ অর্থনীতি)',
+      'Mathematical Economics (গাণিতিক অর্থনীতি)',
+      'Public Finance (সরকারি অর্থব্যবস্থা)',
+      'Environmental Economics (পরিবেশ অর্থনীতি)',
+      'Financial Economics & Banking (অর্থনীতি ও ব্যাংকিং)'
+    ];
+  });
+
+  const [importingBooks, setImportingBooks] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
 
   const [newBook, setNewBook] = useState({
     title: '',
@@ -527,6 +561,58 @@ ALTER TABLE orders DISABLE ROW LEVEL SECURITY;
             <span>ডেটা সিঙ্ক করুন</span>
           </button>
 
+          <button 
+            type="button"
+            disabled={importingBooks}
+            onClick={async () => {
+              if (!window.confirm('আপনি কি লাইব্রেরি ডেটাবেজে ১০০টি টেক্সটবুক (১০টি সেকশন বা ক্যাটাগরিতে বিভক্ত) স্বয়ংক্রিয়ভাবে যুক্ত করতে চান? এটি সুপাবেজ বা অফলাইন ডেটাবেজে সরাসরি ক্যাটাগরি ও কভারসহ যুক্ত হয়ে যাবে।')) return;
+              setImportingBooks(true);
+              setImportProgress(0);
+              try {
+                let successCount = 0;
+                for (let i = 0; i < defaultEconBooks.length; i++) {
+                  const book = defaultEconBooks[i];
+                  await db.saveBook({
+                    title: book.title,
+                    author: book.author,
+                    category: book.category,
+                    cover: book.cover,
+                    bookId: book.bookId,
+                    shelfNo: book.shelfNo,
+                    status: book.status as 'available' | 'pre-order',
+                    price: book.price,
+                    stock: book.stock,
+                    isEBook: book.isEBook,
+                    ebookUrl: book.ebookUrl || ''
+                  });
+                  successCount++;
+                  setImportProgress(Math.round(((i + 1) / defaultEconBooks.length) * 100));
+                }
+
+                // Append any newly imported categories to standard list so they can easily build them
+                const importedCats = Array.from(new Set(defaultEconBooks.map(b => b.category)));
+                const updatedCats = Array.from(new Set([...categories, ...importedCats]));
+                setCategories(updatedCats);
+                localStorage.setItem('econ_library_categories', JSON.stringify(updatedCats));
+
+                alert(`সফলভাবে ১০০টি অর্থনীতি বিষয়ক টেক্সটবুক ১০টি ক্যাটাগরিতে বিভক্ত করে ডেটাবেজে আপলোড করা হয়েছে!`);
+                loadBooks();
+              } catch (e: any) {
+                console.error('Import econ books error:', e);
+                alert(`বইসমূহ ইম্পোর্ট করতে সমস্যা হয়েছে:\n` + (e.message || e));
+              } finally {
+                setImportingBooks(false);
+              }
+            }}
+            className="w-full py-5 bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white rounded-3xl font-black flex flex-col items-center justify-center space-y-1 hover:scale-[1.02] shadow-xl transition-all active:scale-95 z-10 disabled:opacity-50"
+          >
+            <div className="flex items-center space-x-3">
+              {importingBooks ? <Loader2 className="w-5 h-5 animate-spin" /> : <BookOpen className="w-5 h-5 text-white animate-pulse" />}
+              <span>{importingBooks ? `বই যোগ হচ্ছে (${importProgress}%)` : '১০০টি অর্থনীতি বই যোগ করুন'}</span>
+            </div>
+            {!importingBooks && <span className="text-[9px] font-black opacity-90 uppercase tracking-widest block">১০টি বাস্তবধর্মী মেকানিক্স সেকশন</span>}
+          </button>
+
           {isUsingSheet && books.length > 0 && (
             <button 
               type="button"
@@ -863,18 +949,38 @@ ALTER TABLE orders DISABLE ROW LEVEL SECURITY;
                     />
                   </div>
                   <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">ক্যাটাগরি</label>
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4 flex justify-between items-center">
+                      <span>ক্যাটাগরি</span>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const catName = window.prompt('নতুন ক্যাটাগরির নাম লিখুন:');
+                          if (catName && catName.trim()) {
+                            const trimmed = catName.trim();
+                            if (!categories.includes(trimmed)) {
+                              const updated = [...categories, trimmed];
+                              setCategories(updated);
+                              localStorage.setItem('econ_library_categories', JSON.stringify(updated));
+                              setNewBook(prev => ({...prev, category: trimmed}));
+                              alert(`"${trimmed}" ক্যাটাগরি সফলভাবে যুক্ত করা হয়েছে!`);
+                            } else {
+                              alert('ক্যাটাগরি ইতিমধ্যেই তালিকায় রয়েছে!');
+                            }
+                          }
+                        }}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 transition-colors font-black underline uppercase tracking-wider"
+                      >
+                        + নতুন ক্যাটাগরি
+                      </button>
+                    </label>
                     <select 
                       value={newBook.category}
                       onChange={(e) => setNewBook({...newBook, category: e.target.value})}
-                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                      className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-sans"
                     >
-                      <option>সাধারণ</option>
-                      <option>উপন্যাস</option>
-                      <option>কবিতা</option>
-                      <option>ইসলামী বই</option>
-                      <option>প্রবন্ধ</option>
-                      <option>ই-বুক</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="space-y-3">

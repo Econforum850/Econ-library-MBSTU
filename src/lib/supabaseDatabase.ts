@@ -116,26 +116,21 @@ const getLocalData = <T>(key: string, initial: T[]): T[] => {
   try {
     const parsed = JSON.parse(data);
     if (Array.isArray(parsed)) {
-      const hasMock = parsed.some((item: any) => 
-        (item && (
-          item.id === 'M-101' || item.id === 'M-102' || item.id === 'M-103' ||
-          item.id === 'b-1' || item.id === 'b-2' ||
-          item.id === 'd-1' || item.id === 'd-2' ||
-          item.id === 'i-1' ||
-          item.id === 't-1' ||
-          item.id === 'e-1' ||
-          item.id === 'ORD-1234'
-        ))
-      );
-      if (hasMock) {
-        localStorage.setItem(key, JSON.stringify([]));
-        return [];
+      const mockIds = ['M-101', 'M-102', 'M-103', 'b-1', 'b-2', 'd-1', 'd-2', 'i-1', 't-1', 'e-1', 'ORD-1234'];
+      const filtered = parsed.filter((item: any) => {
+        if (!item) return false;
+        return !mockIds.includes(String(item.id));
+      });
+      if (filtered.length !== parsed.length) {
+        localStorage.setItem(key, JSON.stringify(filtered));
+        return filtered as T[];
       }
     }
   } catch (e) {
     console.warn("Clean legacy local data error:", e);
   }
-  return JSON.parse(data);
+  const loaded = localStorage.getItem(key);
+  return loaded ? JSON.parse(loaded) : [];
 };
 
 const saveLocalData = <T>(key: string, data: T[]) => {
