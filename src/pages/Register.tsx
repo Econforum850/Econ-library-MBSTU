@@ -29,7 +29,8 @@ import {
 } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { cn } from '@/src/lib/utils';
-import { supabase } from '@/src/supabaseClient';
+import { auth } from '@/src/lib/firebaseClient';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { db } from '@/src/lib/supabaseDatabase';
 
 // Framer Motion staggered variants
@@ -154,39 +155,15 @@ export default function Register() {
       let authUserObj: any = null;
       
       try {
-        const { data, error: authError } = await supabase.auth.signUp({
-          email: emailInput,
-          password: formData.password,
-          options: {
-            data: {
-              name: formData.name,
-              phone: phoneInput,
-              occupation: formData.occupation,
-              address: formData.address,
-              paymentMethod,
-              senderNumber: paymentMethod === 'online' ? formData.senderNumber : '',
-              trxId: paymentMethod === 'online' ? formData.trxId : formData.receiptNumber,
-              photo: photo || '',
-              role: 'Member',
-              status: 'pending' // New users start as pending/under review by default
-            }
-          }
-        });
-
-        if (authError) {
-          if (authError.message?.toLowerCase().includes('email') || authError.message?.toLowerCase().includes('confirmation') || authError.message?.toLowerCase().includes('not approved')) {
-            console.warn("Auth signup had SMTP/confirmation limits, falling back to direct database member creation:", authError);
-          } else {
-            throw authError;
-          }
-        } else if (data?.user) {
-          finalUserId = data.user.id;
-          authUserObj = data.user;
+        const userCredential = await createUserWithEmailAndPassword(auth, emailInput, formData.password);
+        if (userCredential.user) {
+          finalUserId = userCredential.user.uid;
+          authUserObj = userCredential.user;
         }
       } catch (authException: any) {
         console.warn("Exception in Auth signup flow. Continuing with direct database registration:", authException);
-        if (!authException.message?.toLowerCase().includes('email') && !authException.message?.toLowerCase().includes('confirmation')) {
-          throw authException;
+        if (authException.code === 'auth/email-already-in-use' || (authException.message && authException.message.includes('email-already-in-use'))) {
+          throw new Error('এই ইমেইল এড্রেসটি ইতিমধ্যেই রেজিস্টার্ড করা হয়েছে। অনুগ্রহ করে অন্য ইমেইল ব্যবহার করুন বা লগইন করুন।');
         }
       }
 

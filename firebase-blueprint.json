@@ -1,0 +1,159 @@
+{
+  "entities": {
+    "Book": {
+      "title": "Book",
+      "description": "Represents a book available in the library directory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique ID of the book" },
+        "title": { "type": "string", "description": "The title of the book" },
+        "author": { "type": "string", "description": "The author of the book" },
+        "category": { "type": "string", "description": "The category of the book" },
+        "cover": { "type": "string", "description": "Cover url of the book" },
+        "bookId": { "type": "string", "description": "Human-friendly unique book identifier" },
+        "shelfNo": { "type": "string", "description": "Shelf placement id" },
+        "status": { "type": "string", "enum": ["available", "pre-order"], "description": "The current availability status" },
+        "price": { "type": "string", "description": "Pricing of book if applicable" },
+        "stock": { "type": "number", "description": "Current inventory stock levels" },
+        "isEBook": { "type": "boolean", "description": "Indicates if this book is an E-Book" },
+        "ebookUrl": { "type": "string", "description": "The URL of the eBook if available" }
+      },
+      "required": ["title", "author", "category"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Represents a library member or administration profile.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user/member ID" },
+        "name": { "type": "string", "description": "The full name of the member" },
+        "email": { "type": "string", "description": "The email address of the member" },
+        "phone": { "type": "string", "description": "The mobile number of the member" },
+        "role": { "type": "string", "enum": ["Member", "Admin", "Premium"], "description": "Membership authorization role" },
+        "joinDate": { "type": "string", "description": "The date the member joined" },
+        "status": { "type": "string", "enum": ["active", "inactive", "pending", "accepted", "rejected"], "description": "Review status of the member application" },
+        "dues": { "type": "number", "description": "Pending financial dues for late fees" },
+        "photo": { "type": "string", "description": "Base64 encoded photo or image url" },
+        "address": { "type": "string", "description": "Address of the member" },
+        "occupation": { "type": "string", "description": "Occupation of the member" },
+        "password": { "type": "string", "description": "The password used for direct login" },
+        "paymentMethod": { "type": "string", "description": "Selected payment channel" },
+        "senderNumber": { "type": "string", "description": "BKash/Rocket transaction sender number" },
+        "trxId": { "type": "string", "description": "Bkash/Rocket transaction ID" }
+      },
+      "required": ["name", "email", "phone", "password", "status"]
+    },
+    "Donor": {
+      "title": "Donor",
+      "description": "Information about a donation partner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Individual", "Organization"] },
+        "totalDonation": { "type": "string" },
+        "lastDonationDate": { "type": "string" },
+        "impact": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "totalDonation"]
+    },
+    "Issue": {
+      "title": "Issue",
+      "description": "Details about a book rental or issue record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookTitle": { "type": "string" },
+        "memberName": { "type": "string" },
+        "issueDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Active", "Returned", "Overdue", "Rejected"] },
+        "memberId": { "type": "string" },
+        "bookId": { "type": "string" },
+        "pickupDate": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["bookTitle", "memberName", "issueDate", "dueDate", "status"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial records of library income and expenses.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "status": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "required": ["type", "category", "amount", "date"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Information about departmental competitions, seminars, and special programs.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "fbLink": { "type": "string" }
+      },
+      "required": ["title", "date", "time"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Book purchasing order details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "memberId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "date": { "type": "string" },
+        "total": { "type": "number" },
+        "items": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Shipped", "Delivered", "Cancelled"] }
+      },
+      "required": ["customerName", "customerPhone", "items", "total"]
+    }
+  },
+  "firestore": {
+    "books/{bookId}": {
+      "schema": "Book",
+      "description": "Collection of books."
+    },
+    "members/{memberId}": {
+      "schema": "Member",
+      "description": "Collection of library user and admin accounts."
+    },
+    "donors/{donorId}": {
+      "schema": "Donor",
+      "description": "Collection of donation and donor profiles."
+    },
+    "issues/{issueId}": {
+      "schema": "Issue",
+      "description": "Collection of issued books."
+    },
+    "finances/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Collection of library finance records."
+    },
+    "events/{eventId}": {
+      "schema": "Event",
+      "description": "Collection of library and department events."
+    },
+    "orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of purchases and orders."
+    }
+  }
+}

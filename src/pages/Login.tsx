@@ -21,7 +21,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useState } from 'react';
-import { supabase } from '@/src/supabaseClient';
+import { auth } from '@/src/lib/firebaseClient';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { db } from '@/src/lib/supabaseDatabase';
 
 // Framer Motion Animation Variants
@@ -72,42 +73,40 @@ export default function Login() {
       let loggedInUserObj: any = null;
       const cleanIdentifier = identifier.trim();
 
-      // 1. Try traditional Supabase Auth if the identifier looks like an email address
+      // 1. Try traditional Firebase Auth if the identifier looks like an email address
       if (cleanIdentifier.includes('@')) {
         try {
-          const { data, error: authError } = await supabase.auth.signInWithPassword({
-            email: cleanIdentifier,
-            password: password
-          });
+          const userCredential = await signInWithEmailAndPassword(auth, cleanIdentifier, password);
+          const firebaseUser = userCredential.user;
 
-          if (!authError && data?.user) {
+          if (firebaseUser) {
             let dbMember: any = null;
             try {
               const members = await db.getMembers();
               dbMember = members.find(m => 
                 (m.email && m.email.toLowerCase() === cleanIdentifier.toLowerCase()) ||
-                m.id === data?.user?.id
+                m.id === firebaseUser.uid
               );
             } catch (findErr) {
               console.warn("Could not load associated member data, using Auth user info:", findErr);
             }
 
             loggedInUserObj = {
-              id: dbMember?.id || data.user.id,
-              email: dbMember?.email || data.user.email || '',
-              name: dbMember?.name || data.user.user_metadata?.name || '',
-              phone: dbMember?.phone || data.user.user_metadata?.phone || '',
-              occupation: dbMember?.occupation || data.user.user_metadata?.occupation || '',
-              address: dbMember?.address || data.user.user_metadata?.address || '',
-              photo: dbMember?.photo || data.user.user_metadata?.photo || '',
-              status: dbMember?.status || data.user.user_metadata?.status || 'accepted',
-              role: dbMember?.role || data.user.user_metadata?.role || 'Member',
+              id: dbMember?.id || firebaseUser.uid,
+              email: dbMember?.email || firebaseUser.email || '',
+              name: dbMember?.name || '',
+              phone: dbMember?.phone || '',
+              occupation: dbMember?.occupation || '',
+              address: dbMember?.address || '',
+              photo: dbMember?.photo || '',
+              status: dbMember?.status || 'accepted',
+              role: dbMember?.role || 'Member',
               dues: dbMember?.dues ?? 0
             };
             isLogged = true;
           }
         } catch (authErr) {
-          console.warn("Supabase standard auth login failed/bypassed:", authErr);
+          console.warn("Firebase standard auth login failed/bypassed:", authErr);
         }
       }
 

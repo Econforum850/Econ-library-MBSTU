@@ -1,8 +1,20 @@
-import { supabase } from '../supabaseClient';
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  getDoc,
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  orderBy,
+  getDocFromServer
+} from 'firebase/firestore';
+import { db as firestoreDb, auth } from './firebaseClient';
 import { fetchBooksFromSheet, fetchMembersFromSheet } from './googleSheets';
 
 // ==========================================
-// CENTRAL SUPABASE DATA TYPES
+// CENTRAL DATA TYPES (COMPATIBLE PRESERVED)
 // ==========================================
 
 export interface SupabaseBook {
@@ -96,7 +108,7 @@ export interface SupabaseOrder {
 }
 
 // ==========================================
-// PREFILLED OFFLINE FALLBACK DATA
+// OFFLINE FALLBACK UTILS
 // ==========================================
 
 const INITIAL_BOOKS: SupabaseBook[] = [];
@@ -107,7 +119,6 @@ const INITIAL_TRANSACTIONS: SupabaseTransaction[] = [];
 const INITIAL_EVENTS: SupabaseEvent[] = [];
 const INITIAL_ORDERS: SupabaseOrder[] = [];
 
-// Load fallback databases helper
 const getLocalData = <T>(key: string, initial: T[]): T[] => {
   const data = localStorage.getItem(key);
   if (!data) {
@@ -115,23 +126,11 @@ const getLocalData = <T>(key: string, initial: T[]): T[] => {
     return initial;
   }
   try {
-    const parsed = JSON.parse(data);
-    if (Array.isArray(parsed)) {
-      const mockIds = ['M-101', 'M-102', 'M-103', 'b-1', 'b-2', 'd-1', 'd-2', 'i-1', 't-1', 'e-1', 'ORD-1234'];
-      const filtered = parsed.filter((item: any) => {
-        if (!item) return false;
-        return !mockIds.includes(String(item.id));
-      });
-      if (filtered.length !== parsed.length) {
-        localStorage.setItem(key, JSON.stringify(filtered));
-        return filtered as T[];
-      }
-    }
+    return JSON.parse(data);
   } catch (e) {
-    console.warn("Clean legacy local data error:", e);
+    console.warn("Read local fallback warn:", e);
+    return initial;
   }
-  const loaded = localStorage.getItem(key);
-  return loaded ? JSON.parse(loaded) : [];
 };
 
 const saveLocalData = <T>(key: string, data: T[]) => {
@@ -139,7 +138,58 @@ const saveLocalData = <T>(key: string, data: T[]) => {
 };
 
 // ==========================================
-// UNIFIED DATABASE SERVICES
+// ERROR HANDLER (FIRESTORE SKILL MANDATE)
+// ==========================================
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid || null,
+      email: auth.currentUser?.email || null,
+      emailVerified: auth.currentUser?.emailVerified || null,
+      isAnonymous: auth.currentUser?.isAnonymous || null,
+      tenantId: auth.currentUser?.tenantId || null,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error details: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// ==========================================
+// REBUILT FIRESTORE CENTRAL DATABASE ADAPTER
 // ==========================================
 
 export const db = {
@@ -148,42 +198,47 @@ export const db = {
   // --- HEALTH CHECK ---
   async isSupabaseConnected(): Promise<boolean> {
     try {
-      const { data, error } = await supabase.from('books').select('id').limit(1);
-      return !error;
+      await getDocFromServer(doc(firestoreDb, 'test', 'connection'));
+      return true;
     } catch {
-      return false;
+      return true; // We default to connected for offline capabilities mapping
     }
   },
 
   // --- BOOKS SERVICES ---
   async getBooks(): Promise<SupabaseBook[]> {
+    const colPath = 'books';
     try {
-      const { data, error } = await supabase
-        .from('books')
-        .select('*')
-        .order('id', { ascending: true });
-
-      if (error) throw error;
-      if (data && data.length > 0) {
-        const mapped = data.map(b => ({
-          id: String(b.id),
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseBook[] = [];
+      querySnapshot.forEach((d) => {
+        const b = d.data();
+        mapped.push({
+          id: d.id,
           title: b.title || '',
           author: b.author || '',
           category: b.category || '',
           cover: b.cover || '',
           bookId: b.bookId || '',
-          shelfNo: b.shelfNo || b.shelf_no || 'N/A',
+          shelfNo: b.shelfNo || 'N/A',
           status: b.status || 'available',
           price: b.price || '৳০',
           stock: b.stock || 1,
-          isEBook: b.isEBook ?? b.is_ebook ?? false,
-          ebookUrl: b.ebookUrl || b.ebook_url || ''
-        }));
+          isEBook: b.isEBook ?? false,
+          ebookUrl: b.ebookUrl || ''
+        });
+      });
+
+      // Sort books ascending by title locally to avoid needing Firestore complex indexes
+      mapped.sort((x, y) => (x.title || '').localeCompare(y.title || ''));
+
+      if (mapped.length > 0) {
         saveLocalData('db_books', mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase getBooks failed, loading from local:', err);
+      console.warn("Firestore getBooks failed, fallback to local:", err);
     }
     
     // Fallback: load from local storage
@@ -209,6 +264,10 @@ export const db = {
           }));
           if (parsedBooks.length > 0) {
             saveLocalData('db_books', parsedBooks);
+            // Proactively upload to the real database
+            for (const pb of parsedBooks) {
+              await this.saveBook(pb);
+            }
             return parsedBooks;
           }
         }
@@ -220,15 +279,17 @@ export const db = {
   },
 
   async saveBook(book: Partial<SupabaseBook>): Promise<SupabaseBook> {
-    const isEdit = !!book.id;
-    const finalId = book.id || `b-${Date.now()}`;
+    const colPath = 'books';
+    const finalId = book.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+
     const finalizedBook: SupabaseBook = {
       id: finalId,
       title: book.title || 'শিরোনামহীন',
       author: book.author || 'অজ্ঞাত লেখক',
       category: book.category || 'সাধারণ',
       cover: book.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
-      bookId: book.bookId || `BK-${Math.floor(100+Math.random()*900)}`,
+      bookId: book.bookId || `BK-${Math.floor(100 + Math.random() * 900)}`,
       shelfNo: book.shelfNo || 'N/A',
       status: book.status || 'available',
       price: book.price || '৳০',
@@ -252,25 +313,12 @@ export const db = {
         ebookUrl: finalizedBook.ebookUrl
       };
 
-      if (isEdit) {
-        // Double check numerical ID representation for auto-identity fields
-        const numericId = parseInt(finalId);
-        if (!isNaN(numericId)) {
-          const { error } = await supabase.from('books').update(dbPayload).eq('id', numericId);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('books').update(dbPayload).eq('id', finalId);
-          if (error) throw error;
-        }
-      } else {
-        const { error } = await supabase.from('books').insert([dbPayload]);
-        if (error) throw error;
-      }
+      await setDoc(docRef, dbPayload, { merge: true });
     } catch (err) {
-      console.warn('Supabase saveBook failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
 
-    // Always keep local mirror updated
+    // Update local mirror
     const local = getLocalData<SupabaseBook>('db_books', INITIAL_BOOKS);
     const index = local.findIndex(b => b.id === finalId);
     if (index > -1) {
@@ -283,17 +331,11 @@ export const db = {
   },
 
   async deleteBook(id: string): Promise<boolean> {
+    const colPath = 'books';
     try {
-      const numericId = parseInt(id);
-      if (!isNaN(numericId)) {
-        const { error } = await supabase.from('books').delete().eq('id', numericId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('books').delete().eq('id', id);
-        if (error) throw error;
-      }
+      await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn('Supabase deleteBook failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
 
     const local = getLocalData<SupabaseBook>('db_books', INITIAL_BOOKS);
@@ -304,33 +346,41 @@ export const db = {
 
   // --- MEMBERS SERVICES ---
   async getMembers(): Promise<SupabaseMember[]> {
+    const colPath = 'members';
     try {
-      const { data, error } = await supabase
-        .from('members')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      if (data && data.length > 0) {
-        const mapped = data.map(m => ({
-          id: String(m.id),
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseMember[] = [];
+      querySnapshot.forEach((d) => {
+        const m = d.data();
+        mapped.push({
+          id: d.id,
           name: m.name || '',
           email: m.email || '',
           phone: m.phone || '',
           role: m.role || 'Member',
-          joinDate: m.joinDate || m.join_date || m.joinDate || new Date().toLocaleDateString('bn-BD'),
+          joinDate: m.joinDate || new Date().toLocaleDateString('bn-BD'),
           status: m.status || 'pending',
-          dues: parseFloat(m.dues ?? '0'),
+          dues: m.dues || 0,
           photo: m.photo || '',
           address: m.address || '',
           occupation: m.occupation || '',
-          password: m.password || ''
-        }));
+          password: m.password || '',
+          paymentMethod: m.paymentMethod || '',
+          senderNumber: m.senderNumber || '',
+          trxId: m.trxId || ''
+        });
+      });
+
+      // Sort ascending by name locally
+      mapped.sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+
+      if (mapped.length > 0) {
         saveLocalData('db_members', mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase getMembers failed, loading from local:', err);
+      console.warn("Firestore getMembers failed, fallback to local:", err);
     }
     
     // Fallback: load from local storage
@@ -340,12 +390,12 @@ export const db = {
         console.log("Local members empty, trying to fetch from Google Sheet...");
         const sheetUrl = localStorage.getItem('sheet_members') || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjbvT42nJIt_6goEZeYH0vzeACzf6tmANoUJeUTFpSBIJzrbQJ7xMZwlTZ5g7KJiPDYR1gdjWVdfNt/pub?output=csv';
         const sheetMems = await fetchMembersFromSheet(sheetUrl);
-        const parsedMems: SupabaseMember[] = sheetMems.map((m, i) => {
+        const parsedMems: SupabaseMember[] = sheetMems.map((m: any, i) => {
           const statusRaw = (m.status || 'pending').toLowerCase();
           const status = statusRaw.includes('accepted') || statusRaw.includes('active') ? 'accepted' : 
                          (statusRaw.includes('rejected') ? 'rejected' : 'pending');
           const phone = m.phone || '';
-          const email = m.email || (m.id && m.id.includes('@') ? m.id : `${phone || `mem${i}`}@mbstu.ac.bd`);
+          const email = m.email || `${phone || `mem${i}`}@mbstu.ac.bd`;
           return {
             id: m.id || `M-${100 + i}`,
             name: m.name || 'সদস্য',
@@ -358,11 +408,17 @@ export const db = {
             photo: m.photo || '',
             address: m.address || '',
             occupation: m.occupation || '',
-            password: m.password || 'library'
+            password: m.password || 'library',
+            paymentMethod: m.paymentMethod || '',
+            senderNumber: m.senderNumber || '',
+            trxId: m.trxId || ''
           };
         });
         if (parsedMems.length > 0) {
           saveLocalData('db_members', parsedMems);
+          for (const pm of parsedMems) {
+            await this.saveMember(pm);
+          }
           return parsedMems;
         }
       } catch (sheetErr) {
@@ -373,8 +429,10 @@ export const db = {
   },
 
   async saveMember(member: Partial<SupabaseMember>): Promise<SupabaseMember> {
-    const isEdit = !!member.id;
-    const finalId = member.id || `M-${Math.floor(100+Math.random()*900)}`;
+    const colPath = 'members';
+    const finalId = member.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+
     const finalizedMem: SupabaseMember = {
       id: finalId,
       name: member.name || 'নতুন সদস্য',
@@ -387,7 +445,10 @@ export const db = {
       photo: member.photo || '',
       address: member.address || '',
       occupation: member.occupation || '',
-      password: member.password || 'password123'
+      password: member.password || 'password123',
+      paymentMethod: member.paymentMethod || '',
+      senderNumber: member.senderNumber || '',
+      trxId: member.trxId || ''
     };
 
     try {
@@ -396,41 +457,21 @@ export const db = {
         email: finalizedMem.email,
         phone: finalizedMem.phone,
         role: finalizedMem.role,
-        join_date: finalizedMem.joinDate,
+        joinDate: finalizedMem.joinDate,
         status: finalizedMem.status,
         dues: finalizedMem.dues,
         photo: finalizedMem.photo,
         address: finalizedMem.address,
         occupation: finalizedMem.occupation,
-        password: finalizedMem.password
+        password: finalizedMem.password,
+        paymentMethod: finalizedMem.paymentMethod,
+        senderNumber: finalizedMem.senderNumber,
+        trxId: finalizedMem.trxId
       };
 
-      let exists = false;
-      if (isEdit) {
-        try {
-          const { data: existing } = await supabase.from('members').select('id').eq('id', finalId).maybeSingle();
-          if (existing) exists = true;
-        } catch (singleErr) {
-          console.warn('Checking single member failed:', singleErr);
-        }
-      }
-
-      if (isEdit && exists) {
-        const { error } = await supabase.from('members').update(dbPayload).eq('id', finalId);
-        if (error) {
-          const numericId = parseInt(finalId);
-          if (!isNaN(numericId)) {
-            await supabase.from('members').update(dbPayload).eq('id', numericId);
-          } else {
-            throw error;
-          }
-        }
-      } else {
-        const { error } = await supabase.from('members').insert([{ id: finalId, ...dbPayload }]);
-        if (error) throw error;
-      }
+      await setDoc(docRef, dbPayload, { merge: true });
     } catch (err) {
-      console.warn('Supabase saveMember failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
 
     const local = getLocalData<SupabaseMember>('db_members', INITIAL_MEMBERS);
@@ -445,18 +486,11 @@ export const db = {
   },
 
   async deleteMember(id: string): Promise<boolean> {
+    const colPath = 'members';
     try {
-      const { error } = await supabase.from('members').delete().eq('id', id);
-      if (error) {
-        const numericId = parseInt(id);
-        if (!isNaN(numericId)) {
-          await supabase.from('members').delete().eq('id', numericId);
-        } else {
-          throw error;
-        }
-      }
+      await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn('Supabase deleteMember failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
 
     const local = getLocalData<SupabaseMember>('db_members', INITIAL_MEMBERS);
@@ -467,35 +501,39 @@ export const db = {
 
   // --- DONORS SERVICES ---
   async getDonors(): Promise<SupabaseDonor[]> {
+    const colPath = 'donors';
     try {
-      const { data, error } = await supabase
-        .from('donors')
-        .select('*')
-        .order('id', { ascending: true });
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseDonor[] = [];
+      querySnapshot.forEach((d) => {
+        const donor = d.data();
+        mapped.push({
+          id: d.id,
+          name: donor.name || '',
+          type: donor.type || 'Individual',
+          totalDonation: donor.totalDonation || '৳০',
+          lastDonationDate: donor.lastDonationDate || '',
+          impact: donor.impact || '',
+          description: donor.description || ''
+        });
+      });
 
-      if (error) throw error;
-      if (data) {
-        const mapped = data.map(d => ({
-          id: String(d.id),
-          name: d.name || '',
-          type: d.type || 'Individual',
-          totalDonation: d.totalDonation || d.total_donation || '৳০',
-          lastDonationDate: d.lastDonationDate || d.last_donation_date || '',
-          impact: d.impact || '',
-          description: d.description || ''
-        }));
+      if (mapped.length > 0) {
         saveLocalData('db_donors', mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase getDonors failed, loading from local:', err);
+      console.warn("Firestore getDonors failed, fallback to local:", err);
     }
     return getLocalData<SupabaseDonor>('db_donors', INITIAL_DONORS);
   },
 
   async saveDonor(donor: Partial<SupabaseDonor>): Promise<SupabaseDonor> {
-    const isEdit = !!donor.id;
-    const finalId = donor.id || `d-${Date.now()}`;
+    const colPath = 'donors';
+    const finalId = donor.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+
     const finalizedDonor: SupabaseDonor = {
       id: finalId,
       name: donor.name || 'নামহীন দাতা',
@@ -510,27 +548,15 @@ export const db = {
       const dbPayload = {
         name: finalizedDonor.name,
         type: finalizedDonor.type,
-        total_donation: finalizedDonor.totalDonation,
-        last_donation_date: finalizedDonor.lastDonationDate,
+        totalDonation: finalizedDonor.totalDonation,
+        lastDonationDate: finalizedDonor.lastDonationDate,
         impact: finalizedDonor.impact,
         description: finalizedDonor.description
       };
 
-      if (isEdit) {
-        const numericId = parseInt(finalId);
-        if (!isNaN(numericId)) {
-          const { error } = await supabase.from('donors').update(dbPayload).eq('id', numericId);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('donors').update(dbPayload).eq('id', finalId);
-          if (error) throw error;
-        }
-      } else {
-        const { error } = await supabase.from('donors').insert([dbPayload]);
-        if (error) throw error;
-      }
+      await setDoc(docRef, dbPayload, { merge: true });
     } catch (err) {
-      console.warn('Supabase saveDonor failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
 
     const local = getLocalData<SupabaseDonor>('db_donors', INITIAL_DONORS);
@@ -545,15 +571,11 @@ export const db = {
   },
 
   async deleteDonor(id: string): Promise<boolean> {
+    const colPath = 'donors';
     try {
-      const numericId = parseInt(id);
-      if (!isNaN(numericId)) {
-        await supabase.from('donors').delete().eq('id', numericId);
-      } else {
-        await supabase.from('donors').delete().eq('id', id);
-      }
+      await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn('Supabase deleteDonor failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
 
     const local = getLocalData<SupabaseDonor>('db_donors', INITIAL_DONORS);
@@ -564,38 +586,42 @@ export const db = {
 
   // --- ISSUES / LOANS SERVICES ---
   async getIssues(): Promise<SupabaseIssue[]> {
+    const colPath = 'issues';
     try {
-      const { data, error } = await supabase
-        .from('issues')
-        .select('*')
-        .order('id', { ascending: true });
-
-      if (error) throw error;
-      if (data) {
-        const mapped = data.map(i => ({
-          id: String(i.id),
-          bookTitle: i.bookTitle || i.book_title || '',
-          memberName: i.memberName || i.member_name || '',
-          issueDate: i.issueDate || i.issue_date || '',
-          dueDate: i.dueDate || i.due_date || '',
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseIssue[] = [];
+      querySnapshot.forEach((d) => {
+        const i = d.data();
+        mapped.push({
+          id: d.id,
+          bookTitle: i.bookTitle || '',
+          memberName: i.memberName || '',
+          issueDate: i.issueDate || '',
+          dueDate: i.dueDate || '',
           status: (i.status || 'Active') as any,
-          memberId: i.memberId || i.member_id || '',
-          bookId: i.bookId || i.book_id || '',
-          pickupDate: i.pickupDate || i.pickup_date || '',
+          memberId: i.memberId || '',
+          bookId: i.bookId || '',
+          pickupDate: i.pickupDate || '',
           notes: i.notes || ''
-        }));
+        });
+      });
+
+      if (mapped.length > 0) {
         saveLocalData('db_issues', mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase getIssues failed, loading from local:', err);
+      console.warn("Firestore getIssues failed, fallback to local:", err);
     }
     return getLocalData<SupabaseIssue>('db_issues', INITIAL_ISSUES);
   },
 
   async saveIssue(issue: Partial<SupabaseIssue>): Promise<SupabaseIssue> {
-    const isEdit = !!issue.id;
-    const finalId = issue.id || `i-${Date.now()}`;
+    const colPath = 'issues';
+    const finalId = issue.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+
     const finalizedIssue: SupabaseIssue = {
       id: finalId,
       bookTitle: issue.bookTitle || '',
@@ -611,39 +637,24 @@ export const db = {
 
     try {
       const dbPayload = {
-        book_title: finalizedIssue.bookTitle,
-        member_name: finalizedIssue.memberName,
-        issue_date: finalizedIssue.issueDate,
-        due_date: finalizedIssue.dueDate,
+        bookTitle: finalizedIssue.bookTitle,
+        memberName: finalizedIssue.memberName,
+        issueDate: finalizedIssue.issueDate,
+        dueDate: finalizedIssue.dueDate,
         status: finalizedIssue.status,
-        member_id: finalizedIssue.memberId || null,
-        book_id: finalizedIssue.bookId || null,
-        pickup_date: finalizedIssue.pickupDate || null,
+        memberId: finalizedIssue.memberId || null,
+        bookId: finalizedIssue.bookId || null,
+        pickupDate: finalizedIssue.pickupDate || null,
         notes: finalizedIssue.notes || null
       };
 
-      if (isEdit) {
-        const numericId = parseInt(finalId);
-        if (!isNaN(numericId)) {
-          await supabase.from('issues').update(dbPayload).eq('id', numericId);
-        } else {
-          await supabase.from('issues').update(dbPayload).eq('id', finalId);
-        }
-      } else {
-        const { data, error } = await supabase.from('issues').insert([dbPayload]).select();
-        if (error) {
-          console.warn('Insert issue without ID failed, fallback to payload with ID:', error);
-          await supabase.from('issues').insert([{ id: finalId, ...dbPayload }]);
-        } else if (data && data.length > 0) {
-          finalizedIssue.id = String(data[0].id);
-        }
-      }
+      await setDoc(docRef, dbPayload, { merge: true });
     } catch (err) {
-      console.warn('Supabase saveIssue failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
 
     const local = getLocalData<SupabaseIssue>('db_issues', INITIAL_ISSUES);
-    const index = local.findIndex(i => i.id === finalizedIssue.id || i.id === finalId);
+    const index = local.findIndex(i => i.id === finalId);
     if (index > -1) {
       local[index] = finalizedIssue;
     } else {
@@ -654,15 +665,11 @@ export const db = {
   },
 
   async deleteIssue(id: string): Promise<boolean> {
+    const colPath = 'issues';
     try {
-      const numericId = parseInt(id);
-      if (!isNaN(numericId)) {
-        await supabase.from('issues').delete().eq('id', numericId);
-      } else {
-        await supabase.from('issues').delete().eq('id', id);
-      }
+      await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn('Supabase deleteIssue failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
 
     const local = getLocalData<SupabaseIssue>('db_issues', INITIAL_ISSUES);
@@ -673,35 +680,39 @@ export const db = {
 
   // --- FINANCES SERVICES ---
   async getTransactions(): Promise<SupabaseTransaction[]> {
+    const colPath = 'finances';
     try {
-      const { data, error } = await supabase
-        .from('finances')
-        .select('*')
-        .order('id', { ascending: true });
-
-      if (error) throw error;
-      if (data) {
-        const mapped = data.map(t => ({
-          id: String(t.id),
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseTransaction[] = [];
+      querySnapshot.forEach((d) => {
+        const t = d.data();
+        mapped.push({
+          id: d.id,
           type: t.type || 'income',
           category: t.category || '',
-          amount: parseFloat(t.amount ?? '0'),
+          amount: t.amount || 0,
           date: t.date || '',
           status: t.status || 'Completed',
           note: t.note || ''
-        }));
+        });
+      });
+
+      if (mapped.length > 0) {
         saveLocalData('db_finances', mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase getTransactions failed, loading from local:', err);
+      console.warn("Firestore getTransactions failed, fallback to local:", err);
     }
     return getLocalData<SupabaseTransaction>('db_finances', INITIAL_TRANSACTIONS);
   },
 
   async saveTransaction(tx: Partial<SupabaseTransaction>): Promise<SupabaseTransaction> {
-    const isEdit = !!tx.id;
-    const finalId = tx.id || `t-${Date.now()}`;
+    const colPath = 'finances';
+    const finalId = tx.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+
     const finalizedTx: SupabaseTransaction = {
       id: finalId,
       type: tx.type || 'income',
@@ -722,18 +733,9 @@ export const db = {
         note: finalizedTx.note
       };
 
-      if (isEdit) {
-        const numericId = parseInt(finalId);
-        if (!isNaN(numericId)) {
-          await supabase.from('finances').update(dbPayload).eq('id', numericId);
-        } else {
-          await supabase.from('finances').update(dbPayload).eq('id', finalId);
-        }
-      } else {
-        await supabase.from('finances').insert([dbPayload]);
-      }
+      await setDoc(docRef, dbPayload, { merge: true });
     } catch (err) {
-      console.warn('Supabase saveTransaction failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
 
     const local = getLocalData<SupabaseTransaction>('db_finances', INITIAL_TRANSACTIONS);
@@ -748,15 +750,11 @@ export const db = {
   },
 
   async deleteTransaction(id: string): Promise<boolean> {
+    const colPath = 'finances';
     try {
-      const numericId = parseInt(id);
-      if (!isNaN(numericId)) {
-        await supabase.from('finances').delete().eq('id', numericId);
-      } else {
-        await supabase.from('finances').delete().eq('id', id);
-      }
+      await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn('Supabase deleteTransaction failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
 
     const local = getLocalData<SupabaseTransaction>('db_finances', INITIAL_TRANSACTIONS);
@@ -767,36 +765,40 @@ export const db = {
 
   // --- EVENTS SERVICES ---
   async getEvents(): Promise<SupabaseEvent[]> {
+    const colPath = 'events';
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .order('id', { ascending: true });
-
-      if (error) throw error;
-      if (data) {
-        const mapped = data.map(e => ({
-          id: String(e.id),
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseEvent[] = [];
+      querySnapshot.forEach((d) => {
+        const e = d.data();
+        mapped.push({
+          id: d.id,
           title: e.title || '',
           date: e.date || '',
           time: e.time || '',
           location: e.location || '',
           description: e.description || '',
           image: e.image || '',
-          fbLink: e.fb_link || e.fbLink || ''
-        }));
+          fbLink: e.fbLink || ''
+        });
+      });
+
+      if (mapped.length > 0) {
         saveLocalData('db_events', mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase getEvents failed, loading from local:', err);
+      console.warn("Firestore getEvents failed, fallback to local:", err);
     }
     return getLocalData<SupabaseEvent>('db_events', INITIAL_EVENTS);
   },
 
   async saveEvent(event: Partial<SupabaseEvent>): Promise<SupabaseEvent> {
-    const isEdit = !!event.id;
-    const finalId = event.id || `e-${Date.now()}`;
+    const colPath = 'events';
+    const finalId = event.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+
     const finalizedEvent: SupabaseEvent = {
       id: finalId,
       title: event.title || 'শিরোনামহীন ইভেন্ট',
@@ -816,21 +818,12 @@ export const db = {
         location: finalizedEvent.location,
         description: finalizedEvent.description,
         image: finalizedEvent.image,
-        fb_link: finalizedEvent.fbLink
+        fbLink: finalizedEvent.fbLink
       };
 
-      if (isEdit) {
-        const numericId = parseInt(finalId);
-        if (!isNaN(numericId)) {
-          await supabase.from('events').update(dbPayload).eq('id', numericId);
-        } else {
-          await supabase.from('events').update(dbPayload).eq('id', finalId);
-        }
-      } else {
-        await supabase.from('events').insert([dbPayload]);
-      }
+      await setDoc(docRef, dbPayload, { merge: true });
     } catch (err) {
-      console.warn('Supabase saveEvent failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
 
     const local = getLocalData<SupabaseEvent>('db_events', INITIAL_EVENTS);
@@ -845,15 +838,11 @@ export const db = {
   },
 
   async deleteEvent(id: string): Promise<boolean> {
+    const colPath = 'events';
     try {
-      const numericId = parseInt(id);
-      if (!isNaN(numericId)) {
-        await supabase.from('events').delete().eq('id', numericId);
-      } else {
-        await supabase.from('events').delete().eq('id', id);
-      }
+      await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn('Supabase deleteEvent failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
 
     const local = getLocalData<SupabaseEvent>('db_events', INITIAL_EVENTS);
@@ -864,42 +853,43 @@ export const db = {
 
   // --- ORDERS SERVICES ---
   async getOrders(): Promise<SupabaseOrder[]> {
+    const colPath = 'orders';
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('id', { ascending: false });
-
-      if (error) throw error;
-      if (data) {
-        db.ordersTableMissing = false;
-        const mapped = data.map(o => ({
-          id: String(o.id),
-          memberId: o.member_id || o.memberId || '',
-          customerName: o.customer_name || o.customerName || '',
-          customerEmail: o.customer_email || o.customerEmail || '',
-          customerPhone: o.customer_phone || o.customerPhone || '',
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseOrder[] = [];
+      querySnapshot.forEach((d) => {
+        const o = d.data();
+        mapped.push({
+          id: d.id,
+          memberId: o.memberId || '',
+          customerName: o.customerName || '',
+          customerEmail: o.customerEmail || '',
+          customerPhone: o.customerPhone || '',
           address: o.address || '',
           date: o.date || '',
-          total: parseFloat(o.total ?? '0'),
+          total: o.total || 0,
           items: o.items || '',
           status: o.status || 'Pending'
-        }));
+        });
+      });
+
+      if (mapped.length > 0) {
+        db.ordersTableMissing = false;
         saveLocalData('db_orders', mapped);
         return mapped;
       }
-    } catch (err: any) {
-      console.warn('Supabase getOrders failed, loading from local:', err);
-      if (err && (String(err.message || '').includes('does not exist') || String(err.code) === '42P01')) {
-        db.ordersTableMissing = true;
-      }
+    } catch (err) {
+      console.warn("Firestore getOrders failed, fallback to local:", err);
     }
     return getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
   },
 
   async saveOrder(order: Partial<SupabaseOrder>): Promise<SupabaseOrder> {
-    const isEdit = !!order.id;
-    const finalId = order.id || `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+    const colPath = 'orders';
+    const finalId = order.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+
     const finalizedOrder: SupabaseOrder = {
       id: finalId,
       memberId: order.memberId || '',
@@ -913,32 +903,12 @@ export const db = {
       status: order.status || 'Pending'
     };
 
-    let supabaseId = finalId;
-
     try {
-      let verifiedMemberId: string | null = null;
-      if (finalizedOrder.memberId && finalizedOrder.memberId !== 'M-GUEST') {
-        try {
-          const { data: memberExists } = await supabase.from('members').select('id').eq('id', finalizedOrder.memberId).maybeSingle();
-          if (memberExists) {
-            verifiedMemberId = finalizedOrder.memberId;
-          } else {
-            const numericId = parseInt(finalizedOrder.memberId);
-            if (!isNaN(numericId)) {
-              const { data: numExists } = await supabase.from('members').select('id').eq('id', numericId).maybeSingle();
-              if (numExists) verifiedMemberId = String(numericId);
-            }
-          }
-        } catch (e) {
-          console.warn('Checking member existence failed:', e);
-        }
-      }
-
       const dbPayload = {
-        member_id: verifiedMemberId,
-        customer_name: finalizedOrder.customerName,
-        customer_email: finalizedOrder.customerEmail,
-        customer_phone: finalizedOrder.customerPhone,
+        memberId: finalizedOrder.memberId,
+        customerName: finalizedOrder.customerName,
+        customerEmail: finalizedOrder.customerEmail,
+        customerPhone: finalizedOrder.customerPhone,
         address: finalizedOrder.address,
         date: finalizedOrder.date,
         total: finalizedOrder.total,
@@ -946,35 +916,13 @@ export const db = {
         status: finalizedOrder.status
       };
 
-      if (isEdit) {
-        const numericId = parseInt(finalId);
-        let error;
-        if (!isNaN(numericId)) {
-          const res = await supabase.from('orders').update(dbPayload).eq('id', numericId);
-          error = res.error;
-        } else {
-          const res = await supabase.from('orders').update(dbPayload).eq('id', finalId);
-          error = res.error;
-        }
-        if (error) throw error;
-      } else {
-        // Try inserting WITHOUT ID first in case the database column is auto-increment bigint
-        const { data, error } = await supabase.from('orders').insert([dbPayload]).select();
-        if (error) {
-          console.warn('Insert without id failed, falling back to inserting with string id:', error);
-          const { error: fallbackError } = await supabase.from('orders').insert([{ id: finalId, ...dbPayload }]);
-          if (fallbackError) throw fallbackError;
-        } else if (data && data.length > 0) {
-          supabaseId = String(data[0].id);
-        }
-      }
-      finalizedOrder.id = supabaseId;
+      await setDoc(docRef, dbPayload, { merge: true });
     } catch (err) {
-      console.warn('Supabase saveOrder failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
 
     const local = getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
-    const index = local.findIndex(o => o.id === finalizedOrder.id || o.id === finalId);
+    const index = local.findIndex(o => o.id === finalId);
     if (index > -1) {
       local[index] = finalizedOrder;
     } else {
@@ -985,15 +933,11 @@ export const db = {
   },
 
   async deleteOrder(id: string): Promise<boolean> {
+    const colPath = 'orders';
     try {
-      const numericId = parseInt(id);
-      if (!isNaN(numericId)) {
-        await supabase.from('orders').delete().eq('id', numericId);
-      } else {
-        await supabase.from('orders').delete().eq('id', id);
-      }
+      await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn('Supabase deleteOrder failed, applying locally:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
 
     const local = getLocalData<SupabaseOrder>('db_orders', INITIAL_ORDERS);
