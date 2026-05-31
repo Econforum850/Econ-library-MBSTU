@@ -80,7 +80,8 @@ export default function Books() {
     cover: '',
     isEBook: false,
     description: '',
-    ebookUrl: ''
+    ebookUrl: '',
+    status: 'available' as 'available' | 'pre-order'
   });
 
   const loadAllBooks = async () => {
@@ -224,7 +225,7 @@ export default function Books() {
         ebookUrl: newBook.ebookUrl || '',
         bookId: `ID-${Math.floor(Math.random() * 1000)}`,
         shelfNo: 'Pending',
-        status: 'available',
+        status: newBook.status || 'available',
         stock: 1
       };
 
@@ -240,7 +241,8 @@ export default function Books() {
         cover: '',
         isEBook: false,
         description: '',
-        ebookUrl: ''
+        ebookUrl: '',
+        status: 'available'
       });
       loadAllBooks();
     } catch (err: any) {
@@ -425,8 +427,8 @@ export default function Books() {
                       viewport={{ once: true }}
                       className="min-w-[calc((100%-16px)/3)] sm:min-w-[calc((100%-24px)/4)] md:min-w-[calc((100%-32px)/5)] lg:min-w-[calc((100%-40px)/6)] xl:min-w-[calc((100%-40px)/6)] snap-start"
                     >
-                      <div className="group/card bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all p-1.5 h-full flex flex-col hover:-translate-y-1 duration-300">
-                        <div className="aspect-[3/4.2] relative overflow-hidden bg-slate-50 rounded-lg mb-2">
+                      <div className="group/card bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-300 p-1.5 h-full flex flex-col">
+                        <div className="aspect-[3/4] relative overflow-hidden bg-slate-50 rounded-lg mb-2">
                           <img 
                             src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'} 
                             alt={book.title}
@@ -435,10 +437,18 @@ export default function Books() {
                           />
                           <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1">
                             <span className={cn(
-                              "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest backdrop-blur-md border border-white/20 shadow-sm",
+                              "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest backdrop-blur-md border border-white/20 shadow-sm/50",
                               book.isEBook ? "bg-indigo-600 text-white" : "bg-emerald-500 text-white"
                             )}>
                               {book.isEBook ? 'E-Book' : 'Library'}
+                            </span>
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all",
+                              (book.status === 'available' || !book.status)
+                                ? "bg-emerald-600 text-white border-emerald-550"
+                                : "bg-amber-500 text-white border-amber-450"
+                            )}>
+                              {(book.status === 'available' || !book.status) ? 'Available' : 'Pre-order'}
                             </span>
                           </div>
                         </div>
@@ -469,24 +479,52 @@ export default function Books() {
             </section>
           ))
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-12 px-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 px-4">
             {filteredBooks.map((book) => (
-               <motion.div
-                 key={book.id}
-                 initial={{ opacity: 0, y: 20 }}
-                 whileInView={{ opacity: 1, y: 0 }}
-                 viewport={{ once: true }}
-                 className="group bg-white rounded-[45px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl transition-all p-3 hover:-translate-y-2 duration-500"
-               >
-                 <div className="aspect-[3/4.2] relative overflow-hidden bg-slate-100 rounded-[35px] mb-6">
-                   <img src={book.cover} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={book.title} />
-                 </div>
-                 <div className="p-6">
-                    <h3 className="text-xl font-black text-slate-900 mb-2">{book.title}</h3>
-                    <p className="text-slate-400 font-bold mb-8 italic">{book.author}</p>
-                    <button onClick={() => setSelectedBook(book)} className="w-full py-4 bg-slate-900 text-white rounded-[24px] font-black hover:bg-indigo-600 transition-all">বিস্তারিত</button>
-                 </div>
-               </motion.div>
+              <motion.div
+                key={book.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                className="group/card bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-300 p-1.5 flex flex-col"
+              >
+                <div className="aspect-[3/4] relative overflow-hidden bg-slate-50 rounded-lg mb-2">
+                  <img 
+                    src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'}        
+                    alt={book.title}
+                    className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1">
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest backdrop-blur-md border border-white/20 shadow-sm/50",
+                      book.isEBook ? "bg-indigo-600 text-white" : "bg-emerald-500 text-white"
+                    )}>
+                      {book.isEBook ? 'E-Book' : 'Library'}
+                    </span>
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all",
+                      (book.status === 'available' || !book.status)
+                        ? "bg-emerald-600 text-white border-emerald-550"
+                        : "bg-amber-500 text-white border-amber-450"
+                    )}>
+                      {(book.status === 'available' || !book.status) ? 'Available' : 'Pre-order'}
+                    </span>
+                  </div>
+                </div>
+                <div className="px-1 pb-1 flex flex-col flex-1">
+                  <h3 className="text-[10px] sm:text-[11px] font-black text-slate-900 mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
+                  <p className="text-[8px] sm:text-[9px] text-slate-400 mb-2 font-bold truncate opacity-80">{book.author}</p>
+                  <div className="mt-auto flex items-center justify-between gap-1">
+                    <button 
+                      onClick={() => setSelectedBook(book)}
+                      className="w-full py-2 bg-slate-900 text-white rounded-md hover:bg-slate-800 transition-all text-[10px] font-bold"
+                    >
+                      বিস্তারিত
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
             ))}
           </div>
         )}
@@ -498,7 +536,7 @@ export default function Books() {
             <Bookmark className="w-16 h-16 text-slate-300 mx-auto mb-6" />
             <p className="text-slate-800 font-extrabold text-2xl mb-3">ক্যাটালগ বর্তমানে খালি রয়েছে</p>
             <p className="text-slate-500 font-medium max-w-lg mx-auto text-sm leading-relaxed mb-8">
-              সুপাবেজ টেবিল তৈরি হওয়ার পর লাইব্রেরি ডাটাবেজটি বর্তমানে খালি রয়েছে। ডাটাবেজে ১০০টি অর্থনীতি সমৃদ্ধ টেক্সটবুক যুক্ত করতে নিচে ক্লিক করুন।
+              লাইব্রেরি ক্যাটালগটি বর্তমানে খালি রয়েছে। কোনো বই খুঁজে পাওয়া যায়নি।
             </p>
             
             {isAdmin ? (
@@ -681,6 +719,18 @@ export default function Books() {
                         </div>
                       )}
                     </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">সংগ্রহের অবস্থা (Status)</label>
+                    <select 
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-600/10 font-bold text-sm cursor-pointer"
+                      value={newBook.status}
+                      onChange={(e) => setNewBook({...newBook, status: e.target.value as any})}
+                    >
+                      <option value="available">Available (অ্যাভেলেবল)</option>
+                      <option value="pre-order">Pre-order (প্রি-অর্ডার)</option>
+                    </select>
                   </div>
                   
                   <div className="flex items-center space-x-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">

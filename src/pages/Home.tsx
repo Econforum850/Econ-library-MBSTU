@@ -1,12 +1,25 @@
 import { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
-  ArrowRight, Users, BookOpen, Calendar, HelpCircle, GraduationCap, ChevronRight
+  ArrowRight, Users, BookOpen, Calendar, HelpCircle, GraduationCap, ChevronRight, Settings, X, Image
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+const PRESET_BGS = [
+  { name: 'ঐতিহ্যবাহী লাইব্রেরি (Default)', url: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600' },
+  { name: 'আধুনিক রিডিং ডেস্ক', url: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=1600' },
+  { name: 'সেমিনার ও নোটিশ ইভেন্ট হল', url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=1600' },
+  { name: 'বিভাগীয় ক্যাম্পাস প্রোগ্রাম', url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=1600' },
+  { name: 'মেধা ও লেকচার থিয়েটার', url: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&q=80&w=1600' },
+];
+
 export default function Home() {
   const [activeSlide, setActiveSlide] = useState(0);
+  const [bgImage, setBgImage] = useState(() => {
+    return localStorage.getItem('home_hero_bg') || 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600';
+  });
+  const [showBgModal, setShowBgModal] = useState(false);
+  const [customUrl, setCustomUrl] = useState('');
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col pb-16">
@@ -16,7 +29,7 @@ export default function Home() {
         {/* Bookshelf Background Image with Dark Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
-            src="https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600" 
+            src={bgImage} 
             alt="Library Bookshelf" 
             className="w-full h-full object-cover select-none pointer-events-none"
             referrerPolicy="no-referrer"
@@ -100,6 +113,17 @@ export default function Home() {
             ))}
           </div>
 
+        </div>
+
+        {/* Change Background Button */}
+        <div className="absolute right-6 bottom-6 z-30">
+          <button
+            onClick={() => setShowBgModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-black/60 hover:bg-black/85 text-white/95 hover:text-white rounded-xl border border-white/20 backdrop-blur-md text-[11px] font-black transition-all shadow-lg active:scale-95 cursor-pointer"
+          >
+            <Settings className="w-3.5 h-3.5 text-emerald-400 animate-spin-slow" />
+            <span>পটভূমি পরিবর্তন করুন</span>
+          </button>
         </div>
       </section>
 
@@ -215,6 +239,89 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Background Change Modal */}
+      <AnimatePresence>
+        {showBgModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBgModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-lg rounded-[32px] p-8 shadow-2xl border border-slate-100 z-10 font-sans"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-black text-slate-800">হোমপেজ পটভূমি পরিবর্তন করুন</h3>
+                <button 
+                  onClick={() => setShowBgModal(false)}
+                  className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-900 rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs font-bold text-slate-500">আপনার পছন্দ অনুযায়ী একটি ব্যাকগ্রাউন্ড ইমেজ নির্বাচন করুন। বিভাগীয় অনুষ্ঠান বা ইভেন্ট ছবিও এখানে সিলেক্ট করতে পারেন:</p>
+                
+                {/* Presets */}
+                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                  {PRESET_BGS.map((preset) => (
+                    <button
+                      key={preset.url}
+                      onClick={() => {
+                        setBgImage(preset.url);
+                        localStorage.setItem('home_hero_bg', preset.url);
+                        setShowBgModal(false);
+                      }}
+                      className={`w-full p-3 flex items-center space-x-3 rounded-2xl border text-left text-xs font-bold transition-all cursor-pointer ${
+                        bgImage === preset.url 
+                          ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700' 
+                          : 'border-slate-100 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <img src={preset.url} className="w-12 h-8 object-cover rounded-lg" alt="" referrerPolicy="no-referrer" />
+                      <span className="truncate">{preset.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="text-[10px] font-black text-slate-440 uppercase tracking-widest block mb-1.5">অথবা কাস্টম ইমেজের লিংক দিন (যেমন বিভাগীয় কোনো ইভেন্ট ছবি):</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="https://example.com/image.jpg"
+                      value={customUrl}
+                      onChange={(e) => setCustomUrl(e.target.value)}
+                      className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl font-medium text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                    <button
+                      onClick={() => {
+                        if (customUrl.trim()) {
+                          setBgImage(customUrl.trim());
+                          localStorage.setItem('home_hero_bg', customUrl.trim());
+                          setShowBgModal(false);
+                          setCustomUrl('');
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                    >
+                      নিশ্চিত
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

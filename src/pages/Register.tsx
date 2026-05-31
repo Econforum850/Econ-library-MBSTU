@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
+import logoGold from '@/src/assets/images/logo_gold.png';
 import { 
   User, 
   Phone, 
@@ -275,7 +276,7 @@ export default function Register() {
           >
             <Link to="/" className="inline-flex items-center space-x-3.5 group select-none">
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center p-1 border border-slate-700/30 overflow-hidden shadow-xl group-hover:rotate-[6deg] transition-all">
-                <img src="/src/assets/images/logo_gold.png" alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
+                <img src={logoGold} alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-black text-white leading-none tracking-wide">ইকোলাইব্রেরি</span>

@@ -1,5 +1,6 @@
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { setAdminAuthenticated } from '@/src/lib/adminAuth';
+import logoGold from '@/src/assets/images/logo_gold.png';
 import { 
   User, LayoutDashboard, Users, BookOpen, QrCode, 
   Scan, ArrowLeftRight, ShoppingBag, Receipt, 
@@ -35,7 +36,7 @@ export default function AdminSidebar() {
       <div className="p-6 border-b border-white/5">
         <Link to="/" className="flex items-center space-x-3 mb-8">
           <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center p-1 border border-white/5 overflow-hidden shadow-inner">
-            <img src="/src/assets/images/logo_gold.png" alt="Library logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+            <img src={logoGold} alt="Library logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-black text-white leading-tight">Econ-library-MBSTU</span>

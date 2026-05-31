@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
+import logoGold from '@/src/assets/images/logo_gold.png';
 import { 
   Mail, 
   Lock, 
@@ -227,7 +228,7 @@ export default function Login() {
                 whileHover={{ rotate: 15, scale: 1.1 }}
                 className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center p-1 border border-slate-750/30 overflow-hidden shadow-lg transition-transform"
               >
-                <img src="/src/assets/images/logo_gold.png" alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
+                <img src={logoGold} alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
               </motion.div>
               <div className="flex flex-col text-left">
                 <span className="text-xl font-black text-white tracking-wide leading-none">ইকোলাইব্রেরি</span>
@@ -362,7 +363,7 @@ export default function Login() {
             <motion.div variants={itemVariants} className="text-center mb-8">
               <Link to="/" className="lg:hidden inline-flex items-center space-x-2.5 mb-6">
                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1 border border-slate-200 overflow-hidden shadow-md">
-                  <img src="/src/assets/images/logo_gold.png" alt="Econ Library Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+                  <img src={logoGold} alt="Econ Library Logo" className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <span className="text-lg font-black text-slate-900 tracking-tight">ইকোলাইব্রেরি</span>
               </Link>

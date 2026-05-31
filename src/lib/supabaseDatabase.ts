@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { fetchBooksFromSheet, fetchMembersFromSheet } from './googleSheets';
 
 // ==========================================
 // CENTRAL SUPABASE DATA TYPES
@@ -163,7 +164,7 @@ export const db = {
         .order('id', { ascending: true });
 
       if (error) throw error;
-      if (data) {
+      if (data && data.length > 0) {
         const mapped = data.map(b => ({
           id: String(b.id),
           title: b.title || '',
@@ -184,7 +185,38 @@ export const db = {
     } catch (err) {
       console.warn('Supabase getBooks failed, loading from local:', err);
     }
-    return getLocalData<SupabaseBook>('db_books', INITIAL_BOOKS);
+    
+    // Fallback: load from local storage
+    const localBooks = getLocalData<SupabaseBook>('db_books', INITIAL_BOOKS);
+    if (localBooks.length === 0) {
+      try {
+        const sheetUrl = localStorage.getItem('sheet_inventory') || import.meta.env.VITE_GOOGLE_SHEET_URL;
+        if (sheetUrl) {
+          const sheetBooks = await fetchBooksFromSheet(sheetUrl);
+          const parsedBooks: SupabaseBook[] = sheetBooks.map((b, i) => ({
+            id: b.id || `b-${100 + i}`,
+            title: b.title || 'শিরোনামহীন',
+            author: b.author || 'অজ্ঞাত লেখক',
+            category: b.category || 'সাধারণ',
+            cover: b.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
+            bookId: b.bookId || `BK-${100 + i}`,
+            shelfNo: b.shelfNo || 'N/A',
+            status: b.status || 'available',
+            price: b.price || '৳০',
+            stock: b.stock || 1,
+            isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || !!b.ebookUrl,
+            ebookUrl: b.ebookUrl || ''
+          }));
+          if (parsedBooks.length > 0) {
+            saveLocalData('db_books', parsedBooks);
+            return parsedBooks;
+          }
+        }
+      } catch (sheetErr) {
+        console.warn("Failed fallback Sheets books fetch:", sheetErr);
+      }
+    }
+    return localBooks;
   },
 
   async saveBook(book: Partial<SupabaseBook>): Promise<SupabaseBook> {
@@ -279,7 +311,7 @@ export const db = {
         .order('name', { ascending: true });
 
       if (error) throw error;
-      if (data) {
+      if (data && data.length > 0) {
         const mapped = data.map(m => ({
           id: String(m.id),
           name: m.name || '',
@@ -300,7 +332,44 @@ export const db = {
     } catch (err) {
       console.warn('Supabase getMembers failed, loading from local:', err);
     }
-    return getLocalData<SupabaseMember>('db_members', INITIAL_MEMBERS);
+    
+    // Fallback: load from local storage
+    const localMems = getLocalData<SupabaseMember>('db_members', INITIAL_MEMBERS);
+    if (localMems.length === 0) {
+      try {
+        console.log("Local members empty, trying to fetch from Google Sheet...");
+        const sheetUrl = localStorage.getItem('sheet_members') || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjbvT42nJIt_6goEZeYH0vzeACzf6tmANoUJeUTFpSBIJzrbQJ7xMZwlTZ5g7KJiPDYR1gdjWVdfNt/pub?output=csv';
+        const sheetMems = await fetchMembersFromSheet(sheetUrl);
+        const parsedMems: SupabaseMember[] = sheetMems.map((m, i) => {
+          const statusRaw = (m.status || 'pending').toLowerCase();
+          const status = statusRaw.includes('accepted') || statusRaw.includes('active') ? 'accepted' : 
+                         (statusRaw.includes('rejected') ? 'rejected' : 'pending');
+          const phone = m.phone || '';
+          const email = m.email || (m.id && m.id.includes('@') ? m.id : `${phone || `mem${i}`}@mbstu.ac.bd`);
+          return {
+            id: m.id || `M-${100 + i}`,
+            name: m.name || 'সদস্য',
+            email,
+            phone,
+            role: m.role || 'Member',
+            joinDate: m.joinDate || new Date().toLocaleDateString('bn-BD'),
+            status,
+            dues: m.dues || 0,
+            photo: m.photo || '',
+            address: m.address || '',
+            occupation: m.occupation || '',
+            password: m.password || 'library'
+          };
+        });
+        if (parsedMems.length > 0) {
+          saveLocalData('db_members', parsedMems);
+          return parsedMems;
+        }
+      } catch (sheetErr) {
+        console.warn("Failed fallback Sheets members fetch:", sheetErr);
+      }
+    }
+    return localMems;
   },
 
   async saveMember(member: Partial<SupabaseMember>): Promise<SupabaseMember> {
