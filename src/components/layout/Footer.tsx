@@ -38,6 +38,14 @@ export default function Footer() {
               </li>
               <li><Link to="/donors" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors inline-block ml-1">দাতা সদস্যগণের তালিকা</Link></li>
               <li><Link to="/events" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors inline-block ml-1">ইভেন্ট ও নোটিশ</Link></li>
+              <li className="pt-2 border-t border-dashed border-slate-100">
+                <Link 
+                  to="/admin/login" 
+                  className="text-xs font-black text-indigo-600 hover:text-[#b40000] tracking-wider transition-colors inline-flex items-center gap-1.5 ml-1 bg-indigo-50/50 px-3 py-2 rounded-xl border border-indigo-100/50 hover:bg-indigo-50"
+                >
+                  🛡️ মডারেটর ও অ্যাডমিন পোর্টাল
+                </Link>
+              </li>
 
             </ul>
           </div>
@@ -97,6 +105,7 @@ export default function Footer() {
         <div className="mt-16 pt-8 border-t border-gray-50 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400 font-medium">
           <p>© 2026 Econ-library-MBSTU সর্বস্বত্ব সংরক্ষিত।</p>
           <div className="flex space-x-6 mt-4 md:mt-0">
+            <Link to="/admin/login" className="hover:text-indigo-600 font-bold transition-colors">অ্যাডমিন প্রবেশদ্বার</Link>
             <a href="#" className="hover:text-slate-900">Privacy Policy</a>
             <a href="#" className="hover:text-slate-900">Terms of Service</a>
           </div>

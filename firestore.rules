@@ -58,5 +58,15 @@ service cloud.firestore {
     match /media_gallery/{mediaId} {
       allow read, write: if true;
     }
+
+    // Sub-admins collection
+    match /sub_admins/{subAdminId} {
+      allow read, write: if true;
+    }
+
+    // Audit logs collection
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

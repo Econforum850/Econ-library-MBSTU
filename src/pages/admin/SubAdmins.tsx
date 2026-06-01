@@ -26,6 +26,19 @@ export default function SubAdmins() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Custom non-blocking confirmation dialog state
+  const [confirmState, setConfirmState] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  }>({
+    show: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   const currentUser = getCurrentAdminUser();
 
   const loadData = async () => {
@@ -125,35 +138,66 @@ export default function SubAdmins() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`আপনি কি নিশ্চিতভাবে "${name}" মডারেটর অ্যাকাউন্টটি মুছে ফেলতে চান?`)) {
-      return;
-    }
-    try {
-      await db.deleteSubAdmin(id);
-      await db.addAuditLog('DELETE_SUBADMIN', `মুছে ফেলা হয়েছে মডারেটর: ${name} (${id})`);
-      loadData();
-    } catch (_) {
-      alert('মুছে ফেলা ব্যর্থ হয়েছে।');
-    }
+  const handleDelete = (id: string, name: string) => {
+    setConfirmState({
+      show: true,
+      title: 'মডারেটর অ্যাকাউন্ট মুছে ফেলুন',
+      message: `আপনি কি নিশ্চিতভাবে "${name}" মডারেটর অ্যাকাউন্টটি মুছে ফেলতে চান? এটি পুনরায় ফিরিয়ে আনা সম্ভব নয়।`,
+      onConfirm: async () => {
+        try {
+          await db.deleteSubAdmin(id);
+          await db.addAuditLog('DELETE_SUBADMIN', `মুছে ফেলা হয়েছে মডারেটর: ${name} (${id})`);
+          setConfirmState(prev => ({ ...prev, show: false }));
+          loadData();
+        } catch (_) {
+          setFormError('মুছে ফেলা ব্যর্থ হয়েছে।');
+          setConfirmState(prev => ({ ...prev, show: false }));
+        }
+      }
+    });
   };
 
-  const handleToggleStatus = async (sa: SupabaseSubAdmin) => {
+  const handleToggleStatus = (sa: SupabaseSubAdmin) => {
     const nextStatus = sa.status === 'active' ? 'suspended' : 'active';
     const actionText = nextStatus === 'active' ? 'সক্রিয়' : 'স্থগিত';
-    if (!window.confirm(`আপনি কি নিশ্চিতভাবে অ্যাকাউন্টটি ${actionText} করতে চান?`)) {
-      return;
-    }
-    try {
-      await db.saveSubAdmin({ ...sa, status: nextStatus });
-      await db.addAuditLog(
-        nextStatus === 'active' ? 'ACTIVATE_SUBADMIN' : 'SUSPEND_SUBADMIN', 
-        `স্থিতি পরিবর্তন (${actionText}): ${sa.name}`
-      );
-      loadData();
-    } catch (_) {
-      alert('স্থিতি পরিবর্তন ব্যর্থ হয়েছে।');
-    }
+    setConfirmState({
+      show: true,
+      title: 'স্থিতি পরিবর্তন নিশ্চিতকরণ',
+      message: `আপনি কি নিশ্চিতভাবে "${sa.name}" অ্যাকাউন্টটি ${actionText} করতে চান?`,
+      onConfirm: async () => {
+        try {
+          await db.saveSubAdmin({ ...sa, status: nextStatus });
+          await db.addAuditLog(
+            nextStatus === 'active' ? 'ACTIVATE_SUBADMIN' : 'SUSPEND_SUBADMIN', 
+            `স্থিতি পরিবর্তন (${actionText}): ${sa.name}`
+          );
+          setConfirmState(prev => ({ ...prev, show: false }));
+          loadData();
+        } catch (_) {
+          setFormError('স্থিতি পরিবর্তন ব্যর্থ হয়েছে।');
+          setConfirmState(prev => ({ ...prev, show: false }));
+        }
+      }
+    });
+  };
+
+  const handleClearAllLogs = () => {
+    setConfirmState({
+      show: true,
+      title: 'অডিট ট্রেইল লগ পরিষ্কার করুন',
+      message: 'আপনি কি নিশ্চিতভাবে সমস্ত সিস্টেম অ্যাক্টিভিটি এবং অডিট লগ মুছে ফেলতে চান? এই কাজের পর আগের সকল লগ চিরতরে মুছে যাবে।',
+      onConfirm: async () => {
+        try {
+          await db.clearAuditLogs();
+          await db.addAuditLog('CLEAR_AUDIT_LOG_SYSTEM', 'সুপার অ্যাডমিন কর্তৃক সম্পূর্ণ অডিট লগ ডাটাবেজ পরিষ্কার করা হয়েছে');
+          setConfirmState(prev => ({ ...prev, show: false }));
+          loadData();
+        } catch (_) {
+          setFormError('অডিট লগ পরিষ্কার করা ব্যর্থ হয়েছে।');
+          setConfirmState(prev => ({ ...prev, show: false }));
+        }
+      }
+    });
   };
 
   const filteredAdmins = subAdmins.filter(
@@ -344,13 +388,23 @@ export default function SubAdmins() {
       ) : (
         /* Audit Logs Section */
         <div className="bg-white rounded-[32px] border border-slate-150 overflow-hidden shadow-sm">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4 border-dashed">
             <div>
               <h3 className="text-base font-black text-slate-900 Bengali-font">অডিটিং সিস্টেম এক্টিভিটি লগার</h3>
               <p className="text-xs font-bold text-slate-400 mt-1">
                 মডারেটরদের করা প্রতিটি কাজ স্বয়ংক্রিয়ভাবে ট্র্যাকিং ও অডিট করা হয়। এটি সুপার অ্যাডমিন কর্তৃক ডিলিট করার সুযোগ নেই।
               </p>
             </div>
+            {logs.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllLogs}
+                className="px-4 py-2.5 bg-rose-50 hover:bg-rose-600 border border-rose-100 hover:border-rose-700 text-rose-600 hover:text-white font-extrabold text-xs rounded-xl transition cursor-pointer flex items-center space-x-1.5 shadow-sm active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>সমস্ত লগ ডিলিট করুন</span>
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -518,6 +572,55 @@ export default function SubAdmins() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* State-Based Confirmation Dialog Modal */}
+      <AnimatePresence>
+        {confirmState.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setConfirmState(prev => ({ ...prev, show: false }))}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative bg-white w-full max-w-sm rounded-[32px] overflow-hidden border border-slate-100 shadow-2xl p-8 text-center z-10"
+            >
+              <div className="w-14 h-14 bg-rose-50 border border-rose-100 rounded-2xl flex items-center justify-center text-rose-600 mx-auto mb-4">
+                <ShieldAlert className="w-6 h-6 animate-pulse" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 Bengali-font mb-2">
+                {confirmState.title}
+              </h3>
+              <p className="text-xs text-slate-500 font-bold mb-6 Bengali-font leading-relaxed">
+                {confirmState.message}
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmState(prev => ({ ...prev, show: false }))}
+                  className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold text-xs rounded-xl transition cursor-pointer"
+                >
+                  বাতিল করুন
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmState.onConfirm}
+                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl transition shadow-md cursor-pointer"
+                >
+                  হ্যাঁ, নিশ্চিত করুন
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

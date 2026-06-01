@@ -1217,6 +1217,7 @@ export const db = {
           createdAt: r.createdAt || ''
         });
       });
+      saveLocalData('db_sub_admins', mapped);
       return mapped;
     } catch (err) {
       console.warn("Firestore getSubAdmins failed:", err);
@@ -1244,7 +1245,8 @@ export const db = {
     try {
       await setDoc(docRef, finalizedValue, { merge: true });
     } catch (err) {
-      console.warn("Firestore saveSubAdmin failed:", err);
+      console.error("Firestore saveSubAdmin failed:", err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
     }
     try {
       const stored = localStorage.getItem('db_sub_admins');
@@ -1262,7 +1264,8 @@ export const db = {
     try {
       await deleteDoc(doc(firestoreDb, colPath, id));
     } catch (err) {
-      console.warn("Firestore deleteSubAdmin failed:", err);
+      console.error("Firestore deleteSubAdmin failed:", err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
     }
     try {
       const stored = localStorage.getItem('db_sub_admins');
@@ -1292,6 +1295,7 @@ export const db = {
         });
       });
       mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      saveLocalData('db_audit_logs', mapped);
       return mapped;
     } catch (err) {
       console.warn("Firestore getAuditLogs failed:", err);
@@ -1304,6 +1308,25 @@ export const db = {
         }
       } catch (_) {}
       return [];
+    }
+  },
+
+  async clearAuditLogs(): Promise<boolean> {
+    const colPath = 'audit_logs';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const batchPromises: Promise<void>[] = [];
+      querySnapshot.forEach((d) => {
+        batchPromises.push(deleteDoc(doc(firestoreDb, colPath, d.id)));
+      });
+      await Promise.all(batchPromises);
+      saveLocalData('db_audit_logs', []);
+      return true;
+    } catch (err) {
+      console.error("Firestore clearAuditLogs failed:", err);
+      saveLocalData('db_audit_logs', []);
+      return true;
     }
   },
 
@@ -1328,7 +1351,8 @@ export const db = {
     try {
       await setDoc(doc(firestoreDb, colPath, id), finalizedLog);
     } catch (err) {
-      console.warn("Firestore addAuditLog failed:", err);
+      console.error("Firestore addAuditLog failed:", err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${id}`);
     }
 
     try {
