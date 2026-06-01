@@ -43,5 +43,20 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read, write: if true;
     }
+
+    // Website graphics settings
+    match /graphics/{graphicId} {
+      allow read, write: if true;
+    }
+
+    // Recent donations database
+    match /recent_donations/{donationId} {
+      allow read, write: if true;
+    }
+
+    // Media and recollections gallery
+    match /media_gallery/{mediaId} {
+      allow read, write: if true;
+    }
   }
 }

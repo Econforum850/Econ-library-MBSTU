@@ -137,7 +137,10 @@ export default function AdminUsers() {
       return;
     }
 
-    if (!window.confirm(`আপনি কি নিশ্চিত যে এই সদস্যকে বাতিল করতে চান?`)) {
+    const reason = window.prompt('কেন এই সদস্যপদ আবেদনটি বাতিল করা হচ্ছে তার কারণ উল্লেখ করুন (বাধ্যতামূলক):');
+    if (reason === null) return; // User cancelled prompt
+    if (!reason.trim()) {
+      alert('বাতিল করার কারণ উল্লেখ করা আবশ্যক!');
       return;
     }
 
@@ -148,6 +151,9 @@ export default function AdminUsers() {
         status: newStatus
       };
       await db.saveMember(updated);
+      try {
+        await db.addAuditLog('REJECT_MEMBER', `মেম্বারশিপ বাতিল করা হয়েছে: ${member.name} - কারণ: ${reason}`);
+      } catch (_) {}
       setSelectedMember(updated);
       await loadMembers();
       alert(`সদস্যের স্ট্যাটাস সফলভাবে বাতিল করা হয়েছে!`);
@@ -166,6 +172,8 @@ export default function AdminUsers() {
     const formattedExpiryStr = getExpiryDateStr(issueDateVal, validityType, customExpiryVal);
     const combinedJoinDate = `${formattedIssueStr}|${formattedExpiryStr}`;
 
+    const appNote = window.prompt('সদস্য অনুমোদনের জন্য কোনো নোট যোগ করতে চান? (ঐচ্ছিক):') || 'কোনো নোট নেই';
+
     try {
       setLoading(true);
       const updated = {
@@ -175,6 +183,9 @@ export default function AdminUsers() {
       };
       
       await db.saveMember(updated);
+      try {
+        await db.addAuditLog('APPROVE_MEMBER', `মেম্বারশিপ অনুমোদন করা হয়েছে: ${updated.name} (মেয়াদ: ${formattedExpiryStr}) - নোট: ${appNote}`);
+      } catch (_) {}
       setSelectedMember(updated);
       await loadMembers();
       

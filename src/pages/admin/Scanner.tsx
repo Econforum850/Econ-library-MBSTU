@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Scan, BookOpen, AlertCircle, RefreshCw, 
   Loader2, CheckCircle2, User, HelpCircle, 
-  ArrowRight, ShieldAlert, Library, BookOpenCheck, Bookmark, X
+  ArrowRight, ShieldAlert, Library, BookOpenCheck, Bookmark, X,
+  Plus, Minus
 } from 'lucide-react';
 import { db, SupabaseBook, SupabaseMember } from '@/src/lib/supabaseDatabase';
 import { Link } from 'react-router-dom';
@@ -191,6 +192,26 @@ export default function AdminScanner() {
     }
   };
 
+  const handleAdjustStock = async (amount: number) => {
+    if (!matchedBook) return;
+    const newStock = Math.max(0, (matchedBook.stock || 0) + amount);
+    try {
+      const updatedBook = {
+        ...matchedBook,
+        stock: newStock,
+        status: newStock === 0 ? 'pre-order' as const : 'available' as const
+      };
+      await db.saveBook(updatedBook);
+      setMatchedBook(updatedBook);
+      
+      // Update books state so other actions recognize updated stock instantly
+      setBooks(prev => prev.map(b => b.id === updatedBook.id ? updatedBook : b));
+    } catch (err) {
+      console.error('Failed to adjust stock directly:', err);
+      alert('সরাসরি স্টক আপডেট করতে সমস্যা হয়েছে।');
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
@@ -296,15 +317,43 @@ export default function AdminScanner() {
                 </div>
               </div>
 
-              {/* Real time Stock indicator */}
-              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl">
-                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">বর্তমানে লাইব্রেরিতে আছে:</span>
-                <span className={cn(
-                  "px-4 py-1.5 rounded-full text-xs font-black border uppercase shadow-sm",
-                  matchedBook.stock > 0 ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-rose-50 text-rose-700 border-rose-100"
-                )}>
-                  {matchedBook.stock} কপি ষ্টকে আছে
-                </span>
+              {/* Real time Stock indicator & Quick Adjust Stock */}
+              <div className="bg-slate-50 p-5 rounded-3xl space-y-3.5 border border-slate-100">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-widest font-sans">বর্তমানে লাইব্রেরিতে আছে:</span>
+                  <span className={cn(
+                    "px-4 py-1.5 rounded-full text-xs font-black border uppercase shadow-sm font-sans",
+                    matchedBook.stock > 0 ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-rose-50 text-rose-700 border-rose-100"
+                  )}>
+                    {matchedBook.stock} কপি ষ্টকে আছে
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between pt-2.5 border-t border-slate-200/60">
+                  <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider font-sans">স্টক দ্রুত সমন্বয় (Quick Adjust):</span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      disabled={matchedBook.stock <= 0}
+                      onClick={() => handleAdjustStock(-1)}
+                      className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-300 disabled:opacity-50 disabled:hover:text-slate-600 disabled:hover:border-slate-200 shadow-sm flex items-center justify-center transition-all duration-200 active:scale-90 font-black cursor-pointer"
+                      title="১ কপি কমান"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-xs font-black px-2.5 py-1 bg-white border border-slate-200 rounded-lg min-w-[32px] text-center font-mono text-slate-700">
+                      {matchedBook.stock}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustStock(1)}
+                      className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-300 shadow-sm flex items-center justify-center transition-all duration-200 active:scale-90 font-black cursor-pointer"
+                      title="১ কপি বাড়ান"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Direct borrow / return tools */}

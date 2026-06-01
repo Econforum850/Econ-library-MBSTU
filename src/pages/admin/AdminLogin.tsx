@@ -4,10 +4,11 @@ import { Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { setAdminAuthenticated, isAdminAuthenticated } from '@/src/lib/adminAuth';
+import { db } from '@/src/lib/supabaseDatabase';
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState('Eco@1902');
-  const [password, setPassword] = useState('Eco@1902');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -19,7 +20,7 @@ export default function AdminLogin() {
     }
   }, [navigate]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -27,23 +28,51 @@ export default function AdminLogin() {
     const checkIdentifier = email.trim().toLowerCase();
     const checkPass = password.trim();
 
-    // Direct check for your provided credentials: Eco@1902 / Eco@1902
-    if ((checkIdentifier === 'eco@1902' || checkIdentifier === 'admin' || checkIdentifier === 'admin@library.com') && 
-        (checkPass === 'Eco@1902' || checkPass === 'admin123')) {
-      
-      setAdminAuthenticated(true);
+    // 1. Check Super Admin credentials
+    if (checkIdentifier === 'eco24034@mbstu.ac.bd' && checkPass === 'Economics1902@#') {
+      setAdminAuthenticated(true, 'eco24034@mbstu.ac.bd', 'super', 'Super Admin');
+      try {
+        await db.addAuditLog('SUPERADMIN_LOGIN', 'Super Admin Logged In');
+      } catch (_) {}
       setIsSuccess(true);
       
-      console.log('Admin login successful');
-      
-      // Delay navigation slightly to ensure storage is committed and user see success
       setTimeout(() => {
         navigate('/admin/dashboard', { replace: true });
       }, 800);
-    } else {
-      setError('ভুল আইডি বা পাসওয়ার্ড! সঠিক তথ্য দিয়ে আবার চেষ্টা করুন।');
-      setIsLoading(false);
+      return;
     }
+
+    // 2. Try fetching dynamic sub-admins from Firestore
+    try {
+      const subAdmins = await db.getSubAdmins();
+      const match = subAdmins.find(
+        (sa) => sa.email.trim().toLowerCase() === checkIdentifier && sa.password === checkPass
+      );
+
+      if (match) {
+        if (match.status === 'suspended') {
+          setError('আপনার সাব-অ্যাডমিন অ্যাকাউন্টটি সাময়িকভাবে স্থগিত আছে। সুপার অ্যাডমিনের সাথে যোগাযোগ করুন।');
+          setIsLoading(false);
+          return;
+        }
+
+        setAdminAuthenticated(true, match.email, 'sub-admin', match.name);
+        try {
+          await db.addAuditLog('SUBADMIN_LOGIN', `Sub-Admin ${match.name} Logged In`);
+        } catch (_) {}
+        setIsSuccess(true);
+
+        setTimeout(() => {
+          navigate('/admin/dashboard', { replace: true });
+        }, 800);
+        return;
+      }
+    } catch (err) {
+      console.error('Failed checking sub-admins:', err);
+    }
+
+    setError('ভুল আইডি বা পাসওয়ার্ড! সঠিক তথ্য দিয়ে আবার চেষ্টা করুন।');
+    setIsLoading(false);
   };
 
   return (
@@ -117,16 +146,7 @@ export default function AdminLogin() {
             </button>
           </form>
 
-          <div className="mt-10 pt-10 border-t border-slate-50 text-center space-y-4">
-            <button 
-              onClick={() => {
-                setAdminAuthenticated(true);
-                navigate('/admin/dashboard', { replace: true });
-              }}
-              className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-indigo-600 transition-colors cursor-pointer p-4 bg-indigo-50/50 rounded-xl"
-            >
-              সরাসরি ড্যাশবোর্ড (বিপাস)
-            </button>
+          <div className="mt-10 pt-10 border-t border-slate-50 text-center">
             <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">পাঠাগার ম্যানেজমেন্ট সিস্টেম © ২০২৬</p>
           </div>
         </motion.div>

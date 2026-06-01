@@ -24,6 +24,8 @@ import AdminStickers from './pages/admin/Stickers';
 import AdminDues from './pages/admin/Dues';
 import AdminEvents from './pages/admin/Events';
 import AdminScanner from './pages/admin/Scanner';
+import AdminGraphics from './pages/admin/Graphics';
+import AdminSubAdmins from './pages/admin/SubAdmins';
 
 export default function App() {
   return (
@@ -55,7 +57,9 @@ export default function App() {
           <Route path="dues" element={<AdminDues />} />
           <Route path="events" element={<AdminEvents />} />
           <Route path="donors" element={<AdminDonors />} />
+          <Route path="graphics" element={<AdminGraphics />} />
           <Route path="finances" element={<AdminFinances />} />
+          <Route path="sub-admins" element={<AdminSubAdmins />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Routes>

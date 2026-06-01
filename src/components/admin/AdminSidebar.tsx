@@ -1,13 +1,14 @@
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { setAdminAuthenticated } from '@/src/lib/adminAuth';
+import { setAdminAuthenticated, getCurrentAdminUser, checkSessionInactivity } from '@/src/lib/adminAuth';
 import logoGold from '@/src/assets/images/logo_gold.png';
 import { 
   User, LayoutDashboard, Users, BookOpen, QrCode, 
   Scan, ArrowLeftRight, ShoppingBag, Receipt, 
   Wallet, Heart, BarChart3, Settings, LogOut, 
-  Search, ExternalLink, Calendar
+  Search, ExternalLink, Calendar, Image, Shield
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { useEffect } from 'react';
 
 const menuItems = [
   { icon: User, label: 'আমার প্রোফাইল', path: '/admin/profile' },
@@ -22,13 +23,33 @@ const menuItems = [
   { icon: Wallet, label: 'সদস্যদের বকেয়া (Dues)', path: '/admin/dues' },
   { icon: Calendar, label: 'ইভেন্ট ও নোটিশ (Events)', path: '/admin/events' },
   { icon: Heart, label: 'দাতা সদস্য (Donors)', path: '/admin/donors' },
+  { icon: Image, label: 'গ্রাফিক্স ও মিডিয়া (Graphics)', path: '/admin/graphics' },
   { icon: BarChart3, label: 'হিসাব-নিকাশ (Finances)', path: '/admin/finances' },
-  { icon: Settings, label: 'ওয়েবসাইট সেটিংস', path: '/admin/settings' },
+  { icon: Shield, label: 'মডারেটর ও অডিট লগ', path: '/admin/sub-admins', superOnly: true },
+  { icon: Settings, label: 'ওয়েবসাইট সেটিংস', path: '/admin/settings', superOnly: true },
 ];
 
 export default function AdminSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const admin = getCurrentAdminUser();
+
+  useEffect(() => {
+    // Check session automatic inactivity
+    const expired = checkSessionInactivity();
+    if (expired) {
+      alert('নিষ্ক্রিয়তার কারণে আপনার সেশনটি শেষ হয়ে গেছে। দয়া করে আবার লগইন করুন।');
+      navigate('/admin/login');
+    }
+  }, [location, navigate]);
+
+  // Filter items based on super admin permissions
+  const filteredItems = menuItems.filter(item => {
+    if (item.superOnly && admin.role !== 'super') {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <aside className="w-72 bg-[#0a0a1a] text-slate-400 flex flex-col h-screen sticky top-0 overflow-y-auto border-r border-slate-800/50 scrollbar-none">
@@ -45,12 +66,14 @@ export default function AdminSidebar() {
         </Link>
 
         <div className="bg-white/5 rounded-2xl p-4 flex items-center space-x-4 mb-6 border border-white/5">
-          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-indigo-500/20 shadow-inner">
-            <img src="https://placehold.co/100x100/312e81/white?text=Admin" alt="Admin" className="w-full h-full object-cover" />
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-indigo-500/20 shadow-inner flex items-center justify-center bg-indigo-950 font-bold text-white text-base">
+            {admin.name.slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-white truncate">System Admin</p>
-            <p className="text-[10px] text-slate-500 font-bold">@admin</p>
+            <p className="text-sm font-black text-white truncate">{admin.name}</p>
+            <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">
+              {admin.role === 'super' ? 'সুপার অ্যাডমিন 👑' : 'মডারেটর 🛡️'}
+            </p>
           </div>
         </div>
 
@@ -66,7 +89,7 @@ export default function AdminSidebar() {
 
       {/* Nav Links */}
       <nav className="flex-1 px-4 py-8 space-y-1">
-        {menuItems.map((item) => {
+        {filteredItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link

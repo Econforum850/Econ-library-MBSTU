@@ -1,4 +1,4 @@
-import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/src/lib/utils';
@@ -266,20 +266,117 @@ export default function Books() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-20">
-      {isAdmin && (
-        <div className="flex justify-end mb-6">
+      {/* HTML Print Stylesheet */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          nav, footer, aside, button, .no-print, [role="tablist"], .bg-slate-50, select, input, .absolute, .mb-16.relative, .no-print-area {
+            display: none !important;
+          }
+          .max-w-7xl {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .py-20 {
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
+          }
+          .space-y-32 {
+            margin-top: 0 !important;
+            space-y: 0 !important;
+          }
+          .space-y-32 > * + * {
+            margin-top: 1.5rem !important;
+          }
+          .space-y-32 section {
+            page-break-inside: avoid !important;
+            margin-bottom: 25px !important;
+          }
+          /* Grid list printable layout for shelves flow */
+          .overflow-x-auto {
+            overflow: visible !important;
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 15px !important;
+            padding: 0 !important;
+          }
+          .no-scrollbar {
+            scrollbar-width: auto !important;
+            overflow: visible !important;
+          }
+          /* Card layouts matching clean printing boundaries */
+          .group\\/card {
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            height: auto !important;
+            box-shadow: none !important;
+            transform: none !important;
+            page-break-inside: avoid !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .group\\/card img {
+            max-height: 140px !important;
+            object-fit: contain !important;
+            margin-bottom: 6px !important;
+          }
+          .snap-start {
+            scroll-snap-align: none !important;
+          }
+          /* Hide shelf support styles & arrow indicators */
+          .absolute.bottom-6.left-2.right-2 {
+            display: none !important;
+          }
+          .flex.gap-2 {
+            display: none !important;
+          }
+          .min-w-\\[calc\\(\\(100\\%-16px\\)\\/3\\)\\],
+          .sm\\:min-w-\\[calc\\(\\(100\\%-24px\\)\\/4\\)\\],
+          .md\\:min-w-\\[calc\\(\\(100\\%-32px\\)\\/5\\)\\],
+          .lg\\:min-w-\\[calc\\(\\(100\\%-40px\\)\\/6\\)\\],
+          .xl\\:min-w-\\[calc\\(\\(100\\%-40px\\)\\/6\\)\\] {
+            min-width: 0 !important;
+            width: 100% !important;
+          }
+        }
+      ` }} />
+
+      {/* Print-Only Structured Header */}
+      <div className="hidden print:block mb-8 border-b-2 border-slate-900 pb-4 text-left">
+        <h1 className="text-3xl font-black text-slate-900">ডিপার্টমেন্ট অফ ইকোনমিক্স ডিজিটাল লাইব্রেরি ক্যাটালগ</h1>
+        <p className="text-xs font-bold text-slate-500 mt-1">মাওলানা ভাসানী বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয় (MBSTU) • অর্থনীতি বিভাগ</p>
+        <div className="flex justify-between items-center mt-3 text-[10px] font-black text-slate-600 font-sans uppercase tracking-wider">
+          <span>মোট ক্যাটালগ সংগ্রহ: {books.length} টি বই</span>
+          <span>তারিখ: {new Date().toLocaleDateString('bn-BD')}</span>
+        </div>
+      </div>
+
+      {/* Modern Top Actions bar */}
+      <div className="flex justify-between items-center mb-10 no-print">
+        <button 
+          type="button"
+          onClick={() => window.print()}
+          className="flex items-center space-x-2.5 px-6 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-[24px] font-black text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm active:scale-95 duration-200 cursor-pointer"
+        >
+          <Printer className="w-4 h-4 text-indigo-500" />
+          <span>ক্যাটালগ প্রিন্ট করুন (A4 Sheet)</span>
+        </button>
+
+        {isAdmin && (
           <button 
             type="button"
             onClick={() => setShowAddModal(true)}
             className="flex items-center space-x-2 px-6 py-3.5 bg-indigo-600 text-white rounded-[24px] font-black text-xs hover:bg-slate-900 transition-all shadow-md active:scale-95 duration-200"
           >
             <Plus className="w-4 h-4" />
-            <span>নতুন বই যুক্ত করুন (Supabase)</span>
+            <span>নতুন বই যুক্ত করুন</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
+
       {/* Header with modern economics aesthetic */}
-      <div className="text-center mb-16 relative">
+      <div className="text-center mb-16 relative no-print">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-indigo-500/5 blur-[100px] -z-10 rounded-full" />
         <div className="inline-flex items-center space-x-3 px-5 py-2.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-black uppercase tracking-[0.3em] text-indigo-600 mb-8">
           <TrendingUp className="w-4 h-4" />
@@ -292,7 +389,7 @@ export default function Books() {
       </div>
 
       {/* Advanced Navigation & Categories */}
-      <div className="flex flex-wrap items-center justify-center gap-4 mb-16 px-4">
+      <div className="flex flex-wrap items-center justify-center gap-4 mb-10 px-4 no-print">
         {[
           { id: 'all', label: 'সকল সংগ্রহ', icon: BookOpen },
           { id: 'categories', label: 'বিভাগ অনুযায়ী', icon: Filter },
@@ -312,6 +409,47 @@ export default function Books() {
             <span>{tab.label}</span>
           </button>
         ))}
+      </div>
+
+      {/* Streamlined Quick Category Discovery Pills */}
+      <div className="max-w-5xl mx-auto mb-10 text-center no-print-area no-print">
+        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3.5">দ্রুত ক্যাটালগ আবিষ্কার করুন</p>
+        <div className="flex flex-wrap items-center justify-center gap-2 max-w-4xl mx-auto">
+          <button
+            onClick={() => {
+              setActiveTab('categories');
+              setSelectedCategory('all');
+            }}
+            className={cn(
+              "px-4 py-2 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border",
+              activeTab === 'categories' && selectedCategory === 'all'
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
+                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+            )}
+          >
+            সব বিষয় ({books.length})
+          </button>
+          {categories.map((cat) => {
+            const count = books.filter(b => b.category === cat).length;
+            return (
+              <button
+                key={cat}
+                onClick={() => {
+                  setActiveTab('categories');
+                  setSelectedCategory(cat);
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border",
+                  activeTab === 'categories' && selectedCategory === cat
+                    ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
+                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                )}
+              >
+                {cat} ({count})
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Modern Search & Filters Area */}

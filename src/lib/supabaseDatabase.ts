@@ -107,6 +107,50 @@ export interface SupabaseOrder {
   status: 'Pending' | 'Shipped' | 'Delivered' | 'Cancelled';
 }
 
+export interface GraphicsConfig {
+  id: string;
+  homeHeroBg: string;
+  homeHeroText?: string;
+  homeHeroSubtext?: string;
+  donorMediaLink?: string;
+  backgroundGallery?: string[];
+}
+
+export interface RecentDonation {
+  id: string;
+  name: string;
+  amount: number;
+  date: string;
+  message: string;
+  photo?: string;
+}
+
+export interface MediaGalleryItem {
+  id: string;
+  title: string;
+  imageUrl: string;
+  date?: string;
+  description?: string;
+}
+
+export interface SupabaseSubAdmin {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  role: 'super' | 'sub-admin';
+  status: 'active' | 'suspended';
+  createdAt: string;
+}
+
+export interface SupabaseAuditLog {
+  id: string;
+  actionType: string;
+  adminId: string;
+  timestamp: string;
+  affectedRecordId: string;
+}
+
 // ==========================================
 // OFFLINE FALLBACK UTILS
 // ==========================================
@@ -245,7 +289,7 @@ export const db = {
     const localBooks = getLocalData<SupabaseBook>('db_books', INITIAL_BOOKS);
     if (localBooks.length === 0) {
       try {
-        const sheetUrl = localStorage.getItem('sheet_inventory') || import.meta.env.VITE_GOOGLE_SHEET_URL;
+        const sheetUrl = localStorage.getItem('sheet_inventory') || import.meta.env.VITE_GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRfFFE_8E7kQVRGRXuN_HZDMFQWZvfhxnVU7SI0sZi8mCp2am8qsa5eNeT6WYVkF8kQdza8eWcYWk07/pub?output=csv';
         if (sheetUrl) {
           const sheetBooks = await fetchBooksFromSheet(sheetUrl);
           const parsedBooks: SupabaseBook[] = sheetBooks.map((b, i) => ({
@@ -372,12 +416,29 @@ export const db = {
         });
       });
 
-      // Sort ascending by name locally
-      mapped.sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+      // Filter and clean up invalid ones from Firestore
+      const validMapped: SupabaseMember[] = [];
+      for (const m of mapped) {
+        const isInvalid = !m.name || m.name.trim() === '' || 
+                          ((m.name === 'সদস্য' || m.name === 'নতুন সদস্য') && (!m.phone || m.phone.trim() === ''));
+        if (isInvalid) {
+          console.log(`Auto-deleting invalid member ${m.id} from database`);
+          try {
+            await deleteDoc(doc(firestoreDb, colPath, m.id));
+          } catch (e) {
+            console.error("Failed to delete invalid member", m.id, e);
+          }
+        } else {
+          validMapped.push(m);
+        }
+      }
 
-      if (mapped.length > 0) {
-        saveLocalData('db_members', mapped);
-        return mapped;
+      // Sort ascending by name locally
+      validMapped.sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+
+      if (!querySnapshot.empty || validMapped.length > 0) {
+        saveLocalData('db_members', validMapped);
+        return validMapped;
       }
     } catch (err) {
       console.warn("Firestore getMembers failed, fallback to local:", err);
@@ -385,35 +446,43 @@ export const db = {
     
     // Fallback: load from local storage
     const localMems = getLocalData<SupabaseMember>('db_members', INITIAL_MEMBERS);
-    if (localMems.length === 0) {
+    const validLocal = localMems.filter(m => {
+      const isInvalid = !m.name || m.name.trim() === '' || 
+                        ((m.name === 'সদস্য' || m.name === 'নতুন সদস্য') && (!m.phone || m.phone.trim() === ''));
+      return !isInvalid;
+    });
+
+    if (validLocal.length === 0) {
       try {
         console.log("Local members empty, trying to fetch from Google Sheet...");
         const sheetUrl = localStorage.getItem('sheet_members') || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjbvT42nJIt_6goEZeYH0vzeACzf6tmANoUJeUTFpSBIJzrbQJ7xMZwlTZ5g7KJiPDYR1gdjWVdfNt/pub?output=csv';
         const sheetMems = await fetchMembersFromSheet(sheetUrl);
-        const parsedMems: SupabaseMember[] = sheetMems.map((m: any, i) => {
-          const statusRaw = (m.status || 'pending').toLowerCase();
-          const status = statusRaw.includes('accepted') || statusRaw.includes('active') ? 'accepted' : 
-                         (statusRaw.includes('rejected') ? 'rejected' : 'pending');
-          const phone = m.phone || '';
-          const email = m.email || `${phone || `mem${i}`}@mbstu.ac.bd`;
-          return {
-            id: m.id || `M-${100 + i}`,
-            name: m.name || 'সদস্য',
-            email,
-            phone,
-            role: m.role || 'Member',
-            joinDate: m.joinDate || new Date().toLocaleDateString('bn-BD'),
-            status,
-            dues: m.dues || 0,
-            photo: m.photo || '',
-            address: m.address || '',
-            occupation: m.occupation || '',
-            password: m.password || 'library',
-            paymentMethod: m.paymentMethod || '',
-            senderNumber: m.senderNumber || '',
-            trxId: m.trxId || ''
-          };
-        });
+        const parsedMems: SupabaseMember[] = sheetMems
+          .filter((m: any) => m.name && m.name.trim() !== '' && m.name.trim() !== 'সদস্য' && m.name.toLowerCase() !== 'name')
+          .map((m: any, i) => {
+            const statusRaw = (m.status || 'pending').toLowerCase();
+            const status = statusRaw.includes('accepted') || statusRaw.includes('active') ? 'accepted' : 
+                           (statusRaw.includes('rejected') ? 'rejected' : 'pending');
+            const phone = m.phone || '';
+            const email = m.email || `${phone || `mem${i}`}@mbstu.ac.bd`;
+            return {
+              id: m.id || `M-${100 + i}`,
+              name: m.name || 'সদস্য',
+              email,
+              phone,
+              role: m.role || 'Member',
+              joinDate: m.joinDate || new Date().toLocaleDateString('bn-BD'),
+              status,
+              dues: m.dues || 0,
+              photo: m.photo || '',
+              address: m.address || '',
+              occupation: m.occupation || '',
+              password: m.password || 'library',
+              paymentMethod: m.paymentMethod || '',
+              senderNumber: m.senderNumber || '',
+              trxId: m.trxId || ''
+            };
+          });
         if (parsedMems.length > 0) {
           saveLocalData('db_members', parsedMems);
           for (const pm of parsedMems) {
@@ -425,7 +494,7 @@ export const db = {
         console.warn("Failed fallback Sheets members fetch:", sheetErr);
       }
     }
-    return localMems;
+    return validLocal;
   },
 
   async saveMember(member: Partial<SupabaseMember>): Promise<SupabaseMember> {
@@ -944,5 +1013,331 @@ export const db = {
     const filtered = local.filter(o => o.id !== id);
     saveLocalData('db_orders', filtered);
     return true;
+  },
+
+  // --- GRAPHICS / WEBSITE CONFIG SERVICES ---
+  async getGraphicsConfig(): Promise<GraphicsConfig> {
+    const colPath = 'graphics';
+    const docId = 'config';
+    let savedGallery: string[] = [];
+    try {
+      const stored = localStorage.getItem('background_gallery_urls');
+      if (stored) savedGallery = JSON.parse(stored);
+    } catch (_) {}
+
+    try {
+      const d = await getDoc(doc(firestoreDb, colPath, docId));
+      if (d.exists()) {
+        const data = d.data();
+        const gallery = data.backgroundGallery || savedGallery || [];
+        try {
+          localStorage.setItem('background_gallery_urls', JSON.stringify(gallery));
+        } catch (_) {}
+        return {
+          id: d.id,
+          homeHeroBg: data.homeHeroBg || 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600',
+          homeHeroText: data.homeHeroText || '',
+          homeHeroSubtext: data.homeHeroSubtext || '',
+          donorMediaLink: data.donorMediaLink || '',
+          backgroundGallery: gallery
+        };
+      }
+    } catch (err) {
+      console.warn("Firestore getGraphicsConfig failed:", err);
+    }
+    return {
+      id: docId,
+      homeHeroBg: localStorage.getItem('home_hero_bg') || 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600',
+      homeHeroText: '',
+      homeHeroSubtext: '',
+      donorMediaLink: localStorage.getItem('donor_media_link') || '',
+      backgroundGallery: savedGallery
+    };
+  },
+
+  async saveGraphicsConfig(config: Partial<GraphicsConfig>): Promise<GraphicsConfig> {
+    const colPath = 'graphics';
+    const docId = 'config';
+    const docRef = doc(firestoreDb, colPath, docId);
+    
+    let finalGallery = config.backgroundGallery;
+    if (finalGallery === undefined) {
+      try {
+        const stored = localStorage.getItem('background_gallery_urls');
+        if (stored) finalGallery = JSON.parse(stored);
+      } catch (_) {}
+    }
+    if (!finalGallery) finalGallery = [];
+
+    const finalized: GraphicsConfig = {
+      id: docId,
+      homeHeroBg: config.homeHeroBg || 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600',
+      homeHeroText: config.homeHeroText || '',
+      homeHeroSubtext: config.homeHeroSubtext || '',
+      donorMediaLink: config.donorMediaLink || '',
+      backgroundGallery: finalGallery
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${docId}`);
+    }
+    localStorage.setItem('home_hero_bg', finalized.homeHeroBg);
+    localStorage.setItem('donor_media_link', finalized.donorMediaLink || '');
+    localStorage.setItem('background_gallery_urls', JSON.stringify(finalized.backgroundGallery));
+    return finalized;
+  },
+
+  // --- RECENT DONATIONS SERVICES ---
+  async getRecentDonations(): Promise<RecentDonation[]> {
+    const colPath = 'recent_donations';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: RecentDonation[] = [];
+      querySnapshot.forEach((d) => {
+        const r = d.data();
+        mapped.push({
+          id: d.id,
+          name: r.name || 'নামহীন দাতা',
+          amount: Number(r.amount) || 0,
+          date: r.date || '',
+          message: r.message || '',
+          photo: r.photo || ''
+        });
+      });
+      return mapped;
+    } catch (err) {
+      console.warn("Firestore getRecentDonations failed:", err);
+      return [];
+    }
+  },
+
+  async saveRecentDonation(rd: Partial<RecentDonation>): Promise<RecentDonation> {
+    const colPath = 'recent_donations';
+    const finalId = rd.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalized: RecentDonation = {
+      id: finalId,
+      name: rd.name || 'নামহীন দাতা',
+      amount: Number(rd.amount) || 0,
+      date: rd.date || new Date().toLocaleDateString('bn-BD'),
+      message: rd.message || '',
+      photo: rd.photo || ''
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    return finalized;
+  },
+
+  async deleteRecentDonation(id: string): Promise<boolean> {
+    const colPath = 'recent_donations';
+    try {
+      await deleteDoc(doc(firestoreDb, colPath, id));
+      return true;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
+      return false;
+    }
+  },
+
+  // --- MEDIA / GALLERY SERVICES ---
+  async getMediaGallery(): Promise<MediaGalleryItem[]> {
+    const colPath = 'media_gallery';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: MediaGalleryItem[] = [];
+      querySnapshot.forEach((d) => {
+        const m = d.data();
+        mapped.push({
+          id: d.id,
+          title: m.title || '',
+          imageUrl: m.imageUrl || '',
+          date: m.date || '',
+          description: m.description || ''
+        });
+      });
+      return mapped;
+    } catch (err) {
+      console.warn("Firestore getMediaGallery failed:", err);
+      return [];
+    }
+  },
+
+  async saveMediaItem(item: Partial<MediaGalleryItem>): Promise<MediaGalleryItem> {
+    const colPath = 'media_gallery';
+    const finalId = item.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalized: MediaGalleryItem = {
+      id: finalId,
+      title: item.title || 'শিরোনামহীন ছবি',
+      imageUrl: item.imageUrl || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
+      date: item.date || new Date().toLocaleDateString('bn-BD'),
+      description: item.description || ''
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    return finalized;
+  },
+
+  async deleteMediaItem(id: string): Promise<boolean> {
+    const colPath = 'media_gallery';
+    try {
+      await deleteDoc(doc(firestoreDb, colPath, id));
+      return true;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
+      return false;
+    }
+  },
+
+  // --- SUB-ADMINS & AUDIT LOG SERVICE ---
+  async getSubAdmins(): Promise<SupabaseSubAdmin[]> {
+    const colPath = 'sub_admins';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseSubAdmin[] = [];
+      querySnapshot.forEach((d) => {
+        const r = d.data();
+        mapped.push({
+          id: d.id,
+          name: r.name || '',
+          email: r.email || '',
+          password: r.password || '',
+          role: r.role || 'sub-admin',
+          status: r.status || 'active',
+          createdAt: r.createdAt || ''
+        });
+      });
+      return mapped;
+    } catch (err) {
+      console.warn("Firestore getSubAdmins failed:", err);
+      try {
+        const stored = localStorage.getItem('db_sub_admins');
+        if (stored) return JSON.parse(stored);
+      } catch (_) {}
+      return [];
+    }
+  },
+
+  async saveSubAdmin(sa: Partial<SupabaseSubAdmin>): Promise<SupabaseSubAdmin> {
+    const colPath = 'sub_admins';
+    const finalId = sa.id || sa.email || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalizedValue: SupabaseSubAdmin = {
+      id: finalId,
+      name: sa.name || '',
+      email: sa.email || '',
+      password: sa.password || '',
+      role: sa.role || 'sub-admin',
+      status: sa.status || 'active',
+      createdAt: sa.createdAt || new Date().toISOString()
+    };
+    try {
+      await setDoc(docRef, finalizedValue, { merge: true });
+    } catch (err) {
+      console.warn("Firestore saveSubAdmin failed:", err);
+    }
+    try {
+      const stored = localStorage.getItem('db_sub_admins');
+      const all: SupabaseSubAdmin[] = stored ? JSON.parse(stored) : [];
+      const idx = all.findIndex(a => a.id === finalId);
+      if (idx >= 0) all[idx] = finalizedValue;
+      else all.push(finalizedValue);
+      localStorage.setItem('db_sub_admins', JSON.stringify(all));
+    } catch (_) {}
+    return finalizedValue;
+  },
+
+  async deleteSubAdmin(id: string): Promise<boolean> {
+    const colPath = 'sub_admins';
+    try {
+      await deleteDoc(doc(firestoreDb, colPath, id));
+    } catch (err) {
+      console.warn("Firestore deleteSubAdmin failed:", err);
+    }
+    try {
+      const stored = localStorage.getItem('db_sub_admins');
+      if (stored) {
+        const all: SupabaseSubAdmin[] = JSON.parse(stored);
+        const filtered = all.filter(a => a.id !== id);
+        localStorage.setItem('db_sub_admins', JSON.stringify(filtered));
+      }
+    } catch (_) {}
+    return true;
+  },
+
+  async getAuditLogs(): Promise<SupabaseAuditLog[]> {
+    const colPath = 'audit_logs';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseAuditLog[] = [];
+      querySnapshot.forEach((d) => {
+        const r = d.data();
+        mapped.push({
+          id: d.id,
+          actionType: r.actionType || '',
+          adminId: r.adminId || '',
+          timestamp: r.timestamp || '',
+          affectedRecordId: r.affectedRecordId || ''
+        });
+      });
+      mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return mapped;
+    } catch (err) {
+      console.warn("Firestore getAuditLogs failed:", err);
+      try {
+        const stored = localStorage.getItem('db_audit_logs');
+        if (stored) {
+          const logs = JSON.parse(stored) as SupabaseAuditLog[];
+          logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          return logs;
+        }
+      } catch (_) {}
+      return [];
+    }
+  },
+
+  async addAuditLog(actionType: string, affectedRecordId: string): Promise<SupabaseAuditLog> {
+    const colPath = 'audit_logs';
+    const id = doc(collection(firestoreDb, colPath)).id;
+    
+    let adminEmail = 'moderator@econlibrary.com';
+    try {
+      const email = localStorage.getItem('admin_email');
+      if (email) adminEmail = email;
+    } catch (_) {}
+
+    const finalizedLog: SupabaseAuditLog = {
+      id,
+      actionType,
+      adminId: adminEmail,
+      timestamp: new Date().toISOString(),
+      affectedRecordId
+    };
+
+    try {
+      await setDoc(doc(firestoreDb, colPath, id), finalizedLog);
+    } catch (err) {
+      console.warn("Firestore addAuditLog failed:", err);
+    }
+
+    try {
+      const stored = localStorage.getItem('db_audit_logs');
+      const all: SupabaseAuditLog[] = stored ? JSON.parse(stored) : [];
+      all.push(finalizedLog);
+      localStorage.setItem('db_audit_logs', JSON.stringify(all));
+    } catch (_) {}
+
+    return finalizedLog;
   }
 };

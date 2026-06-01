@@ -21,12 +21,8 @@ const settingsSections = [
 
 export default function AdminSettings() {
   const [urls, setUrls] = useState({
-    inventory: import.meta.env.VITE_GOOGLE_SHEET_URL || localStorage.getItem('sheet_inventory') || '',
+    inventory: localStorage.getItem('sheet_inventory') || import.meta.env.VITE_GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRfFFE_8E7kQVRGRXuN_HZDMFQWZvfhxnVU7SI0sZi8mCp2am8qsa5eNeT6WYVkF8kQdza8eWcYWk07/pub?output=csv',
     members: localStorage.getItem('sheet_members') || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjbvT42nJIt_6goEZeYH0vzeACzf6tmANoUJeUTFpSBIJzrbQJ7xMZwlTZ5g7KJiPDYR1gdjWVdfNt/pub?output=csv',
-    donors: localStorage.getItem('sheet_donors') || '',
-    issues: localStorage.getItem('sheet_issues') || '',
-    shop: localStorage.getItem('sheet_shop') || '',
-    finances: localStorage.getItem('sheet_finances') || '',
     registrationScript: localStorage.getItem('registration_script_url') || 'https://script.google.com/macros/s/AKfycbx8JvVk5nvS7XO6jXPwHb9BhCbaNUBgTxycqI1NguV_LoixqY4xYfVbZF6hTvpbo4Dfug/exec',
     donorMediaLink: localStorage.getItem('donor_media_link') || '',
   });
@@ -35,17 +31,13 @@ export default function AdminSettings() {
   const handleSaveUrls = () => {
     localStorage.setItem('sheet_inventory', urls.inventory);
     localStorage.setItem('sheet_members', urls.members);
-    localStorage.setItem('sheet_donors', urls.donors);
-    localStorage.setItem('sheet_issues', urls.issues);
-    localStorage.setItem('sheet_shop', urls.shop);
-    localStorage.setItem('sheet_finances', urls.finances);
     localStorage.setItem('registration_script_url', urls.registrationScript);
     localStorage.setItem('custom_sheet_url', urls.inventory);
     localStorage.setItem('donor_media_link', urls.donorMediaLink);
     
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
-    alert('সবগুলো গুগল শিট লিঙ্ক সেভ হয়েছে! পরিবর্তন দেখতে পেজ রিফ্রেশ করুন।');
+    alert('প্রয়োজনীয় গুগল শিট ও স্ক্রিপ্ট লিঙ্ক সেভ হয়েছে! পরিবর্তন দেখতে পেজ রিফ্রেশ করুন।');
   };
 
   return (
@@ -81,7 +73,7 @@ export default function AdminSettings() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">বইয়ের তালিকা (Inventory)</label>
+              <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-6">বইয়ের তালিকা (Inventory) 📖</label>
               <input 
                 type="text" 
                 value={urls.inventory}
@@ -91,7 +83,7 @@ export default function AdminSettings() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">সদস্য ব্যবস্থাপনা (Members)</label>
+              <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-6">সদস্য ব্যবস্থাপনা (Members) 👥</label>
               <input 
                 type="text" 
                 value={urls.members}
@@ -100,51 +92,11 @@ export default function AdminSettings() {
                 className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">ইস্যু ও ফেরত (Issues)</label>
-              <input 
-                type="text" 
-                value={urls.issues}
-                onChange={(e) => setUrls({...urls, issues: e.target.value})}
-                placeholder="CSV URL..."
-                className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
-              />
-            </div>
           </div>
 
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">দাতা সদস্য (Donors)</label>
-              <input 
-                type="text" 
-                value={urls.donors}
-                onChange={(e) => setUrls({...urls, donors: e.target.value})}
-                placeholder="CSV URL..."
-                className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">বই বাজার (Shop)</label>
-              <input 
-                type="text" 
-                value={urls.shop}
-                onChange={(e) => setUrls({...urls, shop: e.target.value})}
-                placeholder="CSV URL..."
-                className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">আয়-ব্যয় (Finances)</label>
-              <input 
-                type="text" 
-                value={urls.finances}
-                onChange={(e) => setUrls({...urls, finances: e.target.value})}
-                placeholder="CSV URL..."
-                className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">নিবন্ধন স্ক্রিপ্ট (Registration Script)</label>
+              <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-6">নিবন্ধন স্ক্রিপ্ট (Registration Script) ⚙️</label>
               <input 
                 type="text" 
                 value={urls.registrationScript}
@@ -154,7 +106,7 @@ export default function AdminSettings() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">দাতা ড্রাইভ মেমোরি ফোল্ডার লিঙ্ক</label>
+              <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-6">দাতা ড্রাইভ মেমোরি ফোল্ডার লিঙ্ক 📁</label>
               <input 
                 type="text" 
                 value={urls.donorMediaLink}
@@ -163,12 +115,12 @@ export default function AdminSettings() {
                 className="w-full px-8 py-4 bg-slate-50 border border-amber-100 rounded-3xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-amber-50"
               />
             </div>
-            <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100">
-               <h4 className="text-[10px] font-black text-emerald-900 mb-2 uppercase tracking-widest">কিভাবে কানেক্ট করবেন?</h4>
+            <div className="p-6 bg-emerald-50 rounded-[32px] border border-emerald-100">
+               <h4 className="text-[10px] font-black text-emerald-950 mb-1.5 uppercase tracking-widest">কিভাবে কানেক্ট করবেন?</h4>
                <p className="text-[10px] font-bold text-emerald-700 leading-relaxed">
-                 ১. শিটে File &gt; Share &gt; Publish to web এ যান।<br/>
+                 ১. গুগল শিটে File &gt; Share &gt; Publish to web এ যান।<br/>
                  ২. CSV ফরম্যাট সিলেক্ট করে লিঙ্কটি কপি করুন।<br/>
-                 ৩. এখানে সঠিক বক্সে পেস্ট করে সেভ করুন।
+                 ৩. এখানে সঠিক বক্সে পেস্ট করে নিচে "সব সেভ করুন" প্রেস করুন।
                </p>
             </div>
           </div>

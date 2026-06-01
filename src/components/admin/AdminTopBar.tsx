@@ -1,9 +1,11 @@
 import { ChevronLeft, Search, Moon, Bell, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { getCurrentAdminUser } from '@/src/lib/adminAuth';
 
 export default function AdminTopBar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const admin = getCurrentAdminUser();
 
   // Get current page name from path
   const getPageTitle = () => {
@@ -15,6 +17,7 @@ export default function AdminTopBar() {
       case 'inventory': return 'বইয়ের তালিকা (Inventory)';
       case 'id-card': return 'আইডি কার্ড প্রিন্ট';
       case 'finance': return 'হিসাব-নিকাশ';
+      case 'sub-admins': return 'মডারেটর ব্যবস্থাপনা ও অডিট লগ';
       default: return 'Admin Gateway';
     }
   };
@@ -56,11 +59,13 @@ export default function AdminTopBar() {
 
         <div className="flex items-center space-x-3">
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-black text-slate-900">System Admin</p>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Admin</p>
+            <p className="text-xs font-black text-slate-900">{admin.name}</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              {admin.role === 'super' ? 'সুপার অ্যাডমিন' : 'মডারেটর'}
+            </p>
           </div>
           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 font-black text-sm border border-indigo-100 shadow-sm">
-            S
+            {admin.name.slice(0, 1).toUpperCase()}
           </div>
         </div>
       </div>

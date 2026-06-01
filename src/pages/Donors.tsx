@@ -1,44 +1,52 @@
-import { User, Crown, Heart, Loader2, Search, Image, ExternalLink } from 'lucide-react';
+import { User, Crown, Heart, Loader2, Search, Image, ExternalLink, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { db } from '@/src/lib/supabaseDatabase';
 
-const initialDonors: any[] = [];
-
-const recentDonations: any[] = [];
-
 export default function Donors() {
   const [activeTab, setActiveTab] = useState<'members' | 'donations' | 'media'>('members');
-  const [donors, setDonors] = useState<any[]>(initialDonors);
+  const [donors, setDonors] = useState<any[]>([]);
+  const [recentDons, setRecentDons] = useState<any[]>([]);
+  const [galleryItems, setGalleryItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [mediaLink, setMediaLink] = useState('');
 
   useEffect(() => {
-    // Media Link from localStorage
-    const savedLink = localStorage.getItem('donor_media_link');
-    if (savedLink) {
-      setMediaLink(savedLink);
-    }
-
-    const loadDonors = async () => {
+    const loadAllContent = async () => {
       try {
         setLoading(true);
+        
+        // 1. Fetch Donors
         const fetched = await db.getDonors();
         setDonors(fetched.map((d: any) => ({
           name: d.name,
           title: d.type,
           location: d.impact || d.lastDonationDate || d.description || ''
         })));
+
+        // 2. Fetch Recent Donations
+        const rd = await db.getRecentDonations();
+        setRecentDons(rd);
+
+        // 3. Fetch Graphics Config for Google Drive Link
+        const config = await db.getGraphicsConfig();
+        if (config.donorMediaLink) {
+          setMediaLink(config.donorMediaLink);
+        }
+
+        // 4. Fetch Media Gallery pictures
+        const media = await db.getMediaGallery();
+        setGalleryItems(media);
+
       } catch (err) {
-        console.error('Donors fetch error:', err);
-        setDonors([]);
+        console.error('Error fetching donors page content:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadDonors();
+    loadAllContent();
   }, []);
 
   const filteredDonors = donors.filter(d => 
@@ -175,28 +183,36 @@ export default function Donors() {
             </div>
 
             <div className="space-y-4 max-w-2xl mx-auto">
-              {recentDonations.map((donation, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-3xl border border-rose-100/50 shadow-sm flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
-                      <Heart className="w-6 h-6 text-rose-400" />
+              {recentDons.length === 0 ? (
+                <div className="text-center py-10 bg-white/50 border border-dashed border-rose-100 rounded-3xl">
+                  <p className="text-slate-400 font-bold text-sm">কোনো সাম্প্রতিক অনুদান রেকর্ড পাওয়া যায়নি।</p>
+                </div>
+              ) : (
+                recentDons.map((donation, idx) => (
+                  <motion.div
+                    key={donation.id || idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white p-6 rounded-3xl border border-rose-100/50 shadow-sm flex items-center justify-between text-left"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
+                        <Heart className="w-6 h-6 text-rose-400" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800">{donation.name}</h4>
+                        <p className="text-xs text-slate-450 font-bold">{donation.date}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-slate-800">{donation.name}</h4>
-                      <p className="text-xs text-slate-400">{donation.date}</p>
+                    <div className="text-right">
+                      <div className="text-xl font-black text-emerald-600">৳{donation.amount}</div>
+                      {donation.message && (
+                        <p className="text-[10px] text-slate-400 italic">"{donation.message}"</p>
+                      )}
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-black text-emerald-600">৳ {donation.amount}</div>
-                    <p className="text-[10px] text-slate-400 italic">"{donation.message}"</p>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))
+              )}
               
               <div className="mt-12 text-center p-8 bg-white/50 rounded-3xl border border-dashed border-rose-200">
                 <p className="text-slate-500 text-sm mb-6">আমাদের কাজগুলো চালিয়ে নিতে আপনিও অনুদান দিতে পারেন।</p>
@@ -215,26 +231,63 @@ export default function Donors() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-emerald-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-emerald-100/50 text-center"
+            className="bg-emerald-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-16 border border-emerald-100/50 text-center"
           >
-            <div className="relative w-32 h-32 md:w-40 md:h-40 mx-auto mb-10">
+            <div className="relative w-28 h-28 md:w-36 md:h-36 mx-auto mb-8">
               <div className="w-full h-full bg-emerald-100 rounded-[35px] rotate-6 border border-emerald-200 absolute inset-0 mix-blend-multiply" />
               <div className="w-full h-full bg-white rounded-[35px] border-4 border-emerald-50 absolute inset-0 -rotate-3 flex items-center justify-center shadow-lg">
-                 <Image className="w-16 h-16 text-emerald-300" />
+                 <Image className="w-12 h-12 text-emerald-300" />
               </div>
             </div>
 
-            <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-6">মিডিয়া ও স্মৃতিচারণ গ্যালারি</h2>
-            <p className="text-slate-500 text-lg font-medium leading-relaxed max-w-2xl mx-auto mb-12">
-               লাইব্রেরির বই প্রদানকারী দাতা সদস্যদের ছবি ও ভিডিওগুলো আমরা যত্ন সহকারে আমাদের গুগল ড্রাইভে আর্কাইভ করে রাখি।
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4">মিডিয়া ও স্মৃতিচারণ গ্যালারি</h2>
+            <p className="text-slate-500 text-sm font-bold max-w-2xl mx-auto mb-12">
+               লাইব্রেরির বই প্রদানকারী দাতা সদস্যদের ছবি ও ভিডিওগুলো আমরা যত্ন সহকারে আমাদের গুগল ড্রাইভে এবং ডাটাবেজে রেকর্ড করে রাখি।
             </p>
+
+            {/* Live Configured Images Grid */}
+            {galleryItems.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto mb-12 text-left">
+                {galleryItems.map((item, idx) => (
+                  <motion.div
+                    key={item.id || idx}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="bg-white rounded-3xl overflow-hidden border border-slate-150/60 shadow-sm group hover:shadow-md transition-all duration-350"
+                  >
+                    <div className="aspect-[4/3] w-full bg-slate-100 overflow-hidden relative">
+                      <img 
+                        src={item.imageUrl} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                        alt={item.title}
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute top-4 right-4 py-1 px-3 bg-black/60 backdrop-blur-md rounded-full text-[9px] font-black text-white uppercase tracking-wider">
+                        {item.date || 'স্মৃতি'}
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <h4 className="font-extrabold text-slate-800 text-sm leading-snug tracking-tight mb-2 group-hover:text-emerald-700 transition-colors">
+                        {item.title}
+                      </h4>
+                      {item.description && (
+                        <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
 
             {mediaLink ? (
               <a 
                 href={mediaLink} 
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-3 px-10 py-5 bg-emerald-600 text-white rounded-[24px] font-black hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/20 active:scale-95 text-lg"
+                className="inline-flex items-center justify-center gap-3 px-10 py-5 bg-emerald-600 text-white rounded-[24px] font-black hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/25 active:scale-95 text-lg"
               >
                 <ExternalLink className="w-6 h-6" />
                 <span>গুগল ড্রাইভে ছবি ও ভিডিও দেখুন</span>

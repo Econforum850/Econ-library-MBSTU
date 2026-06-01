@@ -36,7 +36,7 @@ export default function AdminStickers() {
     (b.author && b.author.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Trigger individual sticker printing
+  // Trigger individual sticker printing (Optimized for label/sticker sizes)
   const handlePrintSingle = (book: SupabaseBook) => {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(book.bookId)}`;
     const printWindow = window.open('', '_blank');
@@ -50,56 +50,89 @@ export default function AdminStickers() {
         <head>
           <title>প্রিন্ট স্টিকার - ${book.title}</title>
           <style>
+            @page {
+              size: 3in 2in; /* standard sticker label dimensions */
+              margin: 2mm;
+            }
             body {
-              font-family: 'Helvetica Neue', Arial, sans-serif;
+              font-family: system-ui, -apple-system, sans-serif;
               display: flex;
               justify-content: center;
               align-items: center;
               height: 100vh;
               margin: 0;
               background-color: #fff;
+              color: #000;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             .sticker-card {
-              border: 2px solid #000;
-              padding: 20px;
-              width: 250px;
+              border: 1.5px solid #000;
+              padding: 10px;
+              width: 260px;
               text-align: center;
-              border-radius: 10px;
+              border-radius: 6px;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              height: 100%;
             }
             .title {
-              font-size: 16px;
-              font-weight: bold;
-              margin-bottom: 5px;
+              font-size: 11px;
+              font-weight: 800;
+              margin-bottom: 2px;
+              display: -webkit-box;
+              -webkit-line-clamp: 2;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              line-height: 1.2;
             }
             .author {
-              font-size: 12px;
-              color: #555;
-              margin-bottom: 12px;
+              font-size: 8px;
+              color: #444;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              margin-bottom: 4px;
             }
             .qr-img {
-              width: 140px;
-              height: 140px;
-              margin: 0 auto 10px;
+              width: 70px;
+              height: 70px;
+              margin: 0 auto;
+            }
+            .book-id {
+              font-size: 9px;
+              font-family: monospace;
+              font-weight: bold;
+              margin-top: 2px;
             }
             .meta {
-              font-size: 11px;
-              font-weight: bold;
-              background: #000;
-              color: #fff;
-              padding: 4px 8px;
-              border-radius: 4px;
+              font-size: 8px;
+              font-weight: 800;
+              border: 1px solid #000;
+              background: #f3f4f6 !important;
+              color: #000 !important;
+              padding: 1px 5px;
+              border-radius: 3px;
               display: inline-block;
-              margin-top: 5px;
+              margin-top: 2px;
+              align-self: center;
             }
           </style>
         </head>
         <body>
           <div class="sticker-card">
-            <div class="title">${book.title}</div>
-            <div class="author">${book.author || 'লেখক অজানা'}</div>
+            <div>
+              <div class="title">${book.title}</div>
+              <div class="author">${book.author || 'লেখক অজানা'}</div>
+            </div>
             <img class="qr-img" src="${qrUrl}" alt="QR Code" />
-            <div>ID: <strong style="font-family: monospace;">${book.bookId}</strong></div>
-            <div class="meta">শেলফ: ${book.shelfNo || 'উল্লেখ নেই'}</div>
+            <div>
+              <div class="book-id">ID: <strong>${book.bookId}</strong></div>
+              <div class="meta">শেলফ: ${book.shelfNo || 'উল্লেখ নেই'}</div>
+            </div>
           </div>
           <script>
             window.onload = function() {
@@ -113,7 +146,7 @@ export default function AdminStickers() {
     printWindow.document.close();
   };
 
-  // Trigger aggregate printing
+  // Trigger aggregate printing (Optimized for standard A4 sticker label sheets)
   const handlePrintAll = () => {
     if (filteredBooks.length === 0) {
       alert('প্রিন্ট করার মত কোনো বই পাওয়া যায়নি!');
@@ -131,11 +164,15 @@ export default function AdminStickers() {
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(book.bookId)}`;
       stickerItemsHtml += `
         <div class="sticker-card">
-          <div class="title">${book.title}</div>
-          <div class="author">${book.author || 'লেখক অজানা'}</div>
+          <div>
+            <div class="title">${book.title}</div>
+            <div class="author">${book.author || 'লেখক অজানা'}</div>
+          </div>
           <img class="qr-img" src="${qrUrl}" alt="QR" />
-          <div>ID: <strong style="font-family: monospace;">${book.bookId}</strong></div>
-          <div class="meta">শেলফ: ${book.shelfNo || 'উল্লেখ নেই'}</div>
+          <div>
+            <div class="book-id">ID: <strong>${book.bookId}</strong></div>
+            <div class="meta">শেলফ: ${book.shelfNo || 'উল্লেখ নেই'}</div>
+          </div>
         </div>
       `;
     });
@@ -145,47 +182,91 @@ export default function AdminStickers() {
         <head>
           <title>মোট স্টিকার শিট (${filteredBooks.length} টি)</title>
           <style>
+            @page {
+              size: A4;
+              margin: 10mm;
+            }
             body {
-              font-family: system-ui, sans-serif;
-              padding: 20px;
+              font-family: system-ui, -apple-system, sans-serif;
+              padding: 0;
               margin: 0;
+              background-color: #fff;
+              color: #000;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            h2 {
+              font-size: 15px;
+              font-weight: 900;
+              text-align: center;
+              margin: 0 0 15px 0;
+              border-bottom: 2px solid #000;
+              padding-bottom: 6px;
             }
             .grid-container {
               display: grid;
-              grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-              gap: 20px;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 12px;
             }
             .sticker-card {
-              border: 1px dashed #333;
-              padding: 15px;
+              border: 1px dashed #000;
+              padding: 10px;
               text-align: center;
-              border-radius: 8px;
+              border-radius: 6px;
+              background-color: #fff;
               page-break-inside: avoid;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              height: 180px;
+              box-sizing: border-box;
             }
             .title {
-              font-size: 13px;
-              font-weight: bold;
+              font-size: 11px;
+              font-weight: 800;
+              display: -webkit-box;
+              -webkit-line-clamp: 2;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              line-height: 1.2;
+              margin-bottom: 2px;
+            }
+            .author {
+              font-size: 8px;
+              color: #444;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
-            }
-            .author {
-              font-size: 11px;
-              color: #666;
-              margin-bottom: 8px;
+              margin-bottom: 4px;
             }
             .qr-img {
-              width: 100px;
-              height: 100px;
-              margin: 0 auto 5px;
+              width: 70px;
+              height: 70px;
+              margin: 0 auto;
+            }
+            .book-id {
+              font-size: 9px;
+              font-family: monospace;
+              font-weight: bold;
+              margin-top: 2px;
             }
             .meta {
-              font-size: 10px;
-              background: #f0f0f0;
-              padding: 2px 6px;
-              border-radius: 4px;
+              font-size: 8px;
+              font-weight: 800;
+              border: 1px solid #000;
+              background: #f3f4f6 !important;
+              color: #000 !important;
+              padding: 1px 4px;
+              border-radius: 3px;
               display: inline-block;
-              margin-top: 5px;
+              margin-top: 2px;
+              align-self: center;
+            }
+            @media print {
+              .sticker-card {
+                border: 1px solid #000 !important; /* solid lines for physical cutting on sheets */
+              }
             }
           </style>
         </head>

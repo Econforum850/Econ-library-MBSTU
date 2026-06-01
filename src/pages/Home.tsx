@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  ArrowRight, Users, BookOpen, Calendar, HelpCircle, GraduationCap, ChevronRight, Settings, X, Image
+  ArrowRight, Users, BookOpen, Calendar, HelpCircle, GraduationCap, ChevronRight, Settings, X, Image,
+  Plus, Trash2, Check, Sparkles, Upload
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { db } from '@/src/lib/supabaseDatabase';
+import { isAdminAuthenticated } from '@/src/lib/adminAuth';
 
 const PRESET_BGS = [
   { name: 'ঐতিহ্যবাহী লাইব্রেরি (Default)', url: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600' },
@@ -15,11 +18,60 @@ const PRESET_BGS = [
 
 export default function Home() {
   const [activeSlide, setActiveSlide] = useState(0);
-  const [bgImage, setBgImage] = useState(() => {
-    return localStorage.getItem('home_hero_bg') || 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600';
-  });
+  const [bgImage, setBgImage] = useState('https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600');
   const [showBgModal, setShowBgModal] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
+  const [gallery, setGallery] = useState<string[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setIsAdmin(isAdminAuthenticated());
+    const fetchHeroBg = async () => {
+      try {
+        const config = await db.getGraphicsConfig();
+        if (config) {
+          if (config.homeHeroBg) {
+            setBgImage(config.homeHeroBg);
+          }
+          if (config.backgroundGallery) {
+            setGallery(config.backgroundGallery);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading homepage config:', err);
+      }
+    };
+    fetchHeroBg();
+  }, []);
+
+  const handleAddImage = async (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    if (gallery.includes(trimmed)) {
+      alert('এই ছবিটি ইতিমধ্যেই গ্যালারিতে আছে!');
+      return;
+    }
+    const updated = [...gallery, trimmed];
+    setGallery(updated);
+    try {
+      await db.saveGraphicsConfig({ backgroundGallery: updated });
+    } catch (err) {
+      console.error('Failed to save image to config:', err);
+    }
+    setCustomUrl('');
+  };
+
+  const handleDeleteImage = async (urlToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('আপনি কি এই ছবিটি আপনার গ্যালারি থেকে চিরতরে মুছে ফেলতে চান?')) return;
+    const updated = gallery.filter(url => url !== urlToDelete);
+    setGallery(updated);
+    try {
+      await db.saveGraphicsConfig({ backgroundGallery: updated });
+    } catch (err) {
+      console.error('Failed to update config gallery:', err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col pb-16">
@@ -116,15 +168,17 @@ export default function Home() {
         </div>
 
         {/* Change Background Button */}
-        <div className="absolute right-6 bottom-6 z-30">
-          <button
-            onClick={() => setShowBgModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-black/60 hover:bg-black/85 text-white/95 hover:text-white rounded-xl border border-white/20 backdrop-blur-md text-[11px] font-black transition-all shadow-lg active:scale-95 cursor-pointer"
-          >
-            <Settings className="w-3.5 h-3.5 text-emerald-400 animate-spin-slow" />
-            <span>পটভূমি পরিবর্তন করুন</span>
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="absolute right-6 bottom-6 z-30">
+            <button
+              onClick={() => setShowBgModal(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-black/60 hover:bg-black/85 text-white/95 hover:text-white rounded-xl border border-white/20 backdrop-blur-md text-[11px] font-black transition-all shadow-lg active:scale-95 cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5 text-emerald-400 animate-spin-slow" />
+              <span>পটভূমি পরিবর্তন করুন</span>
+            </button>
+          </div>
+        )}
       </section>
 
       {/* 2. Section "আমাদের বৈশিষ্ট্য" */}
@@ -249,74 +303,238 @@ export default function Home() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowBgModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              className="absolute inset-0 bg-slate-910/70 backdrop-blur-md"
             />
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.96, y: 24 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-lg rounded-[32px] p-8 shadow-2xl border border-slate-100 z-10 font-sans"
+              exit={{ opacity: 0, scale: 0.96, y: 24 }}
+              className="relative bg-white w-full max-w-4xl rounded-[40px] shadow-2xl border border-slate-100 z-10 font-sans overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-black text-slate-800">হোমপেজ পটভূমি পরিবর্তন করুন</h3>
+              {/* Modal Header */}
+              <div className="p-8 pb-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <div className="flex items-center space-x-2.5">
+                    <Sparkles className="w-5 h-5 text-[#05d5a1]" />
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">অ্যাডমিন ফটো ও পটভূমি গ্যালারি</h3>
+                  </div>
+                  <p className="text-xs font-bold text-slate-505 text-left mt-1.5">
+                    স্বাগত এডমিন! আপনি এখানে হাজার হাজার কাস্টম ফটো লিঙ্ক হিসেবে সংরক্ষণ করে যখন ইচ্ছা হোমপেজের ব্যাকগ্রাউন্ড পরিবর্তন করতে পারেন।
+                  </p>
+                </div>
                 <button 
                   onClick={() => setShowBgModal(false)}
-                  className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-900 rounded-full transition-colors cursor-pointer"
+                  className="p-3 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-full transition-all cursor-pointer shadow-sm bg-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="space-y-4">
-                <p className="text-xs font-bold text-slate-500">আপনার পছন্দ অনুযায়ী একটি ব্যাকগ্রাউন্ড ইমেজ নির্বাচন করুন। বিভাগীয় অনুষ্ঠান বা ইভেন্ট ছবিও এখানে সিলেক্ট করতে পারেন:</p>
+              {/* Modal Body: Dual Column */}
+              <div className="p-8 grid grid-cols-1 md:grid-cols-12 gap-8 overflow-y-auto flex-1 text-left">
                 
-                {/* Presets */}
-                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                  {PRESET_BGS.map((preset) => (
-                    <button
-                      key={preset.url}
-                      onClick={() => {
-                        setBgImage(preset.url);
-                        localStorage.setItem('home_hero_bg', preset.url);
-                        setShowBgModal(false);
-                      }}
-                      className={`w-full p-3 flex items-center space-x-3 rounded-2xl border text-left text-xs font-bold transition-all cursor-pointer ${
-                        bgImage === preset.url 
-                          ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700' 
-                          : 'border-slate-100 hover:bg-slate-50 text-slate-600'
-                      }`}
-                    >
-                      <img src={preset.url} className="w-12 h-8 object-cover rounded-lg" alt="" referrerPolicy="no-referrer" />
-                      <span className="truncate">{preset.name}</span>
-                    </button>
-                  ))}
-                </div>
+                {/* Column 1: Add image & preview (4 cols) */}
+                <div className="md:col-span-5 space-y-6 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center space-x-1.5">
+                      <Upload className="w-3.5 h-3.5 text-indigo-505" />
+                      <span>নতুন ছবি লিঙ্ক যুক্ত করুন</span>
+                    </h4>
 
-                <div className="pt-2 border-t border-slate-100">
-                  <label className="text-[10px] font-black text-slate-440 uppercase tracking-widest block mb-1.5">অথবা কাস্টম ইমেজের লিংক দিন (যেমন বিভাগীয় কোনো ইভেন্ট ছবি):</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="https://example.com/image.jpg"
-                      value={customUrl}
-                      onChange={(e) => setCustomUrl(e.target.value)}
-                      className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl font-medium text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
+                    {/* Custom URL Input */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">ইমেজ বা ফটো URL (Direct URL Link):</label>
+                        <input
+                          type="text"
+                          placeholder="https://images.unsplash.com/your-image.jpg"
+                          value={customUrl}
+                          onChange={(e) => setCustomUrl(e.target.value)}
+                          className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-semibold text-xs text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Real-time Preview Area */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">ইমেজ লাইভ প্রিভিউ:</span>
+                      <div className="aspect-[16/10] bg-slate-50 rounded-2xl overflow-hidden border-2 border-dashed border-slate-200 relative flex items-center justify-center p-2.5">
+                        {customUrl.trim() ? (
+                          <img 
+                            src={customUrl.trim()} 
+                            alt="Preview" 
+                            className="w-full h-full object-cover rounded-xl shadow-sm"
+                            onError={(e) => {
+                              // If image loading fails
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="text-center p-4">
+                            <Image className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                            <p className="text-[10px] font-extrabold text-slate-400">সঠিক ইমেজ URL দিলে এখানে ছবি দেখা যাবে।</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions for local storage / cloud db */}
+                  <div className="space-y-2.5 pt-4 border-t border-slate-100">
                     <button
-                      onClick={() => {
-                        if (customUrl.trim()) {
-                          setBgImage(customUrl.trim());
-                          localStorage.setItem('home_hero_bg', customUrl.trim());
-                          setShowBgModal(false);
-                          setCustomUrl('');
+                      type="button"
+                      disabled={!customUrl.trim()}
+                      onClick={() => handleAddImage(customUrl)}
+                      className="w-full py-4.5 bg-white border border-slate-200 hover:border-indigo-600 hover:bg-indigo-50/20 text-indigo-700 font-extrabold text-xs rounded-2xl flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-sm active:scale-98 disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>গ্যালারি অ্যালবামে যুক্ত করুন</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!customUrl.trim()}
+                      onClick={async () => {
+                        const url = customUrl.trim();
+                        if (url) {
+                          setBgImage(url);
+                          try {
+                            const updated = gallery.includes(url) ? gallery : [...gallery, url];
+                            setGallery(updated);
+                            await db.saveGraphicsConfig({ 
+                              homeHeroBg: url,
+                              backgroundGallery: updated
+                            });
+                            setShowBgModal(false);
+                            setCustomUrl('');
+                          } catch (e) {
+                            console.error(e);
+                          }
                         }
                       }}
-                      className="px-4 py-2.5 bg-indigo-600 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                      className="w-full py-4.5 bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs rounded-2xl transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                     >
-                      নিশ্চিত
+                      সরাসরি প্রধান পটভূমি পরিবর্তন করুন
                     </button>
                   </div>
                 </div>
+
+                {/* Column 2: Gallery Explorer Grid (7 cols) */}
+                <div className="md:col-span-1 border-r border-slate-100 hidden md:block" />
+                
+                <div className="md:col-span-6 space-y-4 flex flex-col">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                      আপনার গ্যালারি সংগ্রহ ({PRESET_BGS.length + gallery.length} টি ইমেজ)
+                    </h4>
+                    {gallery.length > 0 && (
+                      <button 
+                        onClick={() => {
+                          if (window.confirm('নিশ্চিত? সবগুলো কাস্টম ছবি মুছে ফেলা হবে।')) {
+                            setGallery([]);
+                            db.saveGraphicsConfig({ backgroundGallery: [] });
+                          }
+                        }}
+                        className="text-[10px] font-black text-rose-550 hover:text-rose-700 uppercase"
+                      >
+                        সব মুছুন
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Scrollable Album Storage */}
+                  <div className="flex-1 overflow-y-auto max-h-[420px] pr-2 space-y-5">
+                    
+                    {/* Presets (Fixed standard assets) */}
+                    <div>
+                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider block mb-2 font-mono">সিস্টেম থিম ইমেজ সমূহ (Presets)</span>
+                      <div className="grid grid-cols-2 gap-3">
+                        {PRESET_BGS.map((preset) => {
+                          const isActive = bgImage === preset.url;
+                          return (
+                            <div 
+                              key={preset.url}
+                              onClick={async () => {
+                                setBgImage(preset.url);
+                                await db.saveGraphicsConfig({ homeHeroBg: preset.url });
+                              }}
+                              className={`group relative aspect-[14/9] rounded-2xl overflow-hidden border-2 cursor-pointer transition-all shadow-sm ${
+                                isActive 
+                                  ? 'border-emerald-500 ring-4 ring-emerald-50' 
+                                  : 'border-slate-150 hover:border-slate-300'
+                              }`}
+                            >
+                              <img src={preset.url} className="w-full h-full object-cover select-none" alt="" referrerPolicy="no-referrer" />
+                              <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <span className="px-3 py-1 bg-white text-slate-900 text-[9px] font-black rounded-lg shadow-sm">পটভূমি সেট করুন</span>
+                              </div>
+                              {/* Item label */}
+                              <div className="absolute bottom-0 inset-x-0 bg-black/60 p-1.5 text-center backdrop-blur-xs">
+                                <p className="text-[8px] font-black text-white truncate">{preset.name}</p>
+                              </div>
+                              {isActive && (
+                                <div className="absolute top-2 right-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
+                                  <Check className="w-3 h-3" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Admin Saved Custom Images (Durable logic storage) */}
+                    <div>
+                      <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider block mb-2 font-mono">অ্যাডমিন সংরক্ষিত ফটো অ্যালবাম (Custom Gallery)</span>
+                      {gallery.length === 0 ? (
+                        <div className="p-8 border-2 border-dashed border-slate-150 rounded-2xl text-center bg-slate-50/20">
+                          <Image className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                          <p className="text-[10px] font-bold text-slate-400">কোন কাস্টম ইমেজ এখনো যুক্ত করা হয়নি।</p>
+                          <p className="text-[9px] font-semibold text-slate-400/80 mt-1">বামদিকের ফর্মটি ব্যবহার করে ইমেজ লিঙ্ক যুক্ত করুন।</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          {gallery.map((url, i) => {
+                            const isActive = bgImage === url;
+                            return (
+                              <div 
+                                key={url + '-' + i}
+                                onClick={async () => {
+                                  setBgImage(url);
+                                  await db.saveGraphicsConfig({ homeHeroBg: url });
+                                }}
+                                className={`group relative aspect-[14/9] rounded-2xl overflow-hidden border-2 cursor-pointer transition-all shadow-sm ${
+                                  isActive 
+                                    ? 'border-emerald-500 ring-4 ring-emerald-50' 
+                                    : 'border-slate-150 hover:border-slate-300'
+                                }`}
+                              >
+                                <img src={url} className="w-full h-full object-cover select-none" alt="" referrerPolicy="no-referrer" />
+                                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                  <span className="px-2.5 py-1 bg-white text-slate-900 text-[9px] font-black rounded-lg shadow-sm">সেট করুন</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteImage(url, e)}
+                                    className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all shadow-sm cursor-pointer"
+                                    title="মুছে ফেলুন"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                {isActive && (
+                                  <div className="absolute top-2 right-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
+                                    <Check className="w-3 h-3" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+
               </div>
             </motion.div>
           </div>

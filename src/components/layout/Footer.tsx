@@ -38,7 +38,7 @@ export default function Footer() {
               </li>
               <li><Link to="/donors" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors inline-block ml-1">দাতা সদস্যগণের তালিকা</Link></li>
               <li><Link to="/events" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors inline-block ml-1">ইভেন্ট ও নোটিশ</Link></li>
-              <li><Link to="/admin/login" className="text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors inline-block ml-1 italic">অ্যাডমিন পোর্টাল</Link></li>
+
             </ul>
           </div>
 
