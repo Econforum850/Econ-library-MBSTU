@@ -1,8 +1,12 @@
-import { ChevronLeft, Search, Moon, Bell, User } from 'lucide-react';
+import { ChevronLeft, Search, Moon, Bell, User, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getCurrentAdminUser } from '@/src/lib/adminAuth';
 
-export default function AdminTopBar() {
+interface AdminTopBarProps {
+  onMenuClick?: () => void;
+}
+
+export default function AdminTopBar({ onMenuClick }: AdminTopBarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const admin = getCurrentAdminUser();
@@ -23,15 +27,24 @@ export default function AdminTopBar() {
   };
 
   return (
-    <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-8 sticky top-0 z-40">
-      <div className="flex items-center space-x-6">
+    <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 z-40">
+      <div className="flex items-center space-x-2 md:space-x-4">
+        {/* Hamburger trigger for mobile sidebar */}
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all"
+          aria-label="Toggle Side Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
         <button 
           onClick={() => navigate(-1)}
-          className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-50 hover:text-slate-900 transition-all"
+          className="w-9 h-9 md:w-10 md:h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-50 hover:text-slate-900 transition-all shrink-0"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-4.5 h-4.5" />
         </button>
-        <h1 className="text-xl font-black text-slate-900">{getPageTitle()}</h1>
+        <h1 className="text-sm md:text-xl font-black text-slate-900 truncate max-w-[140px] sm:max-w-none">{getPageTitle()}</h1>
       </div>
 
       <div className="flex items-center space-x-6">

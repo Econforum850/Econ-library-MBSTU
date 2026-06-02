@@ -203,29 +203,27 @@ export default function IdCardDownloader({ member, onSuccess }: IdCardDownloader
     // Core details layout
     doc.setTextColor(248, 250, 252);
     doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(4);
-    doc.text('NAME:', 6, 50);
+    doc.setFontSize(3.8);
+    doc.text('NAME:', 6, 49.5);
     doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(5);
-    doc.text(member.name.toUpperCase(), 18, 50);
+    doc.setFontSize(4.4);
+    doc.text(member.name.toUpperCase(), 19, 49.5);
 
     doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(4);
-    doc.text('ROLE:', 6, 54.5);
+    doc.setFontSize(3.8);
+    doc.text('DEPT/ROLE:', 6, 53.5);
     doc.setFont('Helvetica', 'bold');
-    doc.text(member.role.toUpperCase(), 18, 54.5);
+    doc.text(`${(member.department || 'Economics').toUpperCase()} / ${member.role.toUpperCase()}`, 19, 53.5);
 
     doc.setFont('Helvetica', 'normal');
-    doc.text('BLOOD GROUP:', 6, 59);
+    doc.text('ROLL/BATCH:', 6, 57.5);
     doc.setFont('Helvetica', 'bold');
-    doc.setTextColor(239, 68, 68); // Red-500
-    doc.text('B+', 18, 59); // default or matching status
+    doc.text(`${(member.studentRoll || 'N/A').toUpperCase()} / ${(member.batchSession || 'N/A').toUpperCase()}`, 19, 57.5);
 
     doc.setFont('Helvetica', 'normal');
-    doc.setTextColor(248, 250, 252);
-    doc.text('PHONE:', 6, 63.5);
+    doc.text('BLOOD/PHONE:', 6, 61.5);
     doc.setFont('Helvetica', 'bold');
-    doc.text(member.phone, 18, 63.5);
+    doc.text(`${(member.bloodGroup || 'B+').toUpperCase()} / ${member.phone}`, 19, 61.5);
 
     // Timeline / Date stamps
     doc.setFillColor(15, 23, 42);
@@ -470,22 +468,22 @@ export default function IdCardDownloader({ member, onSuccess }: IdCardDownloader
               </div>
 
               {/* Attributes fields list */}
-              <div className="px-6 space-y-1.5 text-[9px]">
+              <div className="px-6 space-y-1 text-[9px]">
                 <div className="flex items-center gap-1.5 pt-1">
                   <span className="text-slate-500 font-extrabold uppercase shrink-0">Name:</span>
                   <span className="text-slate-200 font-mono font-black truncate">{member.name.toUpperCase()}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-extrabold uppercase shrink-0">Role:</span>
-                  <span className="text-slate-300 font-bold">{member.role}</span>
+                  <span className="text-slate-500 font-extrabold uppercase shrink-0">Dept/Role:</span>
+                  <span className="text-slate-305 text-slate-300 font-bold font-mono truncate">{`${(member.department || 'Economics').toUpperCase()} / ${member.role.toUpperCase()}`}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-extrabold uppercase shrink-0">Blood:</span>
-                  <span className="text-rose-500 font-black">B+</span>
+                  <span className="text-slate-500 font-extrabold uppercase shrink-0">Roll/Batch:</span>
+                  <span className="text-slate-300 font-bold font-mono truncate">{`${(member.studentRoll || 'N/A').toUpperCase()} / ${(member.batchSession || 'N/A').toUpperCase()}`}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-extrabold uppercase shrink-0">Phone:</span>
-                  <span className="text-indigo-300 font-bold font-mono">{member.phone}</span>
+                  <span className="text-slate-500 font-extrabold uppercase shrink-0">Blood/Phone:</span>
+                  <span className="text-indigo-300 font-bold font-mono truncate">{`${(member.bloodGroup || 'B+').toUpperCase()} / ${member.phone}`}</span>
                 </div>
               </div>
 

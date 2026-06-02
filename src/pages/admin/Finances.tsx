@@ -4,25 +4,77 @@ import {
   Download, Plus, Loader2
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { useState, useEffect } from 'react';
-import { db, SupabaseTransaction as SheetTransaction } from '@/src/lib/supabaseDatabase';
+import { db, SupabaseTransaction as SheetTransaction, SupabaseMember, parseAnyDate } from '@/src/lib/supabaseDatabase';
+
+const PIE_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6', '#3b82f6', '#f43f5e', '#64748b'];
 
 export default function AdminFinances() {
   const [transactions, setTransactions] = useState<SheetTransaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0 });
+  const [members, setMembers] = useState<SupabaseMember[]>([]);
+  const [pieData, setPieData] = useState<{ name: string; value: number; count: number }[]>([]);
+  const [totalOutstanding, setTotalOutstanding] = useState(0);
 
   useEffect(() => {
     const loadFinances = async () => {
       try {
         setLoading(true);
-        const fetched = await db.getTransactions();
-        setTransactions(fetched);
+        // Fetch transactions
+        const fetchedTx = await db.getTransactions();
+        setTransactions(fetchedTx);
         
-        const inc = fetched.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-        const exp = fetched.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const inc = fetchedTx.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const exp = fetchedTx.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
         setSummary({ income: inc, expense: exp, balance: inc - exp });
+
+        // Fetch members and process dues grouped by year of joining
+        const fetchedMembers = await db.getMembers();
+        setMembers(fetchedMembers);
+
+        const yearDuesMap: { [yearStr: string]: { dues: number; count: number } } = {};
+        let totalDuesSum = 0;
+
+        fetchedMembers.forEach(m => {
+          const duesVal = m.dues || 0;
+          if (duesVal > 0) {
+            totalDuesSum += duesVal;
+
+            let joinYear = 'Unknown / N/A';
+            const baseDateStr = m.validationStartDate || (m.joinDate ? m.joinDate.split('|')[0] : '');
+            if (baseDateStr) {
+              const dObj = parseAnyDate(baseDateStr);
+              if (dObj) {
+                joinYear = 'যোগদান: ' + dObj.getFullYear();
+              } else if (baseDateStr.includes('-')) {
+                const yr = baseDateStr.split('-')[0];
+                if (yr && yr.length === 4) joinYear = 'যোগদান: ' + yr;
+              } else if (baseDateStr.includes('/')) {
+                const parts = baseDateStr.split('/');
+                const yr = parts[2]?.trim().split(' ')[0];
+                if (yr && yr.length === 4) joinYear = 'যোগদান: ' + yr;
+              }
+            }
+            
+            if (!yearDuesMap[joinYear]) {
+              yearDuesMap[joinYear] = { dues: 0, count: 0 };
+            }
+            yearDuesMap[joinYear].dues += duesVal;
+            yearDuesMap[joinYear].count += 1;
+          }
+        });
+
+        const formattedPieData = Object.keys(yearDuesMap).map(key => ({
+          name: key,
+          value: yearDuesMap[key].dues,
+          count: yearDuesMap[key].count
+        })).sort((a, b) => b.value - a.value);
+
+        setPieData(formattedPieData);
+        setTotalOutstanding(totalDuesSum);
+
       } catch (err) {
         console.error('Finances fetch error:', err);
       } finally {
@@ -116,7 +168,7 @@ export default function AdminFinances() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-black text-slate-900">লেনদেনের সংক্ষিপ্তসার</h3>
@@ -143,6 +195,74 @@ export default function AdminFinances() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* Outstanding Dues Pie Chart */}
+        <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-black text-slate-900">শ্রেণীভিত্তিক বকেয়া ফি</h3>
+              <span className="text-[10px] bg-indigo-50 text-indigo-600 font-black px-2.5 py-1 rounded-md">ব্যাচ/বছর</span>
+            </div>
+            <p className="text-xs font-bold text-slate-400 mb-6 font-sans">মেম্বারদের সেশন ও ভ্যালিডেশন শুরুর বছর অনুযায়ী বকেয়া টাকার পরিমাণ</p>
+          </div>
+
+          <div className="flex-1 min-h-[220px] flex items-center justify-center relative">
+            {pieData.length > 0 ? (
+              <div className="w-full h-[220px] relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={85}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: any) => [`৳${value}`, 'বকেয়া']}
+                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', padding: '10px'}}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center text in Pie Chart */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                  <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/50 px-1 py-0.5 rounded">মোট বকেয়া</span>
+                  <span className="block text-lg font-black text-slate-800">৳{totalOutstanding}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-400">
+                <p className="text-sm font-bold">কোন বকেয়া ফি নেই!</p>
+                <p className="text-[10px] mt-1">সব সদস্যের বাৎসরিক ফি পরিশোধিত রয়েছে</p>
+              </div>
+            )}
+          </div>
+
+          {pieData.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-slate-100 space-y-2 max-h-[140px] overflow-y-auto no-scrollbar font-sans">
+              {pieData.map((item, index) => (
+                <div key={item.name} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2">
+                    <span 
+                      className="w-2.5 h-2.5 rounded-full shrink-0" 
+                      style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} 
+                    />
+                    <span className="font-bold text-slate-650 truncate max-w-[130px]">{item.name}</span>
+                  </div>
+                  <div className="text-right font-black text-slate-800">
+                    ৳{item.value} <span className="text-[9px] text-slate-400 font-bold">({item.count} জন)</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-8 rounded-[48px] shadow-sm border border-slate-100 flex flex-col">

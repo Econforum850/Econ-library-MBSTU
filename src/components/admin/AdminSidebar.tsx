@@ -29,7 +29,12 @@ const menuItems = [
   { icon: Settings, label: 'ওয়েবসাইট সেটিংস', path: '/admin/settings', superOnly: true },
 ];
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  isOpen?: boolean;
+  setIsSidebarOpen?: (open: boolean) => void;
+}
+
+export default function AdminSidebar({ isOpen, setIsSidebarOpen }: AdminSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const admin = getCurrentAdminUser();
@@ -52,7 +57,10 @@ export default function AdminSidebar() {
   });
 
   return (
-    <aside className="w-72 bg-[#0a0a1a] text-slate-400 flex flex-col h-screen sticky top-0 overflow-y-auto border-r border-slate-800/50 scrollbar-none">
+    <aside className={cn(
+      "fixed inset-y-0 left-0 w-72 bg-[#0a0a1a] text-slate-400 flex flex-col h-screen z-50 transition-transform duration-300 border-r border-slate-800/50 overflow-y-auto lg:sticky lg:translate-x-0 scrollbar-none",
+      isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+    )}>
       {/* Header */}
       <div className="p-6 border-b border-white/5">
         <Link to="/" className="flex items-center space-x-3 mb-8">
@@ -95,6 +103,7 @@ export default function AdminSidebar() {
             <Link
               key={item.path}
               to={item.path}
+              onClick={() => setIsSidebarOpen?.(false)}
               className={cn(
                 "flex items-center space-x-4 px-4 py-3.5 rounded-xl transition-all group",
                 isActive 
@@ -124,6 +133,7 @@ export default function AdminSidebar() {
       <div className="p-4 border-t border-white/5 space-y-1">
         <Link 
           to="/" 
+          onClick={() => setIsSidebarOpen?.(false)}
           className="flex items-center space-x-4 px-4 py-3.5 rounded-xl text-slate-500 hover:bg-white/5 hover:text-white transition-all"
         >
           <ExternalLink className="w-5 h-5" />

@@ -32,6 +32,17 @@ export default function AdminOrders() {
   const [approvePickupDate, setApprovePickupDate] = useState('');
   const [approveDueDate, setApproveDueDate] = useState('');
 
+  const formatDateToSlash = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    } catch (e) {}
+    return dateStr;
+  };
+
   // Search and filter state for Borrow requests
   const [borrowSearchTerm, setBorrowSearchTerm] = useState('');
   const [borrowStatusFilter, setBorrowStatusFilter] = useState<string>('Pending');
@@ -129,8 +140,11 @@ export default function AdminOrders() {
     const dateFormatted = `${futureDate.toLocaleDateString('bn-BD')} সকাল ১০:০০ টা - দুপুর ৩:০০ টার মধ্যে`;
     setApprovePickupDate(dateFormatted);
     
-    const dueFormatted = new Date(futureDate.getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('bn-BD');
-    setApproveDueDate(dueFormatted);
+    const dueCalendarDate = new Date(futureDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const yyyy = dueCalendarDate.getFullYear();
+    const mm = String(dueCalendarDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(dueCalendarDate.getDate()).padStart(2, '0');
+    setApproveDueDate(`${yyyy}-${mm}-${dd}`);
     setIsApproveModalOpen(true);
   };
 
@@ -161,7 +175,7 @@ export default function AdminOrders() {
         ...approvingIssue,
         status: 'Active',
         pickupDate: approvePickupDate,
-        dueDate: approveDueDate || approvingIssue.dueDate,
+        dueDate: formatDateToSlash(approveDueDate) || approvingIssue.dueDate,
         issueDate: new Date().toLocaleDateString('bn-BD')
       };
       
@@ -660,9 +674,9 @@ export default function AdminOrders() {
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">ফেরত দেওয়ার শেষ সময় (Due Date)</label>
                 <input 
-                  type="text"
+                  type="date"
                   required
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
                   value={approveDueDate}
                   onChange={(e) => setApproveDueDate(e.target.value)}
                 />

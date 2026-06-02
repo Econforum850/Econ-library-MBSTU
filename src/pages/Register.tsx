@@ -80,7 +80,11 @@ export default function Register() {
     address: '',
     senderNumber: '',
     trxId: '',
-    receiptNumber: ''
+    receiptNumber: '',
+    studentRoll: '',
+    batchSession: '',
+    bloodGroup: '',
+    department: 'Economics'
   });
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,6 +188,10 @@ export default function Register() {
         paymentMethod,
         senderNumber: paymentMethod === 'online' ? formData.senderNumber : '',
         trxId: paymentMethod === 'online' ? formData.trxId : formData.receiptNumber,
+        studentRoll: formData.studentRoll,
+        batchSession: formData.batchSession,
+        bloodGroup: formData.bloodGroup,
+        department: formData.department
       });
 
       const loggedInUserObj = {
@@ -196,7 +204,11 @@ export default function Register() {
         photo: savedMem.photo || photo || '',
         status: savedMem.status || 'pending',
         role: savedMem.role || 'Member',
-        dues: savedMem.dues ?? 0
+        dues: savedMem.dues ?? 0,
+        studentRoll: savedMem.studentRoll || formData.studentRoll,
+        batchSession: savedMem.batchSession || formData.batchSession,
+        bloodGroup: savedMem.bloodGroup || formData.bloodGroup,
+        department: savedMem.department || formData.department
       };
       
       localStorage.setItem('loggedInUser', JSON.stringify(loggedInUserObj));
@@ -506,6 +518,96 @@ export default function Register() {
                       </div>
                     </motion.div>
 
+                    {/* Section Header */}
+                    <div className="col-span-1 md:col-span-2 pt-4 border-t border-slate-100">
+                      <h4 className="text-xs font-black text-slate-900 tracking-wider flex items-center gap-1.5 uppercase">
+                        <Award className="w-4 h-4 text-indigo-600" />
+                        আইডি কার্ড ও লাইব্রেরি মেম্বারশিপ তথ্য
+                      </h4>
+                      <p className="text-[10px] font-bold text-slate-400 font-sans mt-1">আইডি কার্ডটি স্বয়ংক্রিয়ভাবে জেনারেট হওয়ার জন্য নিচের তথ্যসমূহ প্রদান করুন</p>
+                    </div>
+
+                    {/* Session / Batch */}
+                    <motion.div variants={formItemVariants} className="space-y-1.5">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">সেশন / ব্যাচ (Session/Batch) <span className="text-rose-500 font-bold">*</span></label>
+                      <div className="relative">
+                        <Sparkles className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 transition-colors ${activeFocusedField === 'batchSession' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                        <motion.input 
+                          whileFocus={{ scale: 1.01 }}
+                          required
+                          type="text" 
+                          value={formData.batchSession}
+                          onFocus={() => setActiveFocusedField('batchSession')}
+                          onBlur={() => setActiveFocusedField(null)}
+                          onChange={(e) => setFormData(prev => ({...prev, batchSession: e.target.value}))}
+                          placeholder="উদা: ২০২০-২০২১ বা ২৩তম ব্যাচ" 
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100/30 transition-all text-sm font-bold text-slate-800" 
+                        />
+                      </div>
+                    </motion.div>
+
+                    {/* Roll/ID */}
+                    <motion.div variants={formItemVariants} className="space-y-1.5">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">রোল নম্বর / আইডি (Roll / ID) <span className="text-rose-500 font-bold">*</span></label>
+                      <div className="relative">
+                        <Award className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 transition-colors ${activeFocusedField === 'studentRoll' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                        <motion.input 
+                          whileFocus={{ scale: 1.01 }}
+                          required
+                          type="text" 
+                          value={formData.studentRoll}
+                          onFocus={() => setActiveFocusedField('studentRoll')}
+                          onBlur={() => setActiveFocusedField(null)}
+                          onChange={(e) => setFormData(prev => ({...prev, studentRoll: e.target.value}))}
+                          placeholder="উদা: ECO-20023" 
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100/30 transition-all text-sm font-bold text-slate-800" 
+                        />
+                      </div>
+                    </motion.div>
+
+                    {/* Department */}
+                    <motion.div variants={formItemVariants} className="space-y-1.5">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">বিভাগের নাম (Department) <span className="text-rose-500 font-bold">*</span></label>
+                      <div className="relative">
+                        <Library className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 transition-colors ${activeFocusedField === 'department' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                        <motion.input 
+                          whileFocus={{ scale: 1.01 }}
+                          required
+                          type="text" 
+                          value={formData.department}
+                          onFocus={() => setActiveFocusedField('department')}
+                          onBlur={() => setActiveFocusedField(null)}
+                          onChange={(e) => setFormData(prev => ({...prev, department: e.target.value}))}
+                          placeholder="উদা: অর্থনীতি বিভাগ" 
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100/30 transition-all text-sm font-bold text-slate-800" 
+                        />
+                      </div>
+                    </motion.div>
+
+                    {/* Blood Group */}
+                    <motion.div variants={formItemVariants} className="space-y-1.5">
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">রক্তের গ্রুপ (Blood Group) <span className="text-rose-500 font-bold">*</span></label>
+                      <div className="relative">
+                        <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-450 text-indigo-600" />
+                        <select 
+                          required
+                          value={formData.bloodGroup}
+                          onChange={(e) => setFormData(prev => ({...prev, bloodGroup: e.target.value}))}
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100/30 transition-all text-sm font-bold text-slate-850"
+                        >
+                          <option value="">রক্তের গ্রুপ সিলেক্ট করুন</option>
+                          <option value="A+">A+ (এ পজিটিভ)</option>
+                          <option value="A-">A- (এ নেগেটিভ)</option>
+                          <option value="B+">B+ (বি পজিটিভ)</option>
+                          <option value="B-">B- (বি নেগেটিভ)</option>
+                          <option value="AB+">AB+ (এবি পজিটিভ)</option>
+                          <option value="AB-">AB- (এবি নেগেটিভ)</option>
+                          <option value="O+">O+ (ও পজিটিভ)</option>
+                          <option value="O-">O- (ও নেগেটিভ)</option>
+                        </select>
+                      </div>
+                    </motion.div>
+
                   </div>
 
                   {/* Address Field */}
@@ -534,8 +636,8 @@ export default function Register() {
                         <span className="text-xs font-black tracking-wide text-slate-850">মেম্বারশিপ সাবস্ক্রিপশন বিবরণ</span>
                       </div>
                       <div className="px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-1">
-                        <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wide">মাসিক ফি (১ বছরের জন্য):</span>
-                        <span className="text-xs font-mono font-black text-emerald-600">৳৫০ / মাস</span>
+                        <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wide">১ বছরের মেম্বারশিপ ফি:</span>
+                        <span className="text-xs font-mono font-black text-emerald-600">৳৫০ / বাৎসরিক</span>
                       </div>
                     </div>
 
@@ -583,7 +685,7 @@ export default function Register() {
                           <div className="text-center py-2.5 bg-indigo-50/40 rounded-xl border border-indigo-100">
                             <span className="text-[9px] font-black text-indigo-700 uppercase tracking-wider block mb-1">পার্সোনাল সেন্ড মানি নাম্বার (বিকাশ / নগদ)</span>
                             <div className="text-lg font-mono font-black text-indigo-905 tracking-widest">০১৮৮০৪১২১২৯</div>
-                            <span className="text-[9px] text-slate-400 font-bold block mt-0.5">মাসিক ৫০ টাকা হিসেবে ১ বছরের জন্য মোট ৬০০ টাকা পাঠানোর পর প্রেরক নম্বর ও ট্রানজেকশন আইডি দিন</span>
+                            <span className="text-[9px] text-slate-400 font-bold block mt-0.5">১ বছরের মেম্বারশিপ ফি ৫০ টাকা পাঠানোর পর প্রেরক নম্বর ও ট্রানজেকশন আইডি দিন</span>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -622,7 +724,7 @@ export default function Register() {
                           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">
                             <h5 className="text-[11px] font-black text-indigo-650 mb-1">💡 রসিদ রুল নির্দেশনা:</h5>
                             <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-                              সরাসরি অর্থনীতি বিভাগের পাঠাগার কাউন্টারে গিয়ে মাসিক ৫০ টাকা হিসেবে ১ বছরের জন্য মোট ৬০০ টাকা মেম্বারশিপ ফি ক্যাশ প্রদান করে একটি পে-স্লিপ সংগ্রহ করুন এবং রসিদে উল্লেখিত স্লিপ নম্বরটি নিচে লিখুন।
+                              সরাসরি অর্থনীতি বিভাগের পাঠাগার কাউন্টারে গিয়ে ১ বছরের জন্য মেম্বারশিপ ফি ৫০ টাকা ক্যাশ প্রদান করে একটি পে-স্লিপ সংগ্রহ করুন এবং রসিদে উল্লেখিত স্লিপ নম্বরটি নিচে লিখুন।
                             </p>
                           </div>
 

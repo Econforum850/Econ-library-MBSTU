@@ -25,8 +25,31 @@ export default function AdminIssues() {
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [customBookTitle, setCustomBookTitle] = useState('');
   const [customMemberName, setCustomMemberName] = useState('');
-  const [issueDate, setIssueDate] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [issueDate, setIssueDate] = useState(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [dueDate, setDueDate] = useState(() => {
+    const twoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const yyyy = twoWeeks.getFullYear();
+    const mm = String(twoWeeks.getMonth() + 1).padStart(2, '0');
+    const dd = String(twoWeeks.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+
+  const formatDateToSlash = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    } catch (e) {}
+    return dateStr;
+  };
   const [isSavingIssue, setIsSavingIssue] = useState(false);
 
   // Borrow Approval States
@@ -62,9 +85,17 @@ export default function AdminIssues() {
     loadData();
     
     // Set default dates
-    setIssueDate(new Date().toLocaleDateString('bn-BD'));
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setIssueDate(`${yyyy}-${mm}-${dd}`);
+
     const dynamicDue = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-    setDueDate(dynamicDue.toLocaleDateString('bn-BD'));
+    const dYyyy = dynamicDue.getFullYear();
+    const dMm = String(dynamicDue.getMonth() + 1).padStart(2, '0');
+    const dDd = String(dynamicDue.getDate()).padStart(2, '0');
+    setDueDate(`${dYyyy}-${dMm}-${dDd}`);
   }, []);
 
   const handleOpenIssueModal = () => {
@@ -72,9 +103,17 @@ export default function AdminIssues() {
     setSelectedMemberId('');
     setCustomBookTitle('');
     setCustomMemberName('');
-    setIssueDate(new Date().toLocaleDateString('bn-BD'));
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setIssueDate(`${yyyy}-${mm}-${dd}`);
+
     const dynamicDue = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-    setDueDate(dynamicDue.toLocaleDateString('bn-BD'));
+    const dYyyy = dynamicDue.getFullYear();
+    const dMm = String(dynamicDue.getMonth() + 1).padStart(2, '0');
+    const dDd = String(dynamicDue.getDate()).padStart(2, '0');
+    setDueDate(`${dYyyy}-${dMm}-${dDd}`);
     setIsIssueModalOpen(true);
   };
 
@@ -112,8 +151,8 @@ export default function AdminIssues() {
       const newIssue: Partial<SheetIssue> = {
         bookTitle,
         memberName,
-        issueDate: issueDate || new Date().toLocaleDateString('bn-BD'),
-        dueDate: dueDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('bn-BD'),
+        issueDate: formatDateToSlash(issueDate) || new Date().toLocaleDateString('bn-BD'),
+        dueDate: formatDateToSlash(dueDate) || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('bn-BD'),
         status: 'Active'
       };
 
@@ -191,8 +230,11 @@ export default function AdminIssues() {
     setApprovePickupDate(dateFormatted);
     
     // Set typical due date (14 days from collection)
-    const dueFormatted = new Date(futureDate.getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('bn-BD');
-    setApproveDueDate(dueFormatted);
+    const dueCalendarDate = new Date(futureDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const yyyy = dueCalendarDate.getFullYear();
+    const mm = String(dueCalendarDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(dueCalendarDate.getDate()).padStart(2, '0');
+    setApproveDueDate(`${yyyy}-${mm}-${dd}`);
     setIsApproveModalOpen(true);
   };
 
@@ -223,7 +265,7 @@ export default function AdminIssues() {
         ...approvingIssue,
         status: 'Active',
         pickupDate: approvePickupDate,
-        dueDate: approveDueDate || approvingIssue.dueDate,
+        dueDate: formatDateToSlash(approveDueDate) || approvingIssue.dueDate,
         issueDate: new Date().toLocaleDateString('bn-BD')
       };
       
@@ -574,9 +616,9 @@ export default function AdminIssues() {
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">ইস্যু তারিখ</label>
                   <input 
-                    type="text"
+                    type="date"
                     required
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
                     value={issueDate}
                     onChange={(e) => setIssueDate(e.target.value)}
                   />
@@ -584,9 +626,9 @@ export default function AdminIssues() {
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">ফেরতের শেষ সময়</label>
                   <input 
-                    type="text"
+                    type="date"
                     required
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                   />
@@ -668,9 +710,9 @@ export default function AdminIssues() {
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">ফেরত দেওয়ার শেষ সময় (Due Date)</label>
                 <input 
-                  type="text"
+                  type="date"
                   required
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
                   value={approveDueDate}
                   onChange={(e) => setApproveDueDate(e.target.value)}
                 />

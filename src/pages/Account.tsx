@@ -1,7 +1,7 @@
 import { 
   TrendingUp, TrendingDown, Wallet, User as UserIcon, Phone, MapPin, 
   AtSign, Book as BookIcon, History, LogOut, Loader2, AlertCircle, ShoppingCart, 
-  Receipt, Calendar, ShieldAlert 
+  Receipt, Calendar, ShieldAlert, Award, Check, Sparkles, Library
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
@@ -18,6 +18,53 @@ export default function Account() {
   const [activeTab, setActiveTab] = useState<'current' | 'history' | 'orders'>('current');
   const [lang, setLang] = useState<string>('BN');
   const navigate = useNavigate();
+
+  // Library Card states
+  const [isSavingCard, setIsSavingCard] = useState(false);
+  const [cardSuccessMsg, setCardSuccessMsg] = useState<string | null>(null);
+  const [editRoll, setEditRoll] = useState('');
+  const [editBatch, setEditBatch] = useState('');
+  const [editBlood, setEditBlood] = useState('');
+  const [editDept, setEditDept] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setEditRoll(user.studentRoll || '');
+      setEditBatch(user.batchSession || '');
+      setEditBlood(user.bloodGroup || '');
+      setEditDept(user.department || '');
+    }
+  }, [user]);
+
+  const handleSaveCardDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      setIsSavingCard(true);
+      setCardSuccessMsg(null);
+      
+      const updatedUser = await db.saveMember({
+        ...user,
+        studentRoll: editRoll,
+        batchSession: editBatch,
+        bloodGroup: editBlood,
+        department: editDept
+      });
+
+      setUser(updatedUser);
+      localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+      setCardSuccessMsg(lang === 'BN' ? 'লাইব্রেরি কার্ডের তথ্য সফলভাবে হালনাগাদ করা হয়েছে!' : 'Library card details updated successfully!');
+      
+      setTimeout(() => {
+        setCardSuccessMsg(null);
+      }, 4000);
+    } catch (err) {
+      console.error(err);
+      alert('সংশোধন ব্যর্থ হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+    } finally {
+      setIsSavingCard(false);
+    }
+  };
 
   useEffect(() => {
     const savedLang = localStorage.getItem('preferred_lang') || 'BN';
@@ -408,21 +455,144 @@ export default function Account() {
         </div>
 
         {/* Dynamic Digital Member ID card download sideboard */}
-        {(user.status === 'accepted' || user.status === 'active') ? (
-          <div className="w-full">
+        <div className="w-full space-y-6">
+          {(user.status === 'accepted' || user.status === 'active') ? (
             <IdCardDownloader member={user} />
+          ) : (
+            <div className="bg-amber-50 border border-amber-100/60 p-8 rounded-[32px] text-left text-slate-700 space-y-4 col-special">
+              <h4 className="font-extrabold text-xs text-amber-800 uppercase tracking-widest flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 shrink-0" />
+                আইডি কার্ড তৈরি হচ্ছে…
+              </h4>
+              <p className="text-[11px] leading-relaxed text-slate-550 font-medium">
+                আপনার মেম্বারশিপ অ্যাকাউন্টটি সক্রিয় হলে এবং কো-অর্ডিনেটর কর্তৃক আপনার বার্ষিক চার্জ ও অনুমোদন সম্পন্ন হলে আপনার স্বয়ংক্রিয় লাইভ ডিজিটাল পরিচয়পত্র (ID Card) এখানে প্রদর্শিত হবে। কো-অর্ডিনেটর কর্তৃক অনুমোদন সম্পন্ন হওয়া পর্যন্ত দয়া করে অপেক্ষা করুন।
+              </p>
+            </div>
+          )}
+
+          {/* EDIT DETAILS CARD FORM */}
+          <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm space-y-5 text-left">
+            <div className="flex items-center space-x-3 pb-3 border-b border-slate-55">
+              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
+                 <UserIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-sm text-slate-900">
+                  {lang === 'BN' ? 'লাইব্রেরি কার্ডের তথ্য সংশোধন' : 'Update Library Card Info'}
+                </h4>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                  {lang === 'BN' ? 'ডিজিটাল কার্ডে প্রদর্শিত হবে এমন একাডেমিক ও ব্যক্তিগত বিবরণী সংরক্ষণ করুন' : 'Edit academic details printed on your physical member card'}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveCardDetails} className="space-y-4 pt-1">
+              {/* Session / Batch */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">
+                  {lang === 'BN' ? 'সেশন / ব্যাচ (Session/Batch)' : 'Session / Batch'}
+                </label>
+                <div className="relative">
+                  <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 shrink-0 pointer-events-none" />
+                  <input 
+                    type="text"
+                    required
+                    value={editBatch}
+                    onChange={(e) => setEditBatch(e.target.value)}
+                    placeholder="উদা: ২০২০-২০২১"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200/85 rounded-2xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100/30 focus:border-indigo-600 transition-all animate-none"
+                  />
+                </div>
+              </div>
+
+              {/* Student Roll / ID */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">
+                  {lang === 'BN' ? 'রোল নম্বর / আইডি (Roll/ID)' : 'Student Roll / ID'}
+                </label>
+                <div className="relative">
+                  <Award className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 shrink-0 pointer-events-none" />
+                  <input 
+                    type="text"
+                    required
+                    value={editRoll}
+                    onChange={(e) => setEditRoll(e.target.value)}
+                    placeholder="উদা: ECO-20023"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200/85 rounded-2xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100/30 focus:border-indigo-600 transition-all animate-none"
+                  />
+                </div>
+              </div>
+
+              {/* Department */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">
+                  {lang === 'BN' ? 'বিভাগের নাম (Department)' : 'Department Name'}
+                </label>
+                <div className="relative">
+                  <Library className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 shrink-0 pointer-events-none" />
+                  <input 
+                    type="text"
+                    required
+                    value={editDept}
+                    onChange={(e) => setEditDept(e.target.value)}
+                    placeholder="উদা: অর্থনীতি বিভাগ"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200/85 rounded-2xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100/30 focus:border-indigo-600 transition-all animate-none"
+                  />
+                </div>
+              </div>
+
+              {/* Blood Group */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">
+                  {lang === 'BN' ? 'রক্তের গ্রুপ (Blood Group)' : 'Blood Group'}
+                </label>
+                <div className="relative">
+                  <ShieldAlert className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 shrink-0 pointer-events-none" />
+                  <select 
+                    required
+                    value={editBlood}
+                    onChange={(e) => setEditBlood(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200/85 rounded-2xl text-xs font-bold text-slate-850 focus:outline-none focus:ring-4 focus:ring-indigo-100/30 focus:border-indigo-600 transition-all"
+                  >
+                    <option value="">রক্তের গ্রুপ নির্বাচন করুন</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Status Indicator */}
+              {cardSuccessMsg && (
+                <div className="p-3 bg-emerald-55/10 border border-emerald-500/30 text-emerald-600 rounded-xl text-[10px] font-bold flex items-center space-x-2 animate-pulse mt-2 bg-emerald-50">
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>{cardSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Save Button */}
+              <button
+                type="submit"
+                disabled={isSavingCard}
+                className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md hover:shadow-lg transition-all active:scale-[0.98] duration-150 flex items-center justify-center gap-2"
+              >
+                {isSavingCard ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>{lang === 'BN' ? 'সংরক্ষণ করা হচ্ছে...' : 'Saving...'}</span>
+                  </>
+                ) : (
+                  <span>{lang === 'BN' ? 'সংরক্ষণ করুন' : 'Save Details'}</span>
+                )}
+              </button>
+            </form>
           </div>
-        ) : (
-          <div className="bg-amber-50 border border-amber-100/60 p-8 rounded-[32px] text-left text-slate-700 space-y-4">
-            <h4 className="font-extrabold text-xs text-amber-800 uppercase tracking-widest flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 shrink-0" />
-              আইডি কার্ড তৈরি হচ্ছে…
-            </h4>
-            <p className="text-[11px] leading-relaxed text-slate-550 font-medium">
-              আপনার মেম্বারশিপ অ্যাকাউন্টটি সক্রিয় হলে আপনার স্বয়ংক্রিয় লাইভ ডিজিটাল পরিচয়পত্র (ID Card) এখানে প্রদর্শিত হবে। কো-অর্ডিনেটর কর্তৃক অনুমোদন সম্পন্ন হওয়া পর্যন্ত দয়া করে অপেক্ষা করুন।
-            </p>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

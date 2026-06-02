@@ -22,9 +22,29 @@ export default function AdminDonors() {
   const [name, setName] = useState('');
   const [type, setType] = useState<'Individual' | 'Organization'>('Individual');
   const [totalDonation, setTotalDonation] = useState('');
-  const [lastDonationDate, setLastDonationDate] = useState('');
+  const [lastDonationDate, setLastDonationDate] = useState(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
   const [impact, setImpact] = useState('');
   const [description, setDescription] = useState('');
+
+  const formatDisplayDateNum = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('bn-BD');
+        }
+      }
+    } catch (e) {}
+    return dateStr;
+  };
 
   const loadDonors = async () => {
     try {
@@ -49,7 +69,11 @@ export default function AdminDonors() {
     setName('');
     setType('Individual');
     setTotalDonation('');
-    setLastDonationDate(new Date().toLocaleDateString('bn-BD'));
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setLastDonationDate(`${yyyy}-${mm}-${dd}`);
     setImpact('');
     setDescription('');
     setIsModalOpen(true);
@@ -217,7 +241,7 @@ export default function AdminDonors() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-emerald-600 font-black text-lg">{donor.totalDonation}</td>
-                    <td className="px-8 py-6 text-slate-400 font-bold">{donor.lastDonationDate}</td>
+                    <td className="px-8 py-6 text-slate-400 font-bold">{formatDisplayDateNum(donor.lastDonationDate)}</td>
                     <td className="px-8 py-6 text-right">
                       <div className="flex items-center justify-end space-x-2">
                         <button 
@@ -314,11 +338,10 @@ export default function AdminDonors() {
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">শেষ প্রদানের তারিখ</label>
                   <input 
-                    type="text"
-                    placeholder="যেমন: ১২ মে, ২০২৬"
+                    type="date"
                     value={lastDonationDate}
                     onChange={(e) => setLastDonationDate(e.target.value)}
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-500 transition-all"
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-500 transition-all font-sans"
                   />
                 </div>
               </div>

@@ -46,6 +46,26 @@ export default function AdminUsers() {
   const [validityType, setValidityType] = useState<string>('4');
   const [customExpiryVal, setCustomExpiryVal] = useState('');
 
+  // Sodossho bkea validation properties
+  const [validationStartDateVal, setValidationStartDateVal] = useState(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [isInitialFeePaid, setIsInitialFeePaid] = useState<boolean>(true);
+  const [initialPaidDuration, setInitialPaidDuration] = useState<string>('1');
+  const [initialPaidAmount, setInitialPaidAmount] = useState<string>('50');
+  const [paymentYear, setPaymentYear] = useState<string>('২০২৫-২০২৬');
+  const [paymentDateVal, setPaymentDateVal] = useState(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+
   const formatDateToSlash = (dateStr: string) => {
     try {
       const parts = dateStr.split('-');
@@ -130,7 +150,14 @@ export default function AdminUsers() {
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
-      setIssueDateVal(`${yyyy}-${mm}-${dd}`);
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      setIssueDateVal(dateStr);
+      setValidationStartDateVal(dateStr);
+      setPaymentDateVal(dateStr);
+      setIsInitialFeePaid(true);
+      setInitialPaidDuration('1');
+      setInitialPaidAmount('50');
+      setPaymentYear('২০২৫-২০২৬');
       setValidityType('4');
       setCustomExpiryVal('');
       setShowApprovalConfigModal(true);
@@ -176,15 +203,60 @@ export default function AdminUsers() {
 
     try {
       setLoading(true);
+
+      // Calculate paidUntilDate if paid initial state
+      const feeStatus: 'paid' | 'unpaid' = isInitialFeePaid ? 'paid' : 'unpaid';
+      let calculatedPaidUntil = '';
+      let initialDuesValue = 0;
+
+      if (isInitialFeePaid) {
+        const parts = validationStartDateVal.split('-');
+        if (parts.length === 3) {
+          const yOffset = parseInt(initialPaidDuration) || 1;
+          const pYyyy = String(parseInt(parts[0]) + yOffset);
+          calculatedPaidUntil = `${pYyyy}-${parts[1]}-${parts[2]}`;
+        } else {
+          calculatedPaidUntil = validationStartDateVal;
+        }
+        initialDuesValue = 0;
+      } else {
+        calculatedPaidUntil = validationStartDateVal;
+        initialDuesValue = 50; 
+      }
+
       const updated = {
         ...memberToApprove,
         status: 'accepted' as const,
-        joinDate: combinedJoinDate
+        joinDate: combinedJoinDate,
+        validationStartDate: validationStartDateVal,
+        yearlyFeeStatus: feeStatus,
+        paidUntilDate: calculatedPaidUntil,
+        paidAccountYears: isInitialFeePaid ? paymentYear : '',
+        baseDues: 0,
+        dues: initialDuesValue
       };
       
       await db.saveMember(updated);
+      
+      // Automatically record income transaction if the initial fee was paid
+      if (isInitialFeePaid) {
+        const amt = parseInt(initialPaidAmount) || 50;
+        const formattedPayDate = formatDateToSlash(paymentDateVal);
+        await db.saveTransaction({
+          type: 'income',
+          category: 'মেম্বারশিপ ফি (আয়)',
+          amount: amt,
+          date: formattedPayDate, // validation date chosen by admin
+          status: 'Completed',
+          note: `মেম্বারশিপ অনুমোদন ও বাৎসরিক ফি পরিশোধিত (শিক্ষাবর্ষ: ${paymentYear}) (ID: ECO-${updated.id.padStart(4, '0')})`
+        });
+      }
+
       try {
-        await db.addAuditLog('APPROVE_MEMBER', `মেম্বারশিপ অনুমোদন করা হয়েছে: ${updated.name} (মেয়াদ: ${formattedExpiryStr}) - নোট: ${appNote}`);
+        const feeLogText = isInitialFeePaid 
+          ? `পরিশোধিত (৳${initialPaidAmount}, শিক্ষাবর্ষ ${paymentYear})` 
+          : 'অপরিশোধিত/বকেয়া (৳৫০)';
+        await db.addAuditLog('APPROVE_MEMBER', `মেম্বারশিপ অনুমোদন করা হয়েছে: ${updated.name} (মেয়াদ: ${formattedExpiryStr}) - ভ্যালিডেশন শুরু: ${validationStartDateVal} - ফি: ${feeLogText} - নোট: ${appNote}`);
       } catch (_) {}
       setSelectedMember(updated);
       await loadMembers();
@@ -1064,7 +1136,7 @@ MBSTU Econ Library & Organization`;
                     শিক্ষার্থীকে এসএমএস, ইমো বা হোয়াটসঅ্যাপ গ্রুপে কুইক মেসেজ পাঠাতে নিচের প্রস্তুতকৃত মেসেজটি এক ক্লিকে সম্পূর্ণ কপি করে নিন:
                   </p>
                   
-                  <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-600 font-bold text-xs leading-relaxed mb-3">
+                  <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-605 text-slate-600 font-bold text-xs leading-relaxed mb-3">
                     প্রিয় {successModalMember.name}, আপনার মেম্বারশিপ আবেদন অনুমোদিত হয়েছে! সদস্য আইডি: ECO-{successModalMember.id.padStart(4, '0')}। আপনার ডিজিটাল আইডি কার্ড ডাউনলোড করতে লগইন করুন: {window.location.origin}/login
                   </div>
 

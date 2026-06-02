@@ -1,4 +1,4 @@
-import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft, Printer } from 'lucide-react';
+import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft, Printer, Settings, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/src/lib/utils';
@@ -52,8 +52,48 @@ export default function Books() {
   const [borrowSuccess, setBorrowSuccess] = useState(false);
   const [importingBooks, setImportingBooks] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+
+  // States for Category Emoji & Picture customization
+  const [categoryEmojis, setCategoryEmojis] = useState<{ [category: string]: string }>({});
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [tempEmojis, setTempEmojis] = useState<{ [category: string]: string }>({});
   
   const navigate = useNavigate();
+
+  const getCategoryEmoji = (cat: string) => {
+    if (categoryEmojis[cat]) {
+      return categoryEmojis[cat];
+    }
+    const name = cat.toLowerCase();
+    if (name.includes('macroeconomics') || name.includes('সমষ্টিগত')) return '📈';
+    if (name.includes('microeconomics') || name.includes('ব্যষ্টিগত')) return '📉';
+    if (name.includes('health') || name.includes('স্বাস্থ্য')) return '🏥';
+    if (name.includes('mathemat') || name.includes('গণিত') || name.includes('math')) return '🧮';
+    if (name.includes('econometrics') || name.includes('ইকোনোমেট্রিক্স') || name.includes('পরিসংখ্যান') || name.includes('statistics')) return '📊';
+    if (name.includes('environmental') || name.includes('পরিবেশ')) return '🌱';
+    if (name.includes('development') || name.includes('উন্নয়ন')) return '🏗️';
+    if (name.includes('islamic') || name.includes('ইসলামিক') || name.includes('ইসলামী')) return '🕌';
+    if (name.includes('agricultur') || name.includes('কৃষি')) return '🌾';
+    if (name.includes('public') || name.includes('finance') || name.includes('সরকারি অর্থ')) return '🏛️';
+    if (name.includes('international') || name.includes('আন্তর্জাতিক')) return '🌐';
+    if (name.includes('research') || name.includes('গবেষণা') || name.includes('methodology')) return '🔍';
+    return '📖';
+  };
+
+  const renderCategoryMedia = (cat: string) => {
+    const value = categoryEmojis[cat] || getCategoryEmoji(cat);
+    if (value && (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/'))) {
+      return (
+        <img 
+          src={value} 
+          alt={cat} 
+          className="w-5.5 h-5.5 object-cover rounded-md inline-block mr-2 align-middle select-none pointer-events-none" 
+          referrerPolicy="no-referrer"
+        />
+      );
+    }
+    return <span className="mr-2 align-middle text-sm select-none">{value || '📖'}</span>;
+  };
 
   useEffect(() => {
     const updateLang = () => {
@@ -126,6 +166,17 @@ export default function Books() {
 
   useEffect(() => {
     loadAllBooks();
+    const loadGraphics = async () => {
+      try {
+        const config = await db.getGraphicsConfig();
+        if (config && config.categoryEmojis) {
+          setCategoryEmojis(config.categoryEmojis);
+        }
+      } catch (e) {
+        console.error('Failed to load graphics emojis:', e);
+      }
+    };
+    loadGraphics();
   }, []);
 
   const filteredBooks = useMemo(() => {
@@ -442,46 +493,87 @@ export default function Books() {
         ))}
       </div>
 
+      {/* Inject style tag to ensure scrollbar-free native-feeling scrolls on touch/desktop swipe */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
+
       {/* Streamlined Quick Category Discovery Pills */}
-      <div className="max-w-5xl mx-auto mb-10 text-center no-print-area no-print">
-        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3.5">
-          {lang === 'BN' ? 'দ্রুত ক্যাটালগ আবিষ্কার করুন' : 'Quick Catalog Discovery'}
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-2 max-w-4xl mx-auto">
-          <button
-            onClick={() => {
-              setActiveTab('categories');
-              setSelectedCategory('all');
-            }}
-            className={cn(
-              "px-4 py-2 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border",
-              activeTab === 'categories' && selectedCategory === 'all'
-                ? "bg-indigo-600 border-indigo-600 text-white shadow-lg"
-                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-            )}
-          >
-            {lang === 'BN' ? `সব বিষয় (${books.length})` : `All Subjects (${books.length})`}
-          </button>
-          {categories.map((cat) => {
-            const count = books.filter(b => b.category === cat).length;
-            return (
-              <button
-                key={cat}
-                onClick={() => {
-                  setActiveTab('categories');
-                  setSelectedCategory(cat);
-                }}
-                className={cn(
-                  "px-4 py-2 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border",
-                  activeTab === 'categories' && selectedCategory === cat
-                    ? "bg-indigo-600 border-indigo-600 text-white shadow-lg"
-                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                )}
-              >
-                {cat} ({count})
-              </button>
-            );
-          })}
+      <div className="max-w-5xl mx-auto mb-10 text-center no-print-area no-print px-4 sm:px-0">
+        <div className="flex items-center justify-center space-x-2.5 mb-3.5">
+          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest leading-none">
+            {lang === 'BN' ? 'দ্রুত ক্যাটালগ আবিষ্কার করুন' : 'Quick Catalog Discovery'}
+          </p>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                // Populate temp state with current mappings
+                const current: { [cat: string]: string } = {};
+                categories.forEach(cat => {
+                  current[cat] = categoryEmojis[cat] || '';
+                });
+                setTempEmojis(current);
+                setIsCategoryModalOpen(true);
+              }}
+              className="p-1 px-2 text-[9px] bg-indigo-50 hover:bg-indigo-100 text-[#352df2] border border-indigo-200/50 rounded-xl font-bold transition-all active:scale-95 flex items-center space-x-1 cursor-pointer shadow-sm"
+              title={lang === 'BN' ? 'ইমোজি ও ছবি কাস্টমাইজ করুন' : 'Customize Emojis & Pictures'}
+            >
+              <Settings className="w-2.5 h-2.5 animate-spin-slow" />
+              <span>{lang === 'BN' ? 'সম্পাদনা' : 'Edit'}</span>
+            </button>
+          )}
+        </div>
+        
+        {/* Horizontal scroll container with fade edge overlays */}
+        <div className="relative w-full overflow-hidden">
+          {/* Transparent scrolling wrapper */}
+          <div className="flex overflow-x-auto whitespace-nowrap gap-2.5 pb-4 pt-1.5 px-4 select-none no-scrollbar scroll-smooth sm:flex-wrap sm:justify-center sm:pb-0 sm:px-0 max-w-4xl mx-auto items-center">
+            <button
+              onClick={() => {
+                setActiveTab('categories');
+                setSelectedCategory('all');
+              }}
+              className={cn(
+                "px-5 py-2.5 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border flex items-center space-x-2 shrink-0 shadow-sm",
+                activeTab === 'categories' && selectedCategory === 'all'
+                  ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/15"
+                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+              )}
+            >
+              <span className="align-middle text-sm select-none">📚</span>
+              <span>{lang === 'BN' ? `সব বিষয় (${books.length})` : `All Subjects (${books.length})`}</span>
+            </button>
+            {categories.map((cat) => {
+              const count = books.filter(b => b.category === cat).length;
+              const isSelected = activeTab === 'categories' && selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    setActiveTab('categories');
+                    setSelectedCategory(cat);
+                  }}
+                  className={cn(
+                    "px-4.5 py-2.5 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border flex items-center shrink-0 shadow-sm",
+                    isSelected
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/15"
+                      : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+                  )}
+                >
+                  <span className="flex items-center">
+                    {renderCategoryMedia(cat)}
+                  </span>
+                  <span>{cat} ({count})</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -806,6 +898,95 @@ export default function Books() {
             )}
          </div>
       )}
+
+      {/* Category Customizer Modal */}
+      <AnimatePresence>
+        {isCategoryModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl"
+              onClick={() => setIsCategoryModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="relative bg-white w-full max-w-xl rounded-[36px] shadow-2xl overflow-hidden p-8 z-10"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-600 animate-pulse" />
+                  <span>{lang === 'BN' ? 'ক্যাটাগরি ইমোজি ও ছবি কাস্টমাইজ' : 'Custom Category Graphics'}</span>
+                </h2>
+                <button 
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="max-h-[380px] overflow-y-auto pr-2 space-y-4 mb-6">
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                  {lang === 'BN' 
+                    ? 'প্রতিটি ক্যাটাগরির জন্য একটি করে ইমোজি বা ছবি লিঙ্ক (যেমন: https://example.com/logo.png) ব্যবহার করতে পারেন। কোনো ইমোজি না দিলে অটোমেটিক সঠিক ইকোনমিক্স ইমোজি সেট হবে।' 
+                    : 'Configure a custom emoji (e.g., 📈) or reference icon link (e.g., https://example.com/logo.png) for each category. Empty values will auto-fall back to relevant economics emojis.'}
+                </p>
+                {categories.map((cat) => (
+                  <div key={cat} className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-150 pb-3 gap-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-extrabold text-xs text-slate-800">{cat}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 w-full sm:w-auto">
+                      <input
+                        type="text"
+                        placeholder="Emoji or Image URL link..."
+                        className="flex-1 sm:w-64 px-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:bg-white"
+                        value={tempEmojis[cat] !== undefined ? tempEmojis[cat] : (categoryEmojis[cat] || '')}
+                        onChange={(e) => {
+                          setTempEmojis({ ...tempEmojis, [cat]: e.target.value });
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-3.5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="px-6 py-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-full font-black text-xs transition-all active:scale-95"
+                >
+                  {lang === 'BN' ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const currentCfg = await db.getGraphicsConfig();
+                      const updated = { ...(currentCfg.categoryEmojis || {}), ...tempEmojis };
+                      await db.saveGraphicsConfig({ categoryEmojis: updated });
+                      setCategoryEmojis(updated);
+                      setIsCategoryModalOpen(false);
+                      alert(lang === 'BN' ? 'ক্যাটাগরি ইমোজি ও ছবি সফলভাবে সংরক্ষণ করা হয়েছে!' : 'Category emojis and icons saved successfully!');
+                    } catch (e) {
+                      console.error('Save config failed:', e);
+                      alert(lang === 'BN' ? 'সংরক্ষণ করতে পুনরায় চেষ্টা করুন।' : 'Save failed. Kindly retry.');
+                    }
+                  }}
+                  className="px-8 py-3 bg-[#352df2] hover:bg-[#352df2]/90 text-white rounded-full font-black text-xs shadow-lg transition-all active:scale-95"
+                >
+                  {lang === 'BN' ? 'সংরক্ষণ করুন' : 'Save Changes'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Add Book Modal */}
       <AnimatePresence>

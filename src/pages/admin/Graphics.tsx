@@ -22,6 +22,19 @@ export default function AdminGraphics() {
   const [mediaItems, setMediaItems] = useState<MediaGalleryItem[]>([]);
 
   // Modals state
+  const formatDisplayDateNum = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('bn-BD');
+        }
+      }
+    } catch (e) {}
+    return dateStr;
+  };
   const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
   const [editingDonation, setEditingDonation] = useState<RecentDonation | null>(null);
   const [donationForm, setDonationForm] = useState({
@@ -84,10 +97,14 @@ export default function AdminGraphics() {
   // Recent Donation actions
   const openAddDonation = () => {
     setEditingDonation(null);
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
     setDonationForm({
       name: '',
       amount: '',
-      date: new Date().toLocaleDateString('bn-BD'),
+      date: `${yyyy}-${mm}-${dd}`,
       message: ''
     });
     setIsDonationModalOpen(true);
@@ -146,10 +163,14 @@ export default function AdminGraphics() {
   // Media Actions
   const openAddMedia = () => {
     setEditingMedia(null);
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
     setMediaForm({
       title: '',
       imageUrl: '',
-      date: new Date().toLocaleDateString('bn-BD'),
+      date: `${yyyy}-${mm}-${dd}`,
       description: ''
     });
     setIsMediaModalOpen(true);
@@ -336,7 +357,7 @@ export default function AdminGraphics() {
                       </div>
                       <div>
                         <h4 className="font-extrabold text-sm text-slate-800">{d.name}</h4>
-                        <p className="text-[10px] font-bold text-slate-400">{d.date} • ৳{d.amount}</p>
+                        <p className="text-[10px] font-bold text-slate-400">{formatDisplayDateNum(d.date)} • ৳{d.amount}</p>
                         {d.message && <p className="text-[11px] text-slate-500 italic mt-0.5">"{d.message}"</p>}
                       </div>
                     </div>
@@ -398,7 +419,7 @@ export default function AdminGraphics() {
                     <div className="absolute inset-0 bg-slate-950/80 p-4 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between text-left">
                       <div>
                         <h4 className="text-white text-xs font-black leading-snug">{item.title}</h4>
-                        {item.date && <p className="text-[10px] text-slate-400 mt-1">{item.date}</p>}
+                        {item.date && <p className="text-[10px] text-slate-400 mt-1">{formatDisplayDateNum(item.date)}</p>}
                         {item.description && <p className="text-[10px] text-slate-300 mt-1.5 leading-snug line-clamp-3">{item.description}</p>}
                       </div>
                       <div className="flex justify-end space-x-1.5">
@@ -467,11 +488,10 @@ export default function AdminGraphics() {
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">দানের তারিখ</label>
                   <input 
-                    type="text" 
-                    placeholder="১২ মে, ২০২৬"
+                    type="date" 
                     value={donationForm.date}
                     onChange={(e) => setDonationForm({...donationForm, date: e.target.value})}
-                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-rose-50"
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-rose-50 font-sans"
                   />
                 </div>
               </div>
@@ -549,11 +569,10 @@ export default function AdminGraphics() {
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ</label>
                   <input 
-                    type="text" 
-                    placeholder="যেমন: মে ২০২৬"
+                    type="date" 
                     value={mediaForm.date}
                     onChange={(e) => setMediaForm({...mediaForm, date: e.target.value})}
-                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-50"
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-emerald-50 font-sans"
                   />
                 </div>
               </div>

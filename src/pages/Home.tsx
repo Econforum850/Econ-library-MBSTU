@@ -362,8 +362,19 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Inject style tag to ensure scrollbar-free native-feeling scrolls on touch/desktop swipe */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
+
       {/* 2. Section "আমাদের বৈশিষ্ট্য" with Gen-Z High-contrast borders */}
-      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-24 relative z-10">
+      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-24 relative z-10 overflow-hidden">
         <div className="text-center mb-14 flex flex-col items-center">
           <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight font-sans">
             {lang === 'BN' ? 'আমাদের বৈশিষ্ট্য' : 'Our Digital Features'}
@@ -371,12 +382,13 @@ export default function Home() {
           <div className="w-12 h-1 bg-[#352df2] rounded-full mt-4" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        {/* Responsive layout: Slide scroll on mobile, nice clear grid on desktop */}
+        <div className="flex overflow-x-auto whitespace-normal gap-6 pb-6 px-4 -mx-4 select-none no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-2 md:gap-8 lg:gap-10 max-w-5xl md:mx-auto md:px-0 md:pb-0 md:mx-auto md:w-full">
           
           {/* Card 1: ডিজিটাল ক্যাটালগ */}
           <motion.div 
             whileHover={{ y: -8 }}
-            className="relative overflow-hidden bg-white border border-slate-200/60 rounded-[32px] p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.02)] flex flex-col justify-between group h-full hover:border-[#352df2]/30 transition-all duration-300"
+            className="relative overflow-hidden bg-white border border-slate-200/60 rounded-[32px] p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.02)] flex flex-col justify-between group h-full hover:border-[#352df2]/30 transition-all duration-300 shrink-0 w-[85vw] xs:w-[350px] sm:w-[420px] md:w-full md:shrink snap-center"
           >
             {/* Outline icon backdrop */}
             <div className="absolute right-6 top-8 opacity-[0.02] text-[#352df2] pointer-events-none select-none z-0">
@@ -414,7 +426,7 @@ export default function Home() {
           {/* Card 2: ইভেন্ট ও প্রতিযোগিতা */}
           <motion.div 
             whileHover={{ y: -8 }}
-            className="relative overflow-hidden bg-white border border-slate-200/60 rounded-[32px] p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.02)] flex flex-col justify-between group h-full hover:border-emerald-500/30 transition-all duration-300"
+            className="relative overflow-hidden bg-white border border-slate-200/60 rounded-[32px] p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.02)] flex flex-col justify-between group h-full hover:border-emerald-500/30 transition-all duration-300 shrink-0 w-[85vw] xs:w-[350px] sm:w-[420px] md:w-full md:shrink snap-center"
           >
             {/* Outline icon backdrop */}
             <div className="absolute right-6 top-8 opacity-[0.02] text-emerald-450 pointer-events-none select-none z-0">

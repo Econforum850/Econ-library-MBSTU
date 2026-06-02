@@ -48,6 +48,15 @@ export interface SupabaseMember {
   paymentMethod?: string;
   senderNumber?: string;
   trxId?: string;
+  validationStartDate?: string;    // 'YYYY-MM-DD'
+  yearlyFeeStatus?: 'paid' | 'unpaid';
+  paidUntilDate?: string;          // 'YYYY-MM-DD'
+  paidAccountYears?: string;        // e.g. '২০২৫-২০২৬'
+  baseDues?: number;               // Fines and manual adjustments
+  studentRoll?: string;
+  batchSession?: string;
+  bloodGroup?: string;
+  department?: string;
 }
 
 export interface SupabaseDonor {
@@ -114,6 +123,7 @@ export interface GraphicsConfig {
   homeHeroSubtext?: string;
   donorMediaLink?: string;
   backgroundGallery?: string[];
+  categoryEmojis?: { [category: string]: string };
 }
 
 export interface RecentDonation {
@@ -180,6 +190,80 @@ const getLocalData = <T>(key: string, initial: T[]): T[] => {
 const saveLocalData = <T>(key: string, data: T[]) => {
   localStorage.setItem(key, JSON.stringify(data));
 };
+
+// ==========================================
+// DUES & PERIODIC VALIDATION DATE CALCULATORS
+// ==========================================
+
+export function parseAnyDate(str: string): Date | null {
+  if (!str) return null;
+  // If it contains a '|' from old joinDate formats (e.g. "12/05/2025|12/05/2029")
+  const cleanStr = str.split('|')[0].trim();
+  if (cleanStr.includes('-')) {
+    const parts = cleanStr.split('-');
+    if (parts.length === 3) {
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(cleanStr.split(' ')[0].split('T')[0].split('-')[2])); // safe parsing
+      const yr = Number(parts[0]);
+      const mo = Number(parts[1]) - 1;
+      const dy = Number(parts[2].split(' ')[0]);
+      const constructed = new Date(yr, mo, dy);
+      if (!isNaN(constructed.getTime())) return constructed;
+    }
+  }
+  if (cleanStr.includes('/')) {
+    const parts = cleanStr.split('/');
+    if (parts.length === 3) {
+      const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+  const direct = new Date(cleanStr);
+  return isNaN(direct.getTime()) ? null : direct;
+}
+
+export function getMonthsBetween(d1: Date, d2: Date): number {
+  let months = (d2.getFullYear() - d1.getFullYear()) * 12;
+  months -= d1.getMonth();
+  months += d2.getMonth();
+  if (d2.getDate() < d1.getDate()) {
+    months--;
+  }
+  return Math.max(0, months);
+}
+
+export function calculateYearlyFeesOwedOnly(member: SupabaseMember): number {
+  const today = new Date();
+  
+  // If not accepted/active yet, no validation dues accumulated
+  if (member.status !== 'accepted' && member.status !== 'active') {
+    return 0;
+  }
+
+  let baseStr = member.validationStartDate || '';
+  if (!baseStr && member.joinDate) {
+    baseStr = member.joinDate.split('|')[0];
+  }
+  const baseDate = parseAnyDate(baseStr) || new Date();
+
+  if (member.yearlyFeeStatus === 'paid') {
+    const paidUntil = parseAnyDate(member.paidUntilDate || '') || baseDate;
+    if (today <= paidUntil) {
+      return 0;
+    } else {
+      const months = getMonthsBetween(paidUntil, today);
+      return 50 + Math.floor(months / 12) * 50;
+    }
+  } else {
+    // Unpaid starting state
+    const months = getMonthsBetween(baseDate, today);
+    return 50 + Math.floor(months / 12) * 50;
+  }
+}
+
+export function calculateDues(member: SupabaseMember): number {
+  const yearlyFees = calculateYearlyFeesOwedOnly(member);
+  return yearlyFees + (member.baseDues ?? 0);
+}
 
 // ==========================================
 // ERROR HANDLER (FIRESTORE SKILL MANDATE)
@@ -389,15 +473,88 @@ export const db = {
   },
 
   // --- MEMBERS SERVICES ---
+  async cronUpdateMembersOutstandingDues(): Promise<{ updatedCount: number }> {
+    const colPath = 'members';
+    let updatedCount = 0;
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const promises: Promise<void>[] = [];
+      querySnapshot.forEach((d) => {
+        const m = d.data();
+        if (m.status === 'accepted' || m.status === 'active') {
+          const baseMem: SupabaseMember = {
+            id: d.id,
+            name: m.name || '',
+            email: m.email || '',
+            phone: m.phone || '',
+            role: m.role || 'Member',
+            joinDate: m.joinDate || '',
+            status: m.status,
+            dues: m.dues || 0,
+            photo: m.photo || '',
+            address: m.address || '',
+            occupation: m.occupation || '',
+            password: m.password || '',
+            paymentMethod: m.paymentMethod || '',
+            senderNumber: m.senderNumber || '',
+            trxId: m.trxId || '',
+            validationStartDate: m.validationStartDate || '',
+            yearlyFeeStatus: m.yearlyFeeStatus || 'unpaid',
+            paidUntilDate: m.paidUntilDate || '',
+            paidAccountYears: m.paidAccountYears || '',
+            baseDues: m.baseDues ?? 0,
+            studentRoll: m.studentRoll || '',
+            batchSession: m.batchSession || '',
+            bloodGroup: m.bloodGroup || '',
+            department: m.department || ''
+          };
+          const currentCalculatedDues = calculateDues(baseMem);
+          if (m.dues !== currentCalculatedDues) {
+            updatedCount++;
+            const docRef = doc(firestoreDb, colPath, d.id);
+            promises.push(updateDoc(docRef, { dues: currentCalculatedDues }));
+          }
+        }
+      });
+      if (promises.length > 0) {
+        await Promise.all(promises);
+      }
+    } catch (err) {
+      console.error("Dues automatic update cron error:", err);
+    }
+    return { updatedCount };
+  },
+
+  async checkAndTriggerDuesCron(): Promise<void> {
+    const currentMonth = new Date().toISOString().substring(0, 7); // e.g. "2026-06"
+    const lastRunKey = 'last_monthly_due_cron_month';
+    const lastRun = localStorage.getItem(lastRunKey);
+    
+    if (lastRun !== currentMonth) {
+      console.log(`New month detected (${currentMonth}). Running monthly dues update trigger...`);
+      try {
+        await this.cronUpdateMembersOutstandingDues();
+        localStorage.setItem(lastRunKey, currentMonth);
+        console.log(`Monthly dues update cron run completed successfully.`);
+      } catch (e) {
+        console.error("Failed to run monthly dues cron:", e);
+      }
+    }
+  },
+
   async getMembers(): Promise<SupabaseMember[]> {
     const colPath = 'members';
+    // Async trigger cron-like check for outstanding dues at start of any new month
+    this.checkAndTriggerDuesCron().catch(err => console.error("Cron trigger error:", err));
+
     try {
       const q = query(collection(firestoreDb, colPath));
       const querySnapshot = await getDocs(q);
       const mapped: SupabaseMember[] = [];
       querySnapshot.forEach((d) => {
         const m = d.data();
-        mapped.push({
+        const baseMem: SupabaseMember = {
           id: d.id,
           name: m.name || '',
           email: m.email || '',
@@ -412,8 +569,22 @@ export const db = {
           password: m.password || '',
           paymentMethod: m.paymentMethod || '',
           senderNumber: m.senderNumber || '',
-          trxId: m.trxId || ''
-        });
+          trxId: m.trxId || '',
+          validationStartDate: m.validationStartDate || '',
+          yearlyFeeStatus: m.yearlyFeeStatus || 'unpaid',
+          paidUntilDate: m.paidUntilDate || '',
+          paidAccountYears: m.paidAccountYears || '',
+          baseDues: m.baseDues ?? 0,
+          studentRoll: m.studentRoll || '',
+          batchSession: m.batchSession || '',
+          bloodGroup: m.bloodGroup || '',
+          department: m.department || ''
+        };
+        // Automatically calculate dynamic dues if accepted/active
+        if (baseMem.status === 'accepted' || baseMem.status === 'active') {
+          baseMem.dues = calculateDues(baseMem);
+        }
+        mapped.push(baseMem);
       });
 
       // Filter and clean up invalid ones from Firestore
@@ -517,8 +688,23 @@ export const db = {
       password: member.password || 'password123',
       paymentMethod: member.paymentMethod || '',
       senderNumber: member.senderNumber || '',
-      trxId: member.trxId || ''
+      trxId: member.trxId || '',
+      validationStartDate: member.validationStartDate || '',
+      yearlyFeeStatus: member.yearlyFeeStatus || 'unpaid',
+      paidUntilDate: member.paidUntilDate || '',
+      paidAccountYears: member.paidAccountYears || '',
+      baseDues: member.baseDues ?? 0,
+      studentRoll: member.studentRoll || '',
+      batchSession: member.batchSession || '',
+      bloodGroup: member.bloodGroup || '',
+      department: member.department || ''
     };
+
+    // Keep baseDues synchronized if there are manual additions or deductions
+    if (finalizedMem.status === 'accepted' || finalizedMem.status === 'active') {
+      const yearlyOwed = calculateYearlyFeesOwedOnly(finalizedMem);
+      finalizedMem.baseDues = finalizedMem.dues - yearlyOwed;
+    }
 
     try {
       const dbPayload = {
@@ -535,7 +721,16 @@ export const db = {
         password: finalizedMem.password,
         paymentMethod: finalizedMem.paymentMethod,
         senderNumber: finalizedMem.senderNumber,
-        trxId: finalizedMem.trxId
+        trxId: finalizedMem.trxId,
+        validationStartDate: finalizedMem.validationStartDate,
+        yearlyFeeStatus: finalizedMem.yearlyFeeStatus,
+        paidUntilDate: finalizedMem.paidUntilDate,
+        paidAccountYears: finalizedMem.paidAccountYears,
+        baseDues: finalizedMem.baseDues,
+        studentRoll: finalizedMem.studentRoll,
+        batchSession: finalizedMem.batchSession,
+        bloodGroup: finalizedMem.bloodGroup,
+        department: finalizedMem.department
       };
 
       await setDoc(docRef, dbPayload, { merge: true });
@@ -1020,9 +1215,15 @@ export const db = {
     const colPath = 'graphics';
     const docId = 'config';
     let savedGallery: string[] = [];
+    let savedCategoryEmojis: { [category: string]: string } = {};
     try {
       const stored = localStorage.getItem('background_gallery_urls');
       if (stored) savedGallery = JSON.parse(stored);
+    } catch (_) {}
+
+    try {
+      const storedEmojis = localStorage.getItem('category_emojis');
+      if (storedEmojis) savedCategoryEmojis = JSON.parse(storedEmojis);
     } catch (_) {}
 
     try {
@@ -1030,8 +1231,10 @@ export const db = {
       if (d.exists()) {
         const data = d.data();
         const gallery = data.backgroundGallery || savedGallery || [];
+        const categoryEmojis = data.categoryEmojis || savedCategoryEmojis || {};
         try {
           localStorage.setItem('background_gallery_urls', JSON.stringify(gallery));
+          localStorage.setItem('category_emojis', JSON.stringify(categoryEmojis));
         } catch (_) {}
         return {
           id: d.id,
@@ -1039,7 +1242,8 @@ export const db = {
           homeHeroText: data.homeHeroText || '',
           homeHeroSubtext: data.homeHeroSubtext || '',
           donorMediaLink: data.donorMediaLink || '',
-          backgroundGallery: gallery
+          backgroundGallery: gallery,
+          categoryEmojis: categoryEmojis
         };
       }
     } catch (err) {
@@ -1051,7 +1255,8 @@ export const db = {
       homeHeroText: '',
       homeHeroSubtext: '',
       donorMediaLink: localStorage.getItem('donor_media_link') || '',
-      backgroundGallery: savedGallery
+      backgroundGallery: savedGallery,
+      categoryEmojis: savedCategoryEmojis
     };
   },
 
@@ -1069,13 +1274,23 @@ export const db = {
     }
     if (!finalGallery) finalGallery = [];
 
+    let finalCategoryEmojis = config.categoryEmojis;
+    if (finalCategoryEmojis === undefined) {
+      try {
+        const storedEmojis = localStorage.getItem('category_emojis');
+        if (storedEmojis) finalCategoryEmojis = JSON.parse(storedEmojis);
+      } catch (_) {}
+    }
+    if (!finalCategoryEmojis) finalCategoryEmojis = {};
+
     const finalized: GraphicsConfig = {
       id: docId,
       homeHeroBg: config.homeHeroBg || 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600',
       homeHeroText: config.homeHeroText || '',
       homeHeroSubtext: config.homeHeroSubtext || '',
       donorMediaLink: config.donorMediaLink || '',
-      backgroundGallery: finalGallery
+      backgroundGallery: finalGallery,
+      categoryEmojis: finalCategoryEmojis
     };
     try {
       await setDoc(docRef, finalized, { merge: true });
@@ -1085,6 +1300,7 @@ export const db = {
     localStorage.setItem('home_hero_bg', finalized.homeHeroBg);
     localStorage.setItem('donor_media_link', finalized.donorMediaLink || '');
     localStorage.setItem('background_gallery_urls', JSON.stringify(finalized.backgroundGallery));
+    localStorage.setItem('category_emojis', JSON.stringify(finalized.categoryEmojis || {}));
     return finalized;
   },
 
