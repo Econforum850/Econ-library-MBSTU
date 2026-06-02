@@ -255,10 +255,10 @@ export default function Books() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-navy">
+      <div className="min-h-screen flex items-center justify-center bg-[#faf8f5]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-          <p className="text-slate-450 font-bold">বইয়ের তালিকা লোড হচ্ছে...</p>
+          <p className="text-slate-600 font-bold">বইয়ের তালিকা লোড হচ্ছে...</p>
         </div>
       </div>
     );
@@ -357,9 +357,9 @@ export default function Books() {
         <button 
           type="button"
           onClick={() => window.print()}
-          className="flex items-center space-x-2.5 px-6 py-3.5 bg-slate-900 border border-slate-850 text-slate-300 rounded-[24px] font-black text-xs hover:bg-slate-800 hover:text-white transition-all shadow-sm active:scale-95 duration-200 cursor-pointer"
+          className="flex items-center space-x-2.5 px-6 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-[24px] font-black text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm active:scale-95 duration-200 cursor-pointer"
         >
-          <Printer className="w-4 h-4 text-indigo-400" />
+          <Printer className="w-4 h-4 text-indigo-600" />
           <span>ক্যাটালগ প্রিন্ট করুন (A4 Sheet)</span>
         </button>
 
@@ -367,7 +367,7 @@ export default function Books() {
           <button 
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="flex items-center space-x-2 px-6 py-3.5 bg-indigo-600 text-white rounded-[24px] font-black text-xs hover:bg-slate-900 transition-all shadow-md active:scale-95 duration-200"
+            className="flex items-center space-x-2 px-6 py-3.5 bg-[#352df2] text-white rounded-[24px] font-black text-xs hover:bg-[#2018da] transition-all shadow-md active:scale-95 duration-200"
           >
             <Plus className="w-4 h-4" />
             <span>নতুন বই যুক্ত করুন</span>
@@ -378,14 +378,14 @@ export default function Books() {
       {/* Header with modern economics aesthetic */}
       <div className="text-center mb-16 relative no-print">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-indigo-500/5 blur-[100px] -z-10 rounded-full" />
-        <div className="inline-flex items-center space-x-3 px-5 py-2.5 bg-slate-950/40 border border-slate-800/80 rounded-full text-[11px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-8">
+        <div className="inline-flex items-center space-x-3 px-5 py-2.5 bg-indigo-50 border border-indigo-100 rounded-full text-[11px] font-black uppercase tracking-[0.3em] text-indigo-600 mb-8">
           <TrendingUp className="w-4 h-4" />
           <span>Research & Digital Archive</span>
         </div>
-        <h1 className="text-5xl md:text-7xl font-black text-white mb-8 font-sans tracking-tight leading-[1.1]">
-          বইয়ের <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-indigo-300">ডিজিটাল ক্যাটালগ</span>
+        <h1 className="text-5xl md:text-7xl font-black text-slate-900 mb-8 font-sans tracking-tight leading-[1.1]">
+          বইয়ের <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-500">ডিজিটাল ক্যাটালগ</span>
         </h1>
-        <p className="text-slate-450 max-w-2xl mx-auto text-lg leading-relaxed font-semibold">ডিপার্টমেন্ট অফ ইকোনমিক্স ডিজিটাল লাইব্রেরি। আপনার প্রয়োজনীয় ক্যাটালগটি খুঁজে নিন এবং সংগ্রহের সমৃদ্ধি বাড়ান।</p>
+        <p className="text-slate-500 max-w-2xl mx-auto text-lg leading-relaxed font-semibold">ডিপার্টমেন্ট অফ ইকোনমিক্স ডিজিটাল লাইব্রেরি। আপনার প্রয়োজনীয় ক্যাটালগটি খুঁজে নিন এবং সংগ্রহের সমৃদ্ধি বাড়ান।</p>
       </div>
 
       {/* Advanced Navigation & Categories */}
@@ -401,11 +401,11 @@ export default function Books() {
             className={cn(
               "flex items-center space-x-3 px-10 py-5 rounded-[28px] font-black transition-all active:scale-95 group",
               activeTab === tab.id 
-                ? "bg-indigo-600 text-white shadow-2xl shadow-indigo-950/40" 
-                : "bg-slate-900 border border-slate-850 text-slate-400 hover:bg-slate-850 hover:text-white"
+                ? "bg-indigo-600 text-white shadow-2xl shadow-indigo-600/20" 
+                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
             )}
           >
-            <tab.icon className={cn("w-5 h-5", activeTab === tab.id ? "text-indigo-400" : "text-slate-400")} />
+            <tab.icon className={cn("w-5 h-5", activeTab === tab.id ? "text-white" : "text-slate-400")} />
             <span>{tab.label}</span>
           </button>
         ))}
@@ -413,7 +413,7 @@ export default function Books() {
 
       {/* Streamlined Quick Category Discovery Pills */}
       <div className="max-w-5xl mx-auto mb-10 text-center no-print-area no-print">
-        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-3.5">দ্রুত ক্যাটালগ আবিষ্কার করুন</p>
+        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3.5">দ্রুত ক্যাটালগ আবিষ্কার করুন</p>
         <div className="flex flex-wrap items-center justify-center gap-2 max-w-4xl mx-auto">
           <button
             onClick={() => {
@@ -421,10 +421,10 @@ export default function Books() {
               setSelectedCategory('all');
             }}
             className={cn(
-              "px-4 py-2 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border border-slate-850",
+              "px-4 py-2 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border",
               activeTab === 'categories' && selectedCategory === 'all'
-                ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-950/20"
-                : "bg-slate-900 text-slate-400 hover:bg-slate-850"
+                ? "bg-indigo-600 border-indigo-600 text-white shadow-lg"
+                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
             )}
           >
             সব বিষয় ({books.length})
@@ -441,7 +441,7 @@ export default function Books() {
                 className={cn(
                   "px-4 py-2 rounded-full text-xs font-black transition-all duration-200 active:scale-95 border",
                   activeTab === 'categories' && selectedCategory === cat
-                    ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100"
+                    ? "bg-indigo-600 border-indigo-600 text-white shadow-lg"
                     : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                 )}
               >
@@ -456,11 +456,11 @@ export default function Books() {
       <div className="max-w-4xl mx-auto mb-24 space-y-6">
         <div className="flex flex-col md:flex-row gap-4 items-center">
           <div className="relative flex-1 group w-full">
-            <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+            <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
             <input 
               type="text" 
               placeholder="বইয়ের নাম, লেখক বা ক্যাটাগরি দিয়ে খুঁজুন..."
-              className="w-full pl-20 pr-8 py-6 bg-slate-900 border-2 border-slate-850 rounded-[40px] focus:outline-none focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-500 focus:text-white transition-all shadow-xl font-bold text-lg text-slate-200 placeholder:text-slate-500"
+              className="w-full pl-20 pr-8 py-6 bg-white border-2 border-slate-200 rounded-[40px] focus:outline-none focus:ring-8 focus:ring-indigo-600/5 focus:border-indigo-600 focus:text-slate-800 transition-all shadow-xl font-bold text-lg text-slate-800 placeholder:text-slate-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -470,8 +470,8 @@ export default function Books() {
             <button 
               onClick={() => setShowFilters(!showFilters)}
               className={cn(
-                "p-6 rounded-[35px] border border-slate-850 bg-slate-900 text-slate-400 transition-all shadow-xl active:scale-95 flex items-center justify-center hover:bg-slate-850",
-                showFilters ? "bg-indigo-650 border-indigo-650 text-white" : ""
+                "p-6 rounded-[35px] border border-slate-200 bg-white text-slate-500 transition-all shadow-xl active:scale-95 flex items-center justify-center hover:bg-slate-50",
+                showFilters ? "bg-indigo-600 border-indigo-605 text-white" : ""
               )}
             >
               <Filter className="w-6 h-6" />
@@ -485,25 +485,25 @@ export default function Books() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="p-10 bg-slate-900 rounded-[45px] shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-10 border border-slate-800"
+              className="p-10 bg-white rounded-[45px] shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-10 border border-slate-200"
             >
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-indigo-400" /> এলাকা / বিষয়
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-indigo-500" /> এলাকা / বিষয়
                 </label>
                 <select 
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-7 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-white focus:outline-none focus:ring-4 focus:ring-indigo-600/20 font-sans cursor-pointer outline-none"
+                  className="w-full px-7 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-600/20 font-sans cursor-pointer outline-none placeholder:text-slate-400"
                 >
-                  <option value="all" className="text-slate-900">সকল ক্যাটাগরি</option>
-                  {categories.map(cat => <option key={cat} value={cat} className="text-slate-900">{cat}</option>)}
+                  <option value="all">সকল ক্যাটাগরি</option>
+                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
 
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <AlignLeft className="w-4 h-4 text-rose-400" /> সংগ্রহের অবস্থা
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <AlignLeft className="w-4 h-4 text-rose-500" /> সংগ্রহের অবস্থা
                 </label>
                 <div className="grid grid-cols-3 gap-3">
                   {(['all', 'available', 'pre-order'] as const).map((s) => (
@@ -512,7 +512,7 @@ export default function Books() {
                       onClick={() => setStatusFilter(s)}
                       className={cn(
                         "py-4 rounded-xl text-[10px] font-black uppercase transition-all",
-                        statusFilter === s ? "bg-white text-slate-900" : "bg-white/5 text-slate-400 hover:bg-white/10"
+                        statusFilter === s ? "bg-indigo-600 text-white shadow-sm" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                       )}
                     >
                       {s === 'all' ? 'সব' : s === 'available' ? 'অর্ডার' : 'আসন্ন'}
@@ -532,21 +532,21 @@ export default function Books() {
             <section key={cat} className="group/section">
               <div className="flex justify-between items-end mb-6 px-4">
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-black text-white group-hover/section:text-[#05d5a1] transition-colors uppercase tracking-tight">{cat}</h2>
-                  <div className="w-12 h-1 bg-indigo-500 rounded-full group-hover/section:w-20 transition-all duration-500" />
+                  <h2 className="text-2xl font-black text-slate-800 group-hover/section:text-[#352df2] transition-colors uppercase tracking-tight">{cat}</h2>
+                  <div className="w-12 h-1 bg-indigo-505 rounded-full group-hover/section:w-20 transition-all duration-500" />
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => {
                     const el = document.getElementById(`scroll-${groupIdx}`);
                     el?.scrollBy({ left: -300, behavior: 'smooth' });
-                  }} className="p-3 bg-slate-900 rounded-xl hover:bg-slate-800 border border-slate-850 shadow-sm transition-all active:scale-90 cursor-pointer">
-                    <ArrowLeft className="w-4 h-4 text-slate-400" />
+                  }} className="p-3 bg-white rounded-xl hover:bg-slate-50 border border-slate-200 shadow-sm transition-all active:scale-90 cursor-pointer">
+                    <ArrowLeft className="w-4 h-4 text-slate-500" />
                   </button>
                   <button onClick={() => {
                     const el = document.getElementById(`scroll-${groupIdx}`);
                     el?.scrollBy({ left: 300, behavior: 'smooth' });
-                  }} className="p-3 bg-slate-900 rounded-xl hover:bg-slate-800 border border-slate-850 shadow-sm transition-all active:scale-90 cursor-pointer">
-                    <ArrowRight className="w-4 h-4 text-slate-400" />
+                  }} className="p-3 bg-white rounded-xl hover:bg-slate-50 border border-slate-200 shadow-sm transition-all active:scale-90 cursor-pointer">
+                    <ArrowRight className="w-4 h-4 text-slate-500" />
                   </button>
                 </div>
               </div>
@@ -565,10 +565,10 @@ export default function Books() {
                       viewport={{ once: true }}
                       className="min-w-[calc((100%-16px)/3)] sm:min-w-[calc((100%-24px)/4)] md:min-w-[calc((100%-32px)/5)] lg:min-w-[calc((100%-40px)/6)] xl:min-w-[calc((100%-40px)/6)] snap-start"
                     >
-                      <div className="group/card bg-slate-900 rounded-xl overflow-hidden border border-slate-850 shadow-sm hover:border-indigo-500/40 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-300 p-1.5 h-full flex flex-col">
-                        <div className="aspect-[3/4] relative overflow-hidden bg-slate-950 rounded-lg mb-2">
+                      <div className="group/card bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm hover:border-indigo-500/40 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-305 p-1.5 h-full flex flex-col">
+                        <div className="aspect-[3/4] relative overflow-hidden bg-slate-100 rounded-lg mb-2">
                           <img 
-                            src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'} 
+                            src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'}        
                             alt={book.title}
                             className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-500"
                             referrerPolicy="no-referrer"
@@ -583,28 +583,26 @@ export default function Books() {
                             <span className={cn(
                               "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all",
                               (book.status === 'available' || !book.status)
-                                ? "bg-emerald-600 text-white border-emerald-550"
-                                : "bg-amber-500 text-white border-amber-450"
+                                ? "bg-emerald-600 text-white"
+                                : "bg-amber-500 text-white"
                             )}>
                               {(book.status === 'available' || !book.status) ? 'Available' : 'Pre-order'}
                             </span>
                           </div>
                         </div>
-                        
                         <div className="px-1 pb-1 flex flex-col flex-1 text-left">
-                          <h3 className="text-[10px] sm:text-[11px] font-black text-slate-200 group-hover/card:text-indigo-400 transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
-                          <p className="text-[8px] sm:text-[9px] text-slate-400 mb-2 font-bold truncate opacity-80">{book.author}</p>
-                          
+                          <h3 className="text-[10px] sm:text-[11px] font-black text-slate-800 group-hover/card:text-indigo-600 transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
+                          <p className="text-[8px] sm:text-[9px] text-slate-500 mb-2 font-bold truncate opacity-80">{book.author}</p>
                           <div className="mt-auto flex items-center justify-between gap-1">
-                             <div className="text-[8px] sm:text-[9px] font-mono font-black text-slate-400 bg-slate-950 px-2 py-0.5 rounded-md border border-slate-850">
-                                {book.isEBook ? 'Digital' : 'Hardcopy'}
-                             </div>
-                             <button 
-                               onClick={() => setSelectedBook(book)}
-                               className="p-1.5 bg-slate-900 border border-slate-800 text-slate-300 rounded-md hover:bg-indigo-650 hover:text-white hover:border-indigo-500 transition-all active:scale-95 cursor-pointer"
-                             >
-                                <ArrowRight className="w-3 h-3" />
-                             </button>
+                            <div className="text-[8px] sm:text-[9px] font-mono font-black text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-150">
+                              {book.isEBook ? 'Digital' : 'Hardcopy'}
+                            </div>
+                            <button 
+                              onClick={() => setSelectedBook(book)}
+                              className="p-1.5 bg-slate-50 border border-slate-200 text-slate-500 rounded-md hover:bg-[#352df2] hover:text-white hover:border-[#352df2] transition-all duration-300 active:scale-95 cursor-pointer"
+                            >
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -624,9 +622,9 @@ export default function Books() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                className="group/card bg-slate-900 rounded-xl overflow-hidden border border-slate-850 shadow-sm hover:border-indigo-500/40 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-300 p-1.5 flex flex-col"
+                className="group/card bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm hover:border-indigo-500/40 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-300 p-1.5 flex flex-col"
               >
-                <div className="aspect-[3/4] relative overflow-hidden bg-slate-950 rounded-lg mb-2">
+                <div className="aspect-[3/4] relative overflow-hidden bg-slate-100 rounded-lg mb-2">
                   <img 
                     src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'}        
                     alt={book.title}
@@ -643,20 +641,20 @@ export default function Books() {
                     <span className={cn(
                       "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all",
                       (book.status === 'available' || !book.status)
-                        ? "bg-emerald-600 text-white border-emerald-550"
-                        : "bg-amber-500 text-white border-amber-450"
+                        ? "bg-emerald-600 text-white"
+                        : "bg-amber-500 text-white"
                     )}>
                       {(book.status === 'available' || !book.status) ? 'Available' : 'Pre-order'}
                     </span>
                   </div>
                 </div>
                 <div className="px-1 pb-1 flex flex-col flex-1">
-                  <h3 className="text-[10px] sm:text-[11px] font-black text-slate-200 group-hover/card:text-indigo-400 transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
-                  <p className="text-[8px] sm:text-[9px] text-slate-400 mb-2 font-bold truncate opacity-80">{book.author}</p>
+                  <h3 className="text-[10px] sm:text-[11px] font-black text-slate-800 group-hover/card:text-indigo-600 transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 mb-2 font-bold truncate opacity-80">{book.author}</p>
                   <div className="mt-auto flex items-center justify-between gap-1">
                     <button 
                       onClick={() => setSelectedBook(book)}
-                      className="w-full py-2 bg-slate-950 border border-slate-800 text-slate-300 rounded-md hover:bg-indigo-650 hover:text-white hover:border-indigo-500 transition-all text-[10px] font-bold cursor-pointer"
+                      className="w-full py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-md hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all text-[10px] font-bold cursor-pointer"
                     >
                       বিস্তারিত
                     </button>
@@ -670,10 +668,10 @@ export default function Books() {
 
       {/* No Results Fallback */}
       {filteredBooks.length === 0 && (
-         <div className="text-center py-24 px-6 bg-slate-900/60 rounded-[80px] border-4 border-dashed border-slate-850 max-w-4xl mx-auto">
-            <Bookmark className="w-16 h-16 text-slate-500 mx-auto mb-6" />
-            <p className="text-slate-200 font-extrabold text-2xl mb-3">ক্যাটালগ বর্তমানে খালি রয়েছে</p>
-            <p className="text-slate-450 font-medium max-w-lg mx-auto text-sm leading-relaxed mb-8">
+         <div className="text-center py-24 px-6 bg-slate-50/60 rounded-[80px] border-4 border-dashed border-slate-200 max-w-4xl mx-auto">
+            <Bookmark className="w-16 h-16 text-slate-400 mx-auto mb-6" />
+            <p className="text-slate-800 font-extrabold text-2xl mb-3">ক্যাটালগ বর্তমানে খালি রয়েছে</p>
+            <p className="text-slate-550 font-medium max-w-lg mx-auto text-sm leading-relaxed mb-8">
               লাইব্রেরি ক্যাটালগটি বর্তমানে খালি রয়েছে। কোনো বই খুঁজে পাওয়া যায়নি।
             </p>
             
