@@ -3,16 +3,24 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  /* Clean high contrast brand palettes corresponding to the uploaded screenshot */
+  --color-brand-navy: #070c1e;        /* Beautiful dark blue/navy sidebar and hero */
+  --color-brand-purple: #352df2;      /* Vibrant violet-purple active navigation, badges, and buttons */
+  --color-brand-bg: #f1f3f9;          /* Soft cool off-white page background */
+  --color-brand-steel: #818fb4;       /* Slate-steel typography */
+  --color-brand-cream: #ede4d3;       /* Contrast border accent */
+  --color-brand-royal: #425585;       /* Muted blue-grey */
 }
 
 @layer base {
   html {
     scroll-behavior: smooth;
-    background-color: #f8fafc;
+    background-color: #f1f3f9;
   }
   
   body {
-    @apply text-slate-800 antialiased bg-[#f8fafc];
+    @apply text-slate-800 antialiased bg-[#f1f3f9];
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
@@ -25,23 +33,23 @@
   }
 }
 
-/* Custom gorgeous scrollbar styled for light mode */
+/* Custom gorgeous scrollbar styled for dark mode */
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #060b18;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #222d4a;
   border-radius: 9999px;
-  border: 2px solid #f1f5f9;
+  border: 2px solid #060b18;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #4f46e5;
 }
 
 /* Print Optimization for Admin layout and Tables */

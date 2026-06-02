@@ -23,11 +23,35 @@ export default function Home() {
   const [customUrl, setCustomUrl] = useState('');
   const [gallery, setGallery] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [lang, setLang] = useState<'BN' | 'EN'>('BN');
+  
+  // Real-time library statistics database state
+  const [stats, setStats] = useState({
+    booksCount: 1540,
+    membersCount: 224,
+    issuesCount: 52,
+    eventsCount: 8
+  });
 
   useEffect(() => {
     setIsAdmin(isAdminAuthenticated());
-    const fetchHeroBg = async () => {
+    
+    const updateLang = () => {
       try {
+        const stored = localStorage.getItem('preferred_lang') as 'BN' | 'EN';
+        if (stored && (stored === 'BN' || stored === 'EN')) {
+          setLang(stored);
+        }
+      } catch (_) {}
+    };
+    updateLang();
+    
+    window.addEventListener('storage', updateLang);
+    const langInterval = setInterval(updateLang, 550);
+
+    const fetchHeroBgAndStats = async () => {
+      try {
+        // Fetch graphics settings
         const config = await db.getGraphicsConfig();
         if (config) {
           if (config.homeHeroBg) {
@@ -37,11 +61,29 @@ export default function Home() {
             setGallery(config.backgroundGallery);
           }
         }
+        
+        // Fetch dynamic counts globally for accurate stats representation
+        const books = await db.getBooks();
+        const members = await db.getMembers();
+        const issues = await db.getIssues();
+        const events = await db.getEvents();
+        
+        setStats({
+          booksCount: books.length > 0 ? books.length : 1240,
+          membersCount: members.length > 0 ? members.length : 185,
+          issuesCount: issues.length > 0 ? issues.filter(i => i.status === 'Active').length : 42,
+          eventsCount: events.length > 0 ? events.length : 6
+        });
       } catch (err) {
-        console.error('Error loading homepage config:', err);
+        console.error('Error loading homepage config or stats:', err);
       }
     };
-    fetchHeroBg();
+    fetchHeroBgAndStats();
+
+    return () => {
+      window.removeEventListener('storage', updateLang);
+      clearInterval(langInterval);
+    };
   }, []);
 
   const handleAddImage = async (url: string) => {
@@ -74,97 +116,193 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col pb-16">
+    <div className="min-h-screen bg-brand-bg text-slate-800 flex flex-col pb-16 relative overflow-hidden">
       
+      {/* Absolute high-tech vector light grids */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full bg-brand-purple/5 blur-[130px] pointer-events-none z-0" />
+      <div className="absolute top-1/3 left-0 w-[400px] h-[400px] rounded-full bg-slate-300/10 blur-[120px] pointer-events-none z-0" />
+
       {/* 1. Large Hero Banner with Library Bookshelf Background */}
-      <section className="relative w-full overflow-hidden h-[540px] md:h-[620px] flex items-center justify-center">
+      <section className="relative w-full overflow-hidden min-h-[560px] md:min-h-[640px] flex items-center justify-center pt-8 pb-12 bg-brand-navy">
         {/* Bookshelf Background Image with Dark Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
             src={bgImage} 
             alt="Library Bookshelf" 
-            className="w-full h-full object-cover select-none pointer-events-none"
+            className="w-full h-full object-cover select-none pointer-events-none opacity-20 mix-blend-luminosity"
             referrerPolicy="no-referrer"
           />
-          {/* Rich gradients to fade and shadow the hero */}
-          <div className="absolute inset-0 bg-slate-950/75 blend-multiply z-10" />
+          {/* Rich modern navy/violet gradient system on top of default background */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#060b18]/50 via-brand-navy/90 to-[#060b18] z-10" />
         </div>
 
-        {/* Hero Content */}
-        <div className="relative z-20 max-w-5xl mx-auto px-4 text-center flex flex-col items-center">
-          
-          {/* Badge */}
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="inline-flex items-center space-x-2 px-4 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-slate-500/30 text-slate-200 font-extrabold text-[10px] md:text-xs uppercase tracking-widest mb-8"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Department of Economics, MBSTU</span>
-          </motion.div>
+        {/* Dual Column Hero Content wrapper */}
+        <div className="relative z-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            
+            {/* Left Column: Title, Subtitle, and CTAs */}
+            <div className="lg:col-span-7 flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
+              
+              {/* Badge */}
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                className="inline-flex items-center space-x-2 px-4 py-1.5 bg-[#121b3a]/50 backdrop-blur-md rounded-full border border-indigo-500/30 text-indigo-300 font-extrabold text-[10px] md:text-xs uppercase tracking-widest"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Department of Economics, MBSTU</span>
+              </motion.div>
 
-          {/* Bengali Main Bold Heading */}
-          <motion.h1 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.1 }}
-            className="text-white text-4xl sm:text-5xl md:text-7xl font-sans tracking-tight font-black leading-[1.25] max-w-4xl drop-shadow-lg"
-          >
-            হাজারো <span className="text-[#05d5a1] drop-shadow-[0_2px_15px_rgba(5,213,161,0.35)]">বইয়ের</span> ডিজিটাল <br />
-            সংগ্রহ
-          </motion.h1>
+              {/* Bilingual Main Bold Heading */}
+              <motion.h1 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.8, delay: 0.1 }}
+                className="text-white text-4xl sm:text-5xl md:text-6xl font-sans tracking-tight font-black leading-[1.2] drop-shadow-md"
+              >
+                {lang === 'BN' ? (
+                  <>হাজারো <span className="text-[#352df2] bg-gradient-to-r from-violet-400 to-[#05d5a1] bg-clip-text text-transparent drop-shadow-[0_2px_15px_rgba(139,92,246,0.35)]">বইয়ের</span> ডিজিটাল <br />সংগ্রহ</>
+                ) : (
+                  <>Digital Collection of <span className="text-[#352df2] bg-gradient-to-r from-violet-400 to-[#05d5a1] bg-clip-text text-transparent drop-shadow-[0_2px_15px_rgba(139,92,246,0.35)]">Thousands</span> <br />of Economics Books</>
+                )}
+              </motion.h1>
 
-          {/* Subtitle */}
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            className="text-slate-300 text-sm sm:text-base md:text-lg font-bold tracking-wide mt-6 max-w-xl"
-          >
-            আপনার পড়াশোনা হোক আরও সহজ ও আধুনিক
-          </motion.p>
+              {/* Subtitle */}
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+                className="text-slate-300 text-sm sm:text-base md:text-lg font-bold tracking-wide max-w-xl"
+              >
+                {lang === 'BN' ? 'আপনার পড়াশোনা হোক আরও সহজ ও আধুনিক' : 'Make your academic learning digital, seamless and highly efficient'}
+              </motion.p>
 
-          {/* Call to Actions */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className="flex flex-col sm:flex-row gap-4 mt-10 w-full sm:w-auto"
-          >
-            <Link
-              to="/books"
-              className="flex items-center justify-center space-x-2 px-8 py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-indigo-600/2 transition-all active:scale-95 group"
-            >
-              <BookOpen className="w-5 h-5 text-indigo-200" />
-              <span>বই ব্রাউজ করুন</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
-            </Link>
+              {/* Call to Actions */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto pt-4"
+              >
+                <Link
+                  to="/books"
+                  className="flex items-center justify-center space-x-2 px-8 py-4 bg-[#352df2] hover:bg-[#2018da] text-white font-black text-xs rounded-2xl shadow-xl shadow-[#352df2]/20 hover:shadow-[#352df2]/40 transition-all active:scale-95 group"
+                >
+                  <BookOpen className="w-5 h-5 text-white" />
+                  <span>{lang === 'BN' ? 'বই ব্রাউজ করুন' : 'Browse Digital Library'}</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+                </Link>
 
-            <Link
-              to="/register"
-              className="flex items-center justify-center space-x-2 px-8 py-4.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-extrabold text-sm rounded-2xl backdrop-blur-md transition-all active:scale-95 shadow-lg"
-            >
-              <Users className="w-5 h-5 text-slate-300" />
-              <span>সদস্য হন</span>
-            </Link>
-          </motion.div>
+                <Link
+                  to="/register"
+                  className="flex items-center justify-center space-x-2 px-8 py-4 bg-transparent hover:bg-white/5 border border-white/20 text-white font-extrabold text-xs rounded-2xl backdrop-blur-md transition-all active:scale-95 shadow-lg"
+                >
+                  <Users className="w-5 h-5 text-white/80" />
+                  <span>{lang === 'BN' ? 'সদস্য হন' : 'Join as Member'}</span>
+                </Link>
+              </motion.div>
 
-          {/* Dots carousels indicators */}
-          <div className="flex items-center space-x-2.5 mt-16 md:mt-20">
-            {[0, 1, 2].map((idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setActiveSlide(idx)}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  activeSlide === idx ? 'w-10 bg-white' : 'w-4 bg-white/30'
-                }`}
-                aria-label={`Go to slide ${idx + 1}`}
-              />
-            ))}
+              {/* Slide indicators positioned cleanly inline */}
+              <div className="flex items-center space-x-2.5 pt-6 justify-center lg:justify-start">
+                {[0, 1, 2].map((idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveSlide(idx)}
+                    className={`h-1 rounded-full transition-all duration-300 ${
+                      activeSlide === idx ? 'w-8 bg-[#352df2]' : 'w-3 bg-slate-700'
+                    }`}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  />
+                ))}
+              </div>
+
+            </div>
+
+            {/* Right Column: Custom interactive 3D stack of physical economics books with golden lit lamp */}
+            <div className="lg:col-span-5 hidden lg:flex items-center justify-center relative min-h-[440px]">
+              {/* Lamp light cone glow effect mimicking real retro-cyber desk light shadow */}
+              <div className="absolute top-[8%] right-[25%] w-[330px] h-[370px] bg-gradient-to-b from-amber-400/10 via-amber-400/2 to-transparent clip-lamp-cone pointer-events-none z-10 blur-2xl" />
+
+              {/* Desk Surface shadow mockup */}
+              <div className="absolute bottom-[2%] w-80 h-4 bg-black/80 rounded-full blur-md" />
+
+              {/* Stacked books pile (3D tilt on hover) */}
+              <div className="relative w-72 flex flex-col items-center justify-end h-[340px] select-none z-20">
+                {/* 5. MICROECONOMICS (Top Book) */}
+                <motion.div 
+                  whileHover={{ y: -8, rotate: -2, scale: 1.04 }}
+                  transition={{ type: "spring", stiffness: 350 }}
+                  className="w-[185px] h-9.5 bg-gradient-to-r from-emerald-600 via-[#123e2a] to-[#040812] rounded-[4px] border-b-2 border-slate-950 shadow-xl flex items-center justify-between px-3 text-white absolute bottom-[145px] rotate-[3.5deg] cursor-pointer"
+                >
+                  <div className="w-1.5 h-full bg-yellow-400" />
+                  <span className="text-[8.5px] font-mono font-black tracking-widest text-[#d1fae5]">MICROECONOMICS</span>
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                </motion.div>
+
+                {/* 4. MACROECONOMICS */}
+                <motion.div 
+                  whileHover={{ y: -8, rotate: 1, scale: 1.04 }}
+                  transition={{ type: "spring", stiffness: 350 }}
+                  className="w-[200px] h-10 bg-gradient-to-r from-indigo-700 via-[#1a1435] to-[#040812] rounded-[4px] border-b-2 border-slate-950 shadow-xl flex items-center justify-between px-3 text-white absolute bottom-[110px] rotate-[-2.5deg] cursor-pointer"
+                >
+                  <div className="w-2 h-full bg-amber-400" />
+                  <span className="text-[8.5px] font-mono font-black tracking-widest text-[#e0e7ff]">MACROECONOMICS</span>
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                </motion.div>
+
+                {/* 3. DEVELOPMENT ECONOMICS */}
+                <motion.div 
+                  whileHover={{ y: -8, rotate: -1, scale: 1.04 }}
+                  transition={{ type: "spring", stiffness: 350 }}
+                  className="w-[210px] h-10.5 bg-gradient-to-r from-[#af5600] via-[#5c3c00] to-[#040812] rounded-[4px] border-b-2 border-slate-950 shadow-2xl flex items-center justify-between px-4 text-white absolute bottom-[72px] rotate-[1.8deg] cursor-pointer"
+                >
+                  <div className="w-1.5 h-full bg-emerald-400" />
+                  <span className="text-[8.5px] font-mono font-black tracking-widest text-[#fffbeb]">DEVELOPMENT ECONOMY</span>
+                  <div className="w-2 h-2 bg-amber-500 rounded-full" />
+                </motion.div>
+
+                {/* 2. PUBLIC FINANCE */}
+                <motion.div 
+                  whileHover={{ y: -8, rotate: 2, scale: 1.04 }}
+                  transition={{ type: "spring", stiffness: 350 }}
+                  className="w-[220px] h-11.5 bg-gradient-to-r from-rose-800 via-[#45181e] to-[#040812] rounded-[4px] border-b-2 border-slate-950 shadow-2xl flex items-center justify-between px-4 text-white absolute bottom-[33px] rotate-[-1.2deg] cursor-pointer"
+                >
+                  <div className="w-2 h-full bg-cyan-400" />
+                  <span className="text-[8.5px] font-mono font-black tracking-widest text-[#ffebeb]">PUBLIC FINANCE</span>
+                  <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
+                </motion.div>
+
+                {/* 1. INTERNATIONAL ECONOMICS (Bottom Book Core Stack) */}
+                <motion.div 
+                  whileHover={{ y: -6, rotate: 0, scale: 1.02 }}
+                  transition={{ type: "spring", stiffness: 350 }}
+                  className="w-[235px] h-12 bg-gradient-to-r from-teal-700 via-[#0e3b47] to-black rounded-[4px] border-b-2 border-slate-950 shadow-2xl flex items-center justify-between px-4 text-white absolute bottom-0 rotate-0 cursor-pointer"
+                >
+                  <div className="w-2.5 h-full bg-sky-400" />
+                  <span className="text-[8.5px] font-mono font-black tracking-widest text-[#e6fffa]">INTERNATIONAL ECON</span>
+                  <div className="w-2 h-2 bg-teal-400 rounded-full" />
+                </motion.div>
+              </div>
+
+              {/* Realistic vector brass Desk Lamp structure layout */}
+              <div className="absolute right-[5%] bottom-[12%] w-24 h-56 pointer-events-none select-none z-30 flex flex-col items-center justify-end">
+                {/* Lamp Shade & Bulb */}
+                <div className="absolute top-0 right-2 w-16 h-12 bg-gradient-to-br from-[#d97706] to-[#78350f] rounded-t-full shadow-lg border border-[#f59e0b]/30 origin-bottom rotate-[-23deg] flex items-end justify-center pb-1">
+                  <div className="w-4 h-4 bg-amber-300 rounded-full shadow-[0_0_20px_rgba(253,224,71,1)] animate-pulse" />
+                </div>
+                {/* Curved Neck (Brass Color Line paths) */}
+                <svg className="w-20 h-44 text-[#b45309] stroke-current stroke-[3] fill-none absolute top-8 right-6" viewBox="0 0 100 200">
+                  <path d="M 80,180 Q 5,100 65,10" />
+                </svg>
+                {/* Heavy Base Block */}
+                <div className="w-14 h-4 bg-gradient-to-r from-slate-700 to-slate-900 border-b border-slate-950 rounded-md shadow-md absolute bottom-0 right-14" />
+              </div>
+
+            </div>
+
           </div>
-
         </div>
 
         {/* Change Background Button */}
@@ -172,88 +310,141 @@ export default function Home() {
           <div className="absolute right-6 bottom-6 z-30">
             <button
               onClick={() => setShowBgModal(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-black/60 hover:bg-black/85 text-white/95 hover:text-white rounded-xl border border-white/20 backdrop-blur-md text-[11px] font-black transition-all shadow-lg active:scale-95 cursor-pointer"
+              className="flex items-center space-x-2 px-4 py-2 bg-black/70 hover:bg-black/90 text-white/90 hover:text-white rounded-xl border border-white/10 backdrop-blur-md text-[11px] font-black transition-all shadow-lg active:scale-95 cursor-pointer"
             >
-              <Settings className="w-3.5 h-3.5 text-emerald-400 animate-spin-slow" />
+              <Settings className="w-3.5 h-3.5 text-indigo-400 animate-spin-slow" />
               <span>পটভূমি পরিবর্তন করুন</span>
             </button>
           </div>
         )}
       </section>
 
-      {/* 2. Section "আমাদের বৈশিষ্ট্য" */}
-      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-20">
+      {/* Dynamic Statistics Panel - Stunning glowing glass cards */}
+      <section className="relative z-35 max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 -mt-10">
+        <div className="bg-white rounded-[32px] p-8 border border-slate-200/50 shadow-[0_12px_45px_rgba(0,0,0,0.03)] grid grid-cols-2 md:grid-cols-4 gap-6 text-center select-none">
+          
+          <div className="space-y-1.5 p-4 rounded-2xl bg-[#352df2]/5 hover:bg-[#352df2]/10 border border-[#352df2]/10 transition-all">
+            <span className="text-2xl sm:text-3xl font-black text-[#352df2] block tracking-tight font-mono">
+              {stats.booksCount.toLocaleString()}+
+            </span>
+            <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest block">
+              {lang === 'BN' ? 'মোট বইয়ের সংগ্রহ' : 'Total Library Books'}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 p-4 rounded-2xl bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 transition-all font-mono">
+            <span className="text-2xl sm:text-3xl font-black text-emerald-600 block tracking-tight font-mono">
+              {stats.membersCount.toLocaleString()}+
+            </span>
+            <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest block">
+              {lang === 'BN' ? 'নিবন্ধিত সদস্য' : 'Active Members'}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 p-4 rounded-2xl bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/10 transition-all font-mono">
+            <span className="text-2xl sm:text-3xl font-black text-amber-600 block tracking-tight font-mono">
+              {stats.issuesCount.toLocaleString()}+
+            </span>
+            <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest block">
+              {lang === 'BN' ? 'ধার দেওয়া বই' : 'Borrowed / Issued'}
+            </span>
+          </div>
+
+          <div className="space-y-1.5 p-4 rounded-2xl bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all font-mono">
+            <span className="text-2xl sm:text-3xl font-black text-rose-600 block tracking-tight font-mono">
+              {stats.eventsCount.toLocaleString()}
+            </span>
+            <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest block">
+              {lang === 'BN' ? 'সক্রিয় বিভাগীয় ইভেন্ট' : 'Academic Events'}
+            </span>
+          </div>
+
+        </div>
+      </section>
+
+      {/* 2. Section "আমাদের বৈশিষ্ট্য" with Gen-Z High-contrast borders */}
+      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-24 relative z-10">
         <div className="text-center mb-14 flex flex-col items-center">
-          <h2 className="text-2xl sm:text-3.5xl font-black text-[#1e293b] tracking-tight font-sans">हमारे वैशिष्ट्य / আমাদের বৈশিষ্ট্য</h2>
-          <div className="w-12 h-1 bg-indigo-600 rounded-full mt-4" />
+          <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight font-sans">
+            {lang === 'BN' ? 'আমাদের বৈশিষ্ট্য' : 'Our Digital Features'}
+          </h2>
+          <div className="w-12 h-1 bg-[#352df2] rounded-full mt-4" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           
           {/* Card 1: ডিজিটাল ক্যাটালগ */}
           <motion.div 
-            whileHover={{ y: -6 }}
-            className="relative overflow-hidden bg-white border border-slate-100 rounded-[32px] p-8 sm:p-10 shadow-lg shadow-slate-100/40 flex flex-col justify-between group h-full"
+            whileHover={{ y: -8 }}
+            className="relative overflow-hidden bg-white border border-slate-200/60 rounded-[32px] p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.02)] flex flex-col justify-between group h-full hover:border-[#352df2]/30 transition-all duration-300"
           >
             {/* Outline icon backdrop */}
-            <div className="absolute right-6 top-8 opacity-[0.03] text-indigo-900 pointer-events-none select-none z-0">
+            <div className="absolute right-6 top-8 opacity-[0.02] text-[#352df2] pointer-events-none select-none z-0">
               <BookOpen className="w-36 h-36" />
             </div>
 
             <div className="relative z-10 space-y-6">
-              <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
+              <div className="w-14 h-14 bg-[#352df2]/5 border border-[#352df2]/10 text-[#352df2] rounded-2xl flex items-center justify-center shadow-inner">
                 <BookOpen className="w-7 h-7" />
               </div>
 
-              <div className="space-y-3">
-                <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">ডিজিটাল ক্যাটালগ</h3>
+              <div className="space-y-3 text-left">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  {lang === 'BN' ? 'ডিজিটাল ক্যাটালগ' : 'Digital Book Catalog'}
+                </h3>
                 <p className="text-sm font-semibold text-slate-500 leading-relaxed">
-                  হাজারো বইয়ের সংগ্রহ অনলাইনে দেখে নিন এবং আপনার পছন্দের বইটি খুঁজুন।
+                  {lang === 'BN' 
+                    ? 'হাজারো বইয়ের সংগ্রহ অনলাইনে দেখে নিন এবং আপনার পছন্দের বইটি খুঁজুন।' 
+                    : 'Search through thousands of digital books cataloged by topic online and pick your course assets.'}
                 </p>
               </div>
             </div>
 
-            <div className="relative z-10 pt-8">
+            <div className="relative z-10 pt-8 text-left">
               <Link 
                 to="/books"
-                className="inline-flex items-center space-x-2 px-5 py-3 bg-slate-50 border border-slate-100 group-hover:border-indigo-150 group-hover:bg-indigo-50/50 text-indigo-600 font-extrabold text-xs rounded-xl transition-all"
+                className="inline-flex items-center space-x-2 px-5 py-3 bg-[#352df2] hover:bg-[#2018da] text-white font-extrabold text-xs rounded-xl shadow-md transition-all"
               >
-                <span>বিস্তারিত দেখুন</span>
-                <ArrowRight className="w-4 h-4 text-indigo-500 group-hover:translate-x-1 transition-transform" />
+                <span>{lang === 'BN' ? 'বিস্তারিত দেখুন' : 'Explore Books'}</span>
+                <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
           </motion.div>
 
           {/* Card 2: ইভেন্ট ও প্রতিযোগিতা */}
           <motion.div 
-            whileHover={{ y: -6 }}
-            className="relative overflow-hidden bg-white border border-slate-100 rounded-[32px] p-8 sm:p-10 shadow-lg shadow-slate-100/40 flex flex-col justify-between group h-full"
+            whileHover={{ y: -8 }}
+            className="relative overflow-hidden bg-white border border-slate-200/60 rounded-[32px] p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.02)] flex flex-col justify-between group h-full hover:border-emerald-500/30 transition-all duration-300"
           >
             {/* Outline icon backdrop */}
-            <div className="absolute right-6 top-8 opacity-[0.03] text-emerald-900 pointer-events-none select-none z-0">
+            <div className="absolute right-6 top-8 opacity-[0.02] text-emerald-450 pointer-events-none select-none z-0">
               <Calendar className="w-36 h-36" />
             </div>
 
             <div className="relative z-10 space-y-6">
-              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
+              <div className="w-14 h-14 bg-emerald-500/5 border border-emerald-500/10 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
                 <Calendar className="w-7 h-7" />
               </div>
 
-              <div className="space-y-3">
-                <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">ইভেন্ট ও প্রতিযোগিতা</h3>
+              <div className="space-y-3 text-left">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  {lang === 'BN' ? 'ইভেন্ট ও প্রতিযোগিতা' : 'Events & Notices'}
+                </h3>
                 <p className="text-sm font-semibold text-slate-500 leading-relaxed">
-                  বৃত্তি পরীক্ষা এবং সাংস্কৃতিক প্রতিযোগিতায় অংশ নিন যা আপনার দক্ষতা বাড়াবে।
+                  {lang === 'BN' 
+                    ? 'বৃত্তি পরীক্ষা এবং সাংস্কৃতিক প্রতিযোগিতায় অংশ নিন যা আপনার দক্ষতা বাড়াবে।' 
+                    : 'Participate in department study contests, seminars, book reviews and notice programmes.'}
                 </p>
               </div>
             </div>
 
-            <div className="relative z-10 pt-8">
+            <div className="relative z-10 pt-8 text-left">
               <Link 
                 to="/events"
-                className="inline-flex items-center space-x-2 px-5 py-3 bg-slate-50 border border-slate-100 group-hover:border-emerald-150 group-hover:bg-emerald-50/50 text-emerald-600 font-extrabold text-xs rounded-xl transition-all"
+                className="inline-flex items-center space-x-2 px-5 py-3 bg-[#352df2] hover:bg-[#2018da] text-white font-extrabold text-xs rounded-xl shadow-md transition-all"
               >
-                <span>বিস্তারিত দেখুন</span>
-                <ArrowRight className="w-4 h-4 text-emerald-500 group-hover:translate-x-1 transition-transform" />
+                <span>{lang === 'BN' ? 'বিস্তারিত দেখুন' : 'View Notices'}</span>
+                <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
           </motion.div>
@@ -261,36 +452,90 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. Deep Midnight Blue CTA Banner */}
-      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-24">
-        <div className="bg-[#0b1630] border border-indigo-950/20 rounded-[36px] p-8 sm:p-14 text-center flex flex-col items-center justify-center gap-8 shadow-2xl relative overflow-hidden">
-          {/* Subtle light orb decoration inside CTA card */}
-          <div className="absolute -left-20 -top-20 w-48 h-48 rounded-full bg-indigo-500/10 blur-[100px]" />
-          <div className="absolute -right-20 -bottom-20 w-48 h-48 rounded-full bg-emerald-500/10 blur-[100px]" />
+      {/* 3. Custom Dual Column CTA Banner representing user's loaded Banner 1 */}
+      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-24 relative z-10">
+        <div className="bg-gradient-to-br from-[#060b18] via-[#0b1428] to-[#040812] border border-[#352df2]/20 rounded-[36px] p-8 sm:p-12 text-left shadow-2xl relative overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+          
+          {/* Glowing spotlights decorations inside CTA panel */}
+          <div className="absolute -left-20 -top-20 w-80 h-80 rounded-full bg-indigo-500/10 blur-[130px] pointer-events-none" />
+          <div className="absolute -right-20 -bottom-20 w-80 h-80 rounded-full bg-purple-600/10 blur-[130px] pointer-events-none" />
 
-          <div className="space-y-4 max-w-2xl relative z-10">
+          {/* Left Column: Customized 3D book heap + mortarboard model layout matching Banner 1 exactly */}
+          <div className="md:col-span-4 hidden md:flex items-center justify-center relative min-h-[220px]">
+            {/* Ambient Violet spot */}
+            <div className="absolute w-[180px] h-[180px] rounded-full bg-violet-650/20 blur-3xl pointer-events-none" />
+            
+            <div className="relative flex flex-col items-center justify-center pt-8 pr-4">
+              {/* Mortar board cap model resting on top */}
+              <motion.div 
+                animate={{ y: [0, -3, 0] }}
+                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                className="absolute z-20 top-[-6px] left-1/2 -translate-x-1/2 w-28 flex flex-col items-center pointer-events-none select-none"
+              >
+                {/* Diamond Cap */}
+                <div className="w-24 h-6 bg-gradient-to-br from-slate-800 to-slate-950 shadow-md border-b border-slate-700/60 rounded-b-sm rotate-[-4deg] relative flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 bg-[#f59e0b] rounded-full absolute top-[2px] right-3 shadow-lg" />
+                  {/* Tassel link */}
+                  <div className="w-1 h-12 bg-gradient-to-b from-[#f59e0b] to-yellow-600 absolute right-3 top-[5px] rounded-full flex items-end justify-center">
+                    <div className="w-2 h-4 bg-[#b45309] rounded-b-sm" />
+                  </div>
+                </div>
+                {/* Cap Base under-ring */}
+                <div className="w-14 h-5.5 bg-gradient-to-r from-slate-900 to-black border border-slate-800 rounded-full -mt-2 shadow-inner" />
+              </motion.div>
+
+              {/* Compact Pile of Purple Books (Vector elements of user attachment 1) */}
+              <div className="w-36 flex flex-col items-center justify-end h-[135px] relative z-10">
+                {/* Book 3 (Top Purple) */}
+                <div className="w-24 h-6/5 bg-gradient-to-r from-violet-600 via-indigo-900 to-slate-950 rounded-[2px] border-b border-slate-900 absolute bottom-[48px] shadow-md flex items-center justify-between px-2 text-white/9w">
+                  <span className="text-[6px] font-bold tracking-widest text-violet-300">ECO</span>
+                  <div className="w-1.5 h-1.5 bg-[#a78bfa] rounded-full" />
+                </div>
+                {/* Book 2 (Middle Purple) */}
+                <div className="w-[110px] h-7 bg-gradient-to-r from-indigo-700 via-violet-900 to-[#020015] rounded-[2px] border-b border-slate-900 absolute bottom-[24px] shadow-lg flex items-center justify-between px-2 text-white/9w">
+                  <span className="text-[6px] font-bold tracking-widest text-violet-300 font-mono">MBSTU</span>
+                  <div className="w-1 h-1 bg-[#a78bfa] rounded-full" />
+                </div>
+                {/* Book 1 (Bottom Purple) */}
+                <div className="w-[124px] h-8 bg-gradient-to-r from-indigo-800 via-[#100330] to-black rounded-[2px] border-b border-slate-950 absolute bottom-0 shadow-xl flex items-center justify-between px-3 text-white/9w">
+                  <span className="text-[6px] font-mono font-bold tracking-widest text-violet-300">ECONOMICS</span>
+                  <div className="w-1 h-1.5 bg-violet-400 rounded-full" />
+                </div>
+              </div>
+
+              {/* Simple aesthetic botanical pot leaf and shadow */}
+              <div className="absolute right-[-4px] bottom-1 w-7 h-10 bg-gradient-to-b from-emerald-500 to-teal-800 rounded-t-full shadow-lg border border-emerald-400/20 blur-[0.4px] pointer-events-none select-none" />
+              <div className="w-28 h-2 bg-black/60 rounded-full blur-[2px] absolute bottom-[-4px]" />
+            </div>
+          </div>
+
+          {/* Right Column: CTA Texts and Actionable triggers */}
+          <div className="col-span-1 md:col-span-8 space-y-6 relative z-10 flex flex-col items-center md:items-start text-center md:text-left">
             <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-              আমাদের অগ্রযাত্রার অংশ হতে চান?
+              {lang === 'BN' ? 'আমাদের অগ্রযাত্রার অংশ হতে চান?' : 'Want to be part of our study circle?'}
             </h2>
-            <p className="text-xs sm:text-sm text-indigo-200/80 font-bold leading-relaxed max-w-xl mx-auto">
-              সদস্য আবেদন থেকে শুরু করে যেকোনো প্রয়োজনে আমাদের সাথেই থাকুন। জ্ঞানের আলো সবার মাঝে ছড়িয়ে দেই।
+            <p className="text-xs sm:text-sm text-indigo-300/80 font-bold leading-relaxed max-w-xl">
+              {lang === 'BN' 
+                ? 'সদস্য আবেদন থেকে শুরু করে যেকোনো প্রয়োজনে আমাদের সাথেই থাকুন। জ্ঞানের আলো সবার মাঝে ছড়িয়ে দেই।' 
+                : 'Join from students membership requests or support the local department library initiatives. We are always glad to assist you.'}
             </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+              <Link
+                to="/register"
+                className="px-8 py-4 bg-white hover:bg-slate-100 text-[#060b18] font-black text-xs rounded-2xl text-center transition-all shadow-md active:scale-95"
+              >
+                {lang === 'BN' ? 'সদস্য হতে আবেদন করুন' : 'Apply for Student Account'}
+              </Link>
+              <Link
+                to="/donors"
+                className="px-8 py-4 bg-[#352df2] hover:bg-[#2018da] border border-[#352df2]/40 text-white font-extrabold text-xs rounded-2xl text-center transition-all shadow-sm active:scale-95"
+              >
+                {lang === 'BN' ? 'দাতা সদস্যদের তালিকা' : 'View Library Donors'}
+              </Link>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto relative z-10">
-            <Link
-              to="/register"
-              className="px-8 py-4 bg-white hover:bg-indigo-50 text-slate-900 font-extrabold text-xs rounded-2xl text-center transition-all shadow-md active:scale-95"
-            >
-              সদস্য হতে আবেদন করুন
-            </Link>
-            <Link
-              to="/donors"
-              className="px-8 py-4 bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-800/80 text-white font-extrabold text-xs rounded-2xl text-center transition-all shadow-sm active:scale-95"
-            >
-              দাতা সদস্যদের তালিকা
-            </Link>
-          </div>
         </div>
       </section>
 

@@ -434,7 +434,8 @@ export default function AdminInventory() {
               exit={{ opacity: 0 }}
               className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden"
             >
-               <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
                   <thead>
                      <tr className="bg-slate-50/50">
                         <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-widest">বই ও লেখক</th>
@@ -503,6 +504,7 @@ export default function AdminInventory() {
                      ))}
                   </tbody>
                </table>
+             </div>
             </motion.div>
           )}
         </AnimatePresence>

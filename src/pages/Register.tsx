@@ -285,7 +285,7 @@ export default function Register() {
                 <Sparkles className="absolute top-2 right-2 w-4.5 h-4.5 text-amber-300 animate-pulse" />
               </div>
               
-              <div className="absolute -bottom-2 px-4 py-1.5 bg-[#0e0a25] border border-indigo-500/20 rounded-xl shadow-lg flex items-center space-x-1.5">
+              <div className="absolute -bottom-2 px-4 py-1.5 bg-brand-navy border border-indigo-500/20 rounded-xl shadow-lg flex items-center space-x-1.5">
                 <ShieldCheck className="w-4.5 h-4.5 text-emerald-400" />
                 <span className="text-[9px] text-indigo-200 font-mono font-black uppercase tracking-wider">SECURE PASS</span>
               </div>

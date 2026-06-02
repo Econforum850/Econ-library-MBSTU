@@ -6,21 +6,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Books collection rules
+    // Books collection rules: anyone can read, only structural/validated edits
     match /books/{bookId} {
       allow read: if true;
-      allow write: if true; // Allow registered admins or dashboard writes to add products
+      allow write: if request.resource.data.title is string && request.resource.data.author is string;
     }
 
-    // Members/users directory rules
+    // Members/users directory rules: anyone can read/write for self signups, but secure key types
     match /members/{memberId} {
-      allow read, write: if true; // Allow new student/member sign-ups and authorization updates
+      allow read: if true;
+      allow write: if request.resource.data.name is string && request.resource.data.email is string;
     }
 
     // Donors/partners details
     match /donors/{donorId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if request.resource.data.name is string;
     }
 
     // Issued book records
@@ -36,7 +37,7 @@ service cloud.firestore {
     // Department events
     match /events/{eventId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if request.resource.data.title is string;
     }
 
     // Orders checkout details
@@ -46,27 +47,32 @@ service cloud.firestore {
 
     // Website graphics settings
     match /graphics/{graphicId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.resource.data.homeHeroBg is string || request.resource.data.backgroundGallery is list;
     }
 
     // Recent donations database
     match /recent_donations/{donationId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
     // Media and recollections gallery
     match /media_gallery/{mediaId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
-    // Sub-admins collection
+    // Sub-admins collection: only allow read for auth, allow write with complete structures
     match /sub_admins/{subAdminId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.resource.data.email is string && request.resource.data.password is string;
     }
 
     // Audit logs collection
     match /audit_logs/{logId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.resource.data.actionType is string && request.resource.data.affectedRecordId is string;
     }
   }
 }

@@ -60,7 +60,7 @@ export default function Donors() {
         <motion.p 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em] mb-6"
+          className="text-sm font-bold text-indigo-400 uppercase tracking-[0.3em] mb-6"
         >
           আমাদের অগ্রযাত্রা
         </motion.p>
@@ -68,10 +68,10 @@ export default function Donors() {
         <div className="flex flex-wrap justify-center gap-4 mb-12">
             <button 
               onClick={() => setActiveTab('members')}
-              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 ${
+              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 cursor-pointer ${
                 activeTab === 'members' 
-                ? "bg-indigo-600 text-white shadow-xl shadow-indigo-200 ring-4 ring-indigo-50" 
-                : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                ? "bg-indigo-600 text-white shadow-xl shadow-indigo-950/40 ring-2 ring-indigo-500/20" 
+                : "bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-850"
               }`}
             >
                 <Crown className={`w-4 h-4 ${activeTab === 'members' ? "text-white" : "text-amber-500"}`} />
@@ -79,10 +79,10 @@ export default function Donors() {
             </button>
             <button 
               onClick={() => setActiveTab('donations')}
-              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 ${
+              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 cursor-pointer ${
                 activeTab === 'donations' 
-                ? "bg-rose-600 text-white shadow-xl shadow-rose-200 ring-4 ring-rose-50" 
-                : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                ? "bg-rose-600 text-white shadow-xl shadow-rose-950/40 ring-2 ring-rose-500/20" 
+                : "bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-850"
               }`}
             >
                 <Heart className={`w-4 h-4 ${activeTab === 'donations' ? "text-white" : "text-rose-500"}`} />
@@ -90,10 +90,10 @@ export default function Donors() {
             </button>
             <button 
               onClick={() => setActiveTab('media')}
-              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 ${
+              className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center space-x-2 cursor-pointer ${
                 activeTab === 'media' 
-                ? "bg-emerald-600 text-white shadow-xl shadow-emerald-200 ring-4 ring-emerald-50" 
-                : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                ? "bg-emerald-600 text-white shadow-xl shadow-emerald-950/40 ring-2 ring-emerald-500/20" 
+                : "bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-850"
               }`}
             >
                 <Image className={`w-4 h-4 ${activeTab === 'media' ? "text-white" : "text-emerald-500"}`} />
@@ -103,13 +103,13 @@ export default function Donors() {
 
         {activeTab === 'members' && (
           <div className="relative w-full max-w-md mx-auto mb-16 animate-in fade-in slide-in-from-top-4 duration-500">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input 
               type="text" 
               placeholder="দাতা সদস্যের নাম বা স্থান দিয়ে খুঁজুন..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 rounded-[28px] text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all shadow-sm"
+              className="w-full pl-14 pr-6 py-4 bg-slate-900 border border-slate-800 rounded-[28px] text-sm font-bold text-slate-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
             />
           </div>
         )}
@@ -128,14 +128,14 @@ export default function Donors() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-amber-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-amber-100"
+            className="bg-slate-900/60 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-slate-850"
           >
             <div className="text-center mb-16">
-                 <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white rounded-full shadow-sm border border-amber-100 mb-6">
+                 <div className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-950 rounded-full shadow-sm border border-amber-500/10 mb-6">
                     <Crown className="w-5 h-5 text-amber-500" />
-                    <h2 className="text-xl font-black text-slate-900">সম্মানিত দাতা সদস্যবৃন্দ</h2>
+                    <h2 className="text-xl font-black text-white">সম্মানিত দাতা সদস্যবৃন্দ</h2>
                  </div>
-                 <p className="text-slate-500 text-sm max-w-lg mx-auto">যে সকল মহৎ ব্যক্তিদের অনুদানে আমাদের পাঠাগারের কার্যক্রম পরিচালিত হচ্ছে, আমরা তাঁদের প্রতি গভীরভাবে কৃতজ্ঞ।</p>
+                 <p className="text-slate-400 text-sm max-w-lg mx-auto">যে সকল মহৎ ব্যক্তিদের অনুদানে আমাদের পাঠাগারের কার্যক্রম পরিচালিত হচ্ছে, আমরা তাঁদের প্রতি গভীরভাবে কৃতজ্ঞ।</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -146,19 +146,19 @@ export default function Donors() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   whileHover={{ x: 10 }}
-                  className="bg-white p-6 rounded-3xl border border-amber-100/50 shadow-sm flex items-center space-x-6 group hover:shadow-md transition-all"
+                  className="bg-slate-950/40 p-6 rounded-3xl border border-slate-850 flex items-center space-x-6 group hover:border-amber-500/10 transition-all text-left"
                 >
-                   <div className="flex-shrink-0 w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center relative">
+                   <div className="flex-shrink-0 w-16 h-16 bg-amber-950/10 rounded-2xl flex items-center justify-center relative border border-amber-500/10">
                      <User className="w-8 h-8 text-amber-400" />
-                     <div className="absolute -top-1 -right-1 bg-white p-1 rounded-full shadow-sm border border-amber-100">
+                     <div className="absolute -top-1 -right-1 bg-slate-900 p-1 rounded-full border border-amber-500/10">
                         <Crown className="w-3 h-3 text-amber-500" />
                      </div>
                    </div>
-                   <div className="flex-1 min-w-0 text-left">
-                     <h3 className="text-lg font-bold text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors truncate">{donor.name}</h3>
+                   <div className="flex-1 min-w-0">
+                     <h3 className="text-lg font-bold text-slate-200 leading-tight group-hover:text-amber-400 transition-colors truncate">{donor.name}</h3>
                      <div className="flex items-center space-x-2 mt-1">
-                        <span className="text-[10px] font-bold text-slate-400 py-0.5 px-2 bg-slate-50 rounded-md border border-slate-100">{donor.title}</span>
-                        <span className="text-[10px] text-slate-400">•</span>
+                        <span className="text-[10px] font-bold text-amber-400 py-0.5 px-2 bg-amber-950/20 rounded-md border border-amber-500/20">{donor.title}</span>
+                        <span className="text-[10px] text-slate-550">•</span>
                         <span className="text-[10px] text-slate-400 font-medium">{donor.location}</span>
                      </div>
                    </div>
@@ -172,20 +172,20 @@ export default function Donors() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-rose-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-rose-100"
+            className="bg-slate-900/60 rounded-[40px] md:rounded-[60px] p-8 md:p-20 border border-slate-850"
           >
             <div className="text-center mb-16">
-                 <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white rounded-full shadow-sm border border-rose-100 mb-6">
+                 <div className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-950 rounded-full shadow-sm border border-rose-500/10 mb-6">
                     <Heart className="w-5 h-5 text-rose-500" />
-                    <h2 className="text-xl font-black text-slate-900">সাম্প্রতিক অনুদানসমূহ</h2>
+                    <h2 className="text-xl font-black text-white">সাম্প্রতিক অনুদানসমূহ</h2>
                  </div>
-                 <p className="text-slate-500 text-sm max-w-lg mx-auto">অল্প অল্প সংগ্রহই আমাদের এই বড় পথচলার পাথেয়। আপনাদের দান আমাদের লাইব্রেরিকে টিকিয়ে রাখতে সাহায্য করে।</p>
+                 <p className="text-slate-400 text-sm max-w-lg mx-auto">অল্প অল্প সংগ্রহই আমাদের এই বড় পথচলার পাথেয়। আপনাদের দান আমাদের লাইব্রেরিকে টিকিয়ে রাখতে সাহায্য করে।</p>
             </div>
 
             <div className="space-y-4 max-w-2xl mx-auto">
               {recentDons.length === 0 ? (
-                <div className="text-center py-10 bg-white/50 border border-dashed border-rose-100 rounded-3xl">
-                  <p className="text-slate-400 font-bold text-sm">কোনো সাম্প্রতিক অনুদান রেকর্ড পাওয়া যায়নি।</p>
+                <div className="text-center py-10 bg-slate-950/30 border border-dashed border-rose-500/10 rounded-3xl">
+                  <p className="text-slate-500 font-bold text-sm">কোনো সাম্প্রতিক অনুদান রেকর্ড পাওয়া যায়নি।</p>
                 </div>
               ) : (
                 recentDons.map((donation, idx) => (
@@ -193,33 +193,33 @@ export default function Donors() {
                     key={donation.id || idx}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white p-6 rounded-3xl border border-rose-100/50 shadow-sm flex items-center justify-between text-left"
+                    className="bg-slate-950/40 p-6 rounded-3xl border border-slate-850 flex items-center justify-between text-left group hover:border-rose-500/15 transition-all"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
+                      <div className="w-12 h-12 bg-rose-950/20 rounded-full flex items-center justify-center">
                         <Heart className="w-6 h-6 text-rose-400" />
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-slate-800">{donation.name}</h4>
-                        <p className="text-xs text-slate-450 font-bold">{donation.date}</p>
+                        <h4 className="font-extrabold text-slate-200 group-hover:text-rose-450 transition-colors">{donation.name}</h4>
+                        <p className="text-xs text-slate-500 font-bold">{donation.date}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xl font-black text-emerald-600">৳{donation.amount}</div>
+                      <div className="text-xl font-black text-amber-400">৳{donation.amount}</div>
                       {donation.message && (
-                        <p className="text-[10px] text-slate-400 italic">"{donation.message}"</p>
+                        <p className="text-[10px] text-slate-500 italic">"{donation.message}"</p>
                       )}
                     </div>
                   </motion.div>
                 ))
               )}
               
-              <div className="mt-12 text-center p-8 bg-white/50 rounded-3xl border border-dashed border-rose-200">
-                <p className="text-slate-500 text-sm mb-6">আমাদের কাজগুলো চালিয়ে নিতে আপনিও অনুদান দিতে পারেন।</p>
+              <div className="mt-12 text-center p-8 bg-slate-950/30 rounded-3xl border border-dashed border-rose-500/20">
+                <p className="text-slate-450 text-sm mb-6">আমাদের কাজগুলো চালিয়ে নিতে আপনিও অনুদান দিতে পারেন।</p>
                 <div className="flex items-center justify-center space-x-4">
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-50">
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">বিকাশ/নগদ/রকেট</span>
-                    <span className="text-lg font-black text-slate-900">01880412129</span>
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-rose-500/10">
+                    <span className="block text-[10px] font-bold text-rose-450 uppercase mb-1">বিকাশ/নগদ/রকেট</span>
+                    <span className="text-lg font-black text-white">01880412129</span>
                   </div>
                 </div>
               </div>
@@ -231,17 +231,17 @@ export default function Donors() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-emerald-50/30 rounded-[40px] md:rounded-[60px] p-8 md:p-16 border border-emerald-100/50 text-center"
+            className="bg-slate-900/60 rounded-[40px] md:rounded-[60px] p-8 md:p-16 border border-slate-850 text-center"
           >
             <div className="relative w-28 h-28 md:w-36 md:h-36 mx-auto mb-8">
-              <div className="w-full h-full bg-emerald-100 rounded-[35px] rotate-6 border border-emerald-200 absolute inset-0 mix-blend-multiply" />
-              <div className="w-full h-full bg-white rounded-[35px] border-4 border-emerald-50 absolute inset-0 -rotate-3 flex items-center justify-center shadow-lg">
-                 <Image className="w-12 h-12 text-emerald-300" />
+              <div className="w-full h-full bg-emerald-950/20 rounded-[35px] rotate-6 border border-emerald-500/10 absolute inset-0 mix-blend-multiply" />
+              <div className="w-full h-full bg-slate-950 rounded-[35px] border-4 border-emerald-500/10 absolute inset-0 -rotate-3 flex items-center justify-center shadow-lg">
+                 <Image className="w-12 h-12 text-emerald-450" />
               </div>
             </div>
 
-            <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4">মিডিয়া ও স্মৃতিচারণ গ্যালারি</h2>
-            <p className="text-slate-500 text-sm font-bold max-w-2xl mx-auto mb-12">
+            <h2 className="text-3xl md:text-4xl font-black text-white mb-4">মিডিয়া ও স্মৃতিচারণ গ্যালারি</h2>
+            <p className="text-slate-400 text-sm font-bold max-w-2xl mx-auto mb-12">
                লাইব্রেরির বই প্রদানকারী দাতা সদস্যদের ছবি ও ভিডিওগুলো আমরা যত্ন সহকারে আমাদের গুগল ড্রাইভে এবং ডাটাবেজে রেকর্ড করে রাখি।
             </p>
 
@@ -254,9 +254,9 @@ export default function Donors() {
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="bg-white rounded-3xl overflow-hidden border border-slate-150/60 shadow-sm group hover:shadow-md transition-all duration-350"
+                    className="bg-slate-900 rounded-3xl overflow-hidden border border-slate-850 shadow-sm group hover:border-emerald-500/40 transition-all duration-350"
                   >
-                    <div className="aspect-[4/3] w-full bg-slate-100 overflow-hidden relative">
+                    <div className="aspect-[4/3] w-full bg-slate-950 overflow-hidden relative">
                       <img 
                         src={item.imageUrl} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
@@ -268,7 +268,7 @@ export default function Donors() {
                       </div>
                     </div>
                     <div className="p-6">
-                      <h4 className="font-extrabold text-slate-800 text-sm leading-snug tracking-tight mb-2 group-hover:text-emerald-700 transition-colors">
+                      <h4 className="font-extrabold text-slate-200 text-sm leading-snug tracking-tight mb-2 group-hover:text-emerald-400 transition-colors">
                         {item.title}
                       </h4>
                       {item.description && (
@@ -287,15 +287,15 @@ export default function Donors() {
                 href={mediaLink} 
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-3 px-10 py-5 bg-emerald-600 text-white rounded-[24px] font-black hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/25 active:scale-95 text-lg"
+                className="inline-flex items-center justify-center gap-3 px-10 py-5 bg-emerald-600 text-white rounded-[24px] font-black hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-950/40 active:scale-95 text-lg cursor-pointer"
               >
                 <ExternalLink className="w-6 h-6" />
                 <span>গুগল ড্রাইভে ছবি ও ভিডিও দেখুন</span>
               </a>
             ) : (
-              <div className="inline-block px-8 py-5 bg-white border-2 border-dashed border-emerald-200 rounded-[24px]">
-                 <p className="text-emerald-600 font-bold">আপাতত ড্রাইভ লিঙ্ক যুক্ত করা হয়নি।</p>
-                 <p className="text-xs text-slate-400 mt-2">অ্যাডমিন ড্যাশবোর্ড থেকে লিঙ্ক আপডেট করুন।</p>
+              <div className="inline-block px-8 py-5 bg-slate-950 border border-slate-850 rounded-[24px]">
+                 <p className="text-emerald-400 font-bold">আপাতত ড্রাইভ লিঙ্ক যুক্ত করা হয়নি।</p>
+                 <p className="text-xs text-slate-500 mt-2">অ্যাডমিন ড্যাশবোর্ড থেকে লিঙ্ক আপডেট করুন।</p>
               </div>
             )}
           </motion.div>
