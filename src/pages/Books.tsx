@@ -33,6 +33,7 @@ const LOCAL_CATEGORIES = [
 ];
 
 export default function Books() {
+  const [lang, setLang] = useState<'BN' | 'EN'>('BN');
   const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'ebooks'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
@@ -53,6 +54,24 @@ export default function Books() {
   const [importProgress, setImportProgress] = useState(0);
   
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const updateLang = () => {
+      try {
+        const stored = localStorage.getItem('preferred_lang') as 'BN' | 'EN';
+        if (stored && (stored === 'BN' || stored === 'EN')) {
+          setLang(stored);
+        }
+      } catch (_) {}
+    };
+    updateLang();
+    window.addEventListener('storage', updateLang);
+    const langInterval = setInterval(updateLang, 550);
+    return () => {
+      window.removeEventListener('storage', updateLang);
+      clearInterval(langInterval);
+    };
+  }, []);
 
   const loggedInUser = useMemo(() => {
     const userStr = localStorage.getItem('loggedInUser');
@@ -258,7 +277,7 @@ export default function Books() {
       <div className="min-h-screen flex items-center justify-center bg-[#faf8f5]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-          <p className="text-slate-600 font-bold">বইয়ের তালিকা লোড হচ্ছে...</p>
+          <p className="text-slate-600 font-bold">{lang === 'BN' ? 'বইয়ের তালিকা লোড হচ্ছে...' : 'Loading Books Directory...'}</p>
         </div>
       </div>
     );
@@ -344,11 +363,15 @@ export default function Books() {
 
       {/* Print-Only Structured Header */}
       <div className="hidden print:block mb-8 border-b-2 border-slate-900 pb-4 text-left">
-        <h1 className="text-3xl font-black text-slate-900">ডিপার্টমেন্ট অফ ইকোনমিক্স ডিজিটাল লাইব্রেরি ক্যাটালগ</h1>
-        <p className="text-xs font-bold text-slate-500 mt-1">মাওলানা ভাসানী বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয় (MBSTU) • অর্থনীতি বিভাগ</p>
+        <h1 className="text-3xl font-black text-slate-900">
+          {lang === 'BN' ? 'ডিপার্টমেন্ট অফ ইকোনমিক্স ডিজিটাল লাইব্রেরি ক্যাটালগ' : 'Department of Economics Digital Library Catalog'}
+        </h1>
+        <p className="text-xs font-bold text-slate-500 mt-1">
+          {lang === 'BN' ? 'মাওলানা ভাসানী বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয় (MBSTU) • অর্থনীতি বিভাগ' : 'Mawlana Bhashani Science and Technology University (MBSTU) • Department of Economics'}
+        </p>
         <div className="flex justify-between items-center mt-3 text-[10px] font-black text-slate-600 font-sans uppercase tracking-wider">
-          <span>মোট ক্যাটালগ সংগ্রহ: {books.length} টি বই</span>
-          <span>তারিখ: {new Date().toLocaleDateString('bn-BD')}</span>
+          <span>{lang === 'BN' ? `মোট ক্যাটালগ সংগ্রহ: ${books.length} টি বই` : `Total Catalog Collection: ${books.length} Books`}</span>
+          <span>{lang === 'BN' ? `তারিখ: ${new Date().toLocaleDateString('bn-BD')}` : `Date: ${new Date().toLocaleDateString('en-US')}`}</span>
         </div>
       </div>
 
@@ -360,7 +383,7 @@ export default function Books() {
           className="flex items-center space-x-2.5 px-6 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-[24px] font-black text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm active:scale-95 duration-200 cursor-pointer"
         >
           <Printer className="w-4 h-4 text-indigo-600" />
-          <span>ক্যাটালগ প্রিন্ট করুন (A4 Sheet)</span>
+          <span>{lang === 'BN' ? 'ক্যাটালগ প্রিন্ট করুন (A4 Sheet)' : 'Print Catalog (A4 Sheet)'}</span>
         </button>
 
         {isAdmin && (
@@ -370,7 +393,7 @@ export default function Books() {
             className="flex items-center space-x-2 px-6 py-3.5 bg-[#352df2] text-white rounded-[24px] font-black text-xs hover:bg-[#2018da] transition-all shadow-md active:scale-95 duration-200"
           >
             <Plus className="w-4 h-4" />
-            <span>নতুন বই যুক্ত করুন</span>
+            <span>{lang === 'BN' ? 'নতুন বই যুক্ত করুন' : 'Add New Book'}</span>
           </button>
         )}
       </div>
@@ -383,17 +406,25 @@ export default function Books() {
           <span>Research & Digital Archive</span>
         </div>
         <h1 className="text-5xl md:text-7xl font-black text-slate-900 mb-8 font-sans tracking-tight leading-[1.1]">
-          বইয়ের <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-500">ডিজিটাল ক্যাটালগ</span>
+          {lang === 'BN' ? (
+            <>বইয়ের <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-500">ডিজিটাল ক্যাটালগ</span></>
+          ) : (
+            <>Digital <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-500">Book Catalog</span></>
+          )}
         </h1>
-        <p className="text-slate-500 max-w-2xl mx-auto text-lg leading-relaxed font-semibold">ডিপার্টমেন্ট অফ ইকোনমিক্স ডিজিটাল লাইব্রেরি। আপনার প্রয়োজনীয় ক্যাটালগটি খুঁজে নিন এবং সংগ্রহের সমৃদ্ধি বাড়ান।</p>
+        <p className="text-slate-550 max-w-2xl mx-auto text-lg leading-relaxed font-semibold">
+          {lang === 'BN' 
+            ? 'ডিপার্টমেন্ট অফ ইকোনমিক্স ডিজিটাল লাইব্রেরি। আপনার প্রয়োজনীয় ক্যাটালগটি খুঁজে নিন এবং সংগ্রহের সমৃদ্ধি বাড়ান।' 
+            : 'Department of Economics Digital Library. Find your required books and elevate your knowledge archives.'}
+        </p>
       </div>
 
       {/* Advanced Navigation & Categories */}
       <div className="flex flex-wrap items-center justify-center gap-4 mb-10 px-4 no-print">
         {[
-          { id: 'all', label: 'সকল সংগ্রহ', icon: BookOpen },
-          { id: 'categories', label: 'বিভাগ অনুযায়ী', icon: Filter },
-          { id: 'ebooks', label: 'ই-বুক আর্কাইভ', icon: FileText },
+          { id: 'all', label: lang === 'BN' ? 'সকল সংগ্রহ' : 'All Collections', icon: BookOpen },
+          { id: 'categories', label: lang === 'BN' ? 'বিভাগ অনুযায়ী' : 'By Categories', icon: Filter },
+          { id: 'ebooks', label: lang === 'BN' ? 'ই-বুক আর্কাইভ' : 'E-Book Archive', icon: FileText },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -413,7 +444,9 @@ export default function Books() {
 
       {/* Streamlined Quick Category Discovery Pills */}
       <div className="max-w-5xl mx-auto mb-10 text-center no-print-area no-print">
-        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3.5">দ্রুত ক্যাটালগ আবিষ্কার করুন</p>
+        <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3.5">
+          {lang === 'BN' ? 'দ্রুত ক্যাটালগ আবিষ্কার করুন' : 'Quick Catalog Discovery'}
+        </p>
         <div className="flex flex-wrap items-center justify-center gap-2 max-w-4xl mx-auto">
           <button
             onClick={() => {
@@ -427,7 +460,7 @@ export default function Books() {
                 : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
             )}
           >
-            সব বিষয় ({books.length})
+            {lang === 'BN' ? `সব বিষয় (${books.length})` : `All Subjects (${books.length})`}
           </button>
           {categories.map((cat) => {
             const count = books.filter(b => b.category === cat).length;
@@ -459,7 +492,7 @@ export default function Books() {
             <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
             <input 
               type="text" 
-              placeholder="বইয়ের নাম, লেখক বা ক্যাটাগরি দিয়ে খুঁজুন..."
+              placeholder={lang === 'BN' ? "বইয়ের নাম, লেখক বা ক্যাটাগরি দিয়ে খুঁজুন..." : "Search by book title, author, category..."}
               className="w-full pl-20 pr-8 py-6 bg-white border-2 border-slate-200 rounded-[40px] focus:outline-none focus:ring-8 focus:ring-indigo-600/5 focus:border-indigo-600 focus:text-slate-800 transition-all shadow-xl font-bold text-lg text-slate-800 placeholder:text-slate-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -489,21 +522,21 @@ export default function Books() {
             >
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-indigo-500" /> এলাকা / বিষয়
+                  <Globe className="w-4 h-4 text-indigo-500" /> {lang === 'BN' ? 'এলাকা / বিষয়' : 'Subject / Area'}
                 </label>
                 <select 
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="w-full px-7 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-600/20 font-sans cursor-pointer outline-none placeholder:text-slate-400"
                 >
-                  <option value="all">সকল ক্যাটাগরি</option>
+                  <option value="all">{lang === 'BN' ? 'সকল ক্যাটাগরি' : 'All Categories'}</option>
                   {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
 
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <AlignLeft className="w-4 h-4 text-rose-500" /> সংগ্রহের অবস্থা
+                  <AlignLeft className="w-4 h-4 text-rose-500" /> {lang === 'BN' ? 'সংগ্রহের অবস্থা' : 'Collection Status'}
                 </label>
                 <div className="grid grid-cols-3 gap-3">
                   {(['all', 'available', 'pre-order'] as const).map((s) => (
@@ -515,7 +548,7 @@ export default function Books() {
                         statusFilter === s ? "bg-indigo-600 text-white shadow-sm" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                       )}
                     >
-                      {s === 'all' ? 'সব' : s === 'available' ? 'অর্ডার' : 'আসন্ন'}
+                      {s === 'all' ? (lang === 'BN' ? 'সব' : 'All') : s === 'available' ? (lang === 'BN' ? 'অর্ডার' : 'Available') : (lang === 'BN' ? 'আসন্ন' : 'Preorder')}
                     </button>
                   ))}
                 </div>
@@ -526,27 +559,27 @@ export default function Books() {
       </div>
 
       {/* Book Grid / Category Segments */}
-      <div className="space-y-32">
+      <div className="space-y-6 md:space-y-8">
         {activeTab === 'categories' || activeTab === 'all' ? (
           Object.entries(categoryGroups).map(([cat, catBooks], groupIdx) => (
             <section key={cat} className="group/section">
-              <div className="flex justify-between items-end mb-6 px-4">
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-black text-slate-800 group-hover/section:text-[#352df2] transition-colors uppercase tracking-tight">{cat}</h2>
-                  <div className="w-12 h-1 bg-indigo-505 rounded-full group-hover/section:w-20 transition-all duration-500" />
+              <div className="flex justify-between items-end mb-1 md:mb-1.5 px-4 font-display">
+                <div className="space-y-0.5">
+                  <h2 className="text-lg md:text-xl font-black text-slate-800 group-hover/section:text-[#352df2] transition-colors uppercase tracking-tight">{cat}</h2>
+                  <div className="w-8 h-0.5 bg-indigo-600 rounded-full group-hover/section:w-16 transition-all duration-500" />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button onClick={() => {
                     const el = document.getElementById(`scroll-${groupIdx}`);
-                    el?.scrollBy({ left: -300, behavior: 'smooth' });
-                  }} className="p-3 bg-white rounded-xl hover:bg-slate-50 border border-slate-200 shadow-sm transition-all active:scale-90 cursor-pointer">
-                    <ArrowLeft className="w-4 h-4 text-slate-500" />
+                    el?.scrollBy({ left: -260, behavior: 'smooth' });
+                  }} className="p-2 bg-white rounded-lg hover:bg-slate-50 border border-slate-200 shadow-sm transition-all active:scale-90 cursor-pointer">
+                    <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
                   </button>
                   <button onClick={() => {
                     const el = document.getElementById(`scroll-${groupIdx}`);
-                    el?.scrollBy({ left: 300, behavior: 'smooth' });
-                  }} className="p-3 bg-white rounded-xl hover:bg-slate-50 border border-slate-200 shadow-sm transition-all active:scale-90 cursor-pointer">
-                    <ArrowRight className="w-4 h-4 text-slate-500" />
+                    el?.scrollBy({ left: 260, behavior: 'smooth' });
+                  }} className="p-2 bg-white rounded-lg hover:bg-slate-50 border border-slate-200 shadow-sm transition-all active:scale-90 cursor-pointer">
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
                   </button>
                 </div>
               </div>
@@ -554,7 +587,7 @@ export default function Books() {
               <div className="relative group/shelf">
                 <div 
                   id={`scroll-${groupIdx}`}
-                  className="flex overflow-x-auto gap-2 pb-10 pt-4 px-4 snap-x no-scrollbar"
+                  className="flex overflow-x-auto gap-2.5 sm:gap-3.5 pb-4 pt-1.5 px-4 snap-x no-scrollbar"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                   {catBooks.map((book) => (
@@ -563,43 +596,51 @@ export default function Books() {
                       initial={{ opacity: 0, scale: 0.95 }}
                       whileInView={{ opacity: 1, scale: 1 }}
                       viewport={{ once: true }}
-                      className="min-w-[calc((100%-16px)/3)] sm:min-w-[calc((100%-24px)/4)] md:min-w-[calc((100%-32px)/5)] lg:min-w-[calc((100%-40px)/6)] xl:min-w-[calc((100%-40px)/6)] snap-start"
+                      className="min-w-[calc((100%-12px)/2.4)] sm:min-w-[calc((100%-24px)/4.2)] md:min-w-[calc((100%-32px)/5.2)] lg:min-w-[calc((100%-40px)/6.2)] xl:min-w-[calc((100%-40px)/6.5)] snap-start"
                     >
-                      <div className="group/card bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm hover:border-indigo-500/40 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-305 p-1.5 h-full flex flex-col">
-                        <div className="aspect-[3/4] relative overflow-hidden bg-slate-100 rounded-lg mb-2">
+                      <div className="group/card bg-white/95 rounded-xl overflow-hidden border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_24px_rgba(53,45,242,0.12)] hover:scale-[1.03] hover:-translate-y-1 transition-all duration-500 p-1.5 h-full flex flex-col">
+                        <div className="aspect-[3/4] relative overflow-hidden bg-slate-100/80 rounded-lg mb-1.5 shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)]">
+                          {/* Realistic Book 3D spine and bind highlighting */}
+                          <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-r from-black/20 via-black/5 to-transparent z-10 rounded-l-lg pointer-events-none" />
+                          <div className="absolute top-0 left-2 w-[1px] h-full bg-white/10 z-10 pointer-events-none" />
+                          
                           <img 
                             src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'}        
                             alt={book.title}
-                            className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-500"
+                            className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-700 ease-out"
                             referrerPolicy="no-referrer"
                           />
-                          <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1">
+                          <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1.5 z-20">
                             <span className={cn(
-                              "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest backdrop-blur-md border border-white/20 shadow-sm",
-                              book.isEBook ? "bg-indigo-600 text-white" : "bg-emerald-500 text-white"
+                              "px-1.5 py-0.5 rounded text-[6.5px] md:text-[7px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border flex items-center gap-1",
+                              book.isEBook 
+                                ? "bg-indigo-950/80 text-indigo-300 border-indigo-500/20" 
+                                : "bg-teal-950/80 text-teal-300 border-teal-500/20"
                             )}>
+                              <span className={cn("w-1 h-1 rounded-full", book.isEBook ? "bg-indigo-400" : "bg-teal-400")} />
                               {book.isEBook ? 'E-Book' : 'Library'}
                             </span>
                             <span className={cn(
-                              "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all",
-                              (book.status === 'available' || !book.status)
-                                ? "bg-emerald-600 text-white"
-                                : "bg-amber-500 text-white"
+                              "px-1.5 py-0.5 rounded text-[6.5px] md:text-[7px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border flex items-center gap-1 transition-all",
+                              ((book.status === 'available' || !book.status) && (book.stock !== undefined ? book.stock > 0 : true))
+                                ? "bg-emerald-950/85 text-emerald-300 border-emerald-500/20"
+                                : "bg-rose-950/85 text-rose-300 border-rose-500/20"
                             )}>
-                              {(book.status === 'available' || !book.status) ? 'Available' : 'Pre-order'}
+                              <span className={cn("w-1 h-1 rounded-full animate-pulse", ((book.status === 'available' || !book.status) && (book.stock !== undefined ? book.stock > 0 : true)) ? "bg-emerald-400" : "bg-rose-400")} />
+                              {((book.status === 'available' || !book.status) && (book.stock !== undefined ? book.stock > 0 : true)) ? 'Available' : 'Not Available'}
                             </span>
                           </div>
                         </div>
                         <div className="px-1 pb-1 flex flex-col flex-1 text-left">
-                          <h3 className="text-[10px] sm:text-[11px] font-black text-slate-800 group-hover/card:text-indigo-600 transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
-                          <p className="text-[8px] sm:text-[9px] text-slate-500 mb-2 font-bold truncate opacity-80">{book.author}</p>
-                          <div className="mt-auto flex items-center justify-between gap-1">
-                            <div className="text-[8px] sm:text-[9px] font-mono font-black text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-150">
+                          <h3 className="text-[10px] sm:text-[11px] font-black text-slate-800 group-hover/card:text-[#352df2] transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.7rem]">{book.title}</h3>
+                          <p className="text-[8px] sm:text-[9px] text-slate-500 mb-1.5 font-bold truncate opacity-85">{book.author}</p>
+                          <div className="mt-auto flex items-center justify-between gap-1 pt-1.5 border-t border-slate-100">
+                            <span className="text-[8px] font-mono font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-150">
                               {book.isEBook ? 'Digital' : 'Hardcopy'}
-                            </div>
+                            </span>
                             <button 
                               onClick={() => setSelectedBook(book)}
-                              className="p-1.5 bg-slate-50 border border-slate-200 text-slate-500 rounded-md hover:bg-[#352df2] hover:text-white hover:border-[#352df2] transition-all duration-300 active:scale-95 cursor-pointer"
+                              className="p-1 bg-[#352df2]/5 border border-[#352df2]/10 text-[#352df2] rounded hover:bg-[#352df2] hover:text-white hover:border-[#352df2] transition-all duration-300 active:scale-95 cursor-pointer"
                             >
                               <ArrowRight className="w-3 h-3" />
                             </button>
@@ -610,53 +651,65 @@ export default function Books() {
                   ))}
                 </div>
                 {/* Enhanced Professional Shelf */}
-                <div className="absolute bottom-6 left-2 right-2 h-2 bg-gradient-to-b from-slate-200 to-slate-100 rounded-full -z-10 shadow-[inset_0_1px_3px_rgba(0,0,0,0.1)] border-b border-white" />
+                <div className="absolute bottom-1 left-2 right-2 h-1 bg-gradient-to-b from-slate-200 to-slate-100 rounded-full -z-10 shadow-[inner_0_1px_2px_rgba(0,0,0,0.1)] border-b border-white" />
               </div>
             </section>
           ))
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 px-4 text-left">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 md:gap-4 px-4 text-left">
             {filteredBooks.map((book) => (
               <motion.div
                 key={book.id}
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                className="group/card bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm hover:border-indigo-500/40 hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-300 p-1.5 flex flex-col"
+                className="group/card bg-white/95 rounded-xl overflow-hidden border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_24px_rgba(53,45,242,0.12)] hover:scale-[1.03] hover:-translate-y-1 transition-all duration-500 p-1.5 flex flex-col"
               >
-                <div className="aspect-[3/4] relative overflow-hidden bg-slate-100 rounded-lg mb-2">
+                <div className="aspect-[3/4] relative overflow-hidden bg-slate-100/80 rounded-lg mb-1.5 shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)]">
+                  {/* Realistic Book 3D spine and bind highlighting */}
+                  <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-r from-black/20 via-black/5 to-transparent z-10 rounded-l-lg pointer-events-none" />
+                  <div className="absolute top-0 left-2 w-[1px] h-full bg-white/10 z-10 pointer-events-none" />
+
                   <img 
                     src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'}        
                     alt={book.title}
-                    className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-500"
+                    className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-700 ease-out"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1">
+                  <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1.5 z-20">
                     <span className={cn(
-                      "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest backdrop-blur-md border border-white/20 shadow-sm",
-                      book.isEBook ? "bg-indigo-600 text-white" : "bg-emerald-500 text-white"
+                      "px-1.5 py-0.5 rounded text-[6.5px] md:text-[7px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border flex items-center gap-1",
+                      book.isEBook 
+                        ? "bg-indigo-950/80 text-indigo-300 border-indigo-500/20" 
+                        : "bg-teal-950/80 text-teal-300 border-teal-500/20"
                     )}>
-                      {book.isEBook ? 'E-Book' : 'Library'}
+                      <span className={cn("w-1 h-1 rounded-full", book.isEBook ? "bg-indigo-400" : "bg-teal-400")} />
+                      {book.isEBook ? (lang === 'BN' ? 'ই-বুক' : 'E-Book') : (lang === 'BN' ? 'লাইব্রেরি' : 'Library')}
                     </span>
                     <span className={cn(
-                      "px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] font-black uppercase tracking-widest border shadow-sm transition-all",
-                      (book.status === 'available' || !book.status)
-                        ? "bg-emerald-600 text-white"
-                        : "bg-amber-500 text-white"
+                      "px-1.5 py-0.5 rounded text-[6.5px] md:text-[7px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border flex items-center gap-1 transition-all",
+                      ((book.status === 'available' || !book.status) && (book.stock !== undefined ? book.stock > 0 : true))
+                        ? "bg-emerald-950/85 text-emerald-300 border-emerald-500/20"
+                        : "bg-rose-950/85 text-rose-300 border-rose-500/20"
                     )}>
-                      {(book.status === 'available' || !book.status) ? 'Available' : 'Pre-order'}
+                      <span className={cn("w-1 h-1 rounded-full animate-pulse", ((book.status === 'available' || !book.status) && (book.stock !== undefined ? book.stock > 0 : true)) ? "bg-emerald-400" : "bg-rose-400")} />
+                      {((book.status === 'available' || !book.status) && (book.stock !== undefined ? book.stock > 0 : true)) ? (lang === 'BN' ? 'অ্যাভেলেবল' : 'Available') : (lang === 'BN' ? 'অনুপলব্ধ (নিঃশেষ)' : 'Not Available')}
                     </span>
                   </div>
                 </div>
                 <div className="px-1 pb-1 flex flex-col flex-1">
-                  <h3 className="text-[10px] sm:text-[11px] font-black text-slate-800 group-hover/card:text-indigo-600 transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.8rem]">{book.title}</h3>
-                  <p className="text-[8px] sm:text-[9px] text-slate-500 mb-2 font-bold truncate opacity-80">{book.author}</p>
-                  <div className="mt-auto flex items-center justify-between gap-1">
+                  <h3 className="text-[10px] sm:text-[11px] font-black text-slate-800 group-hover/card:text-[#352df2] transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[1.7rem]">{book.title}</h3>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 mb-1.5 font-bold truncate opacity-85">{book.author}</p>
+                  <div className="mt-auto flex items-center justify-between gap-1 pt-1.5 border-t border-slate-100 w-full">
+                    <span className="text-[8px] font-mono font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-150">
+                      {book.isEBook ? (lang === 'BN' ? 'ডিজিটাল' : 'Digital') : (lang === 'BN' ? 'হার্ডকপি' : 'Hardcopy')}
+                    </span>
                     <button 
                       onClick={() => setSelectedBook(book)}
-                      className="w-full py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-md hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all text-[10px] font-bold cursor-pointer"
+                      className="px-2.5 py-1 bg-[#352df2]/5 border border-[#352df2]/10 text-[#352df2] rounded hover:bg-[#352df2] hover:text-white hover:border-[#352df2] transition-all duration-300 text-[9px] font-extrabold flex items-center gap-0.5 cursor-pointer"
                     >
-                      বিস্তারিত
+                      <span>{lang === 'BN' ? 'বিস্তারিত' : 'Details'}</span>
+                      <ArrowRight className="w-2.5 h-2.5" />
                     </button>
                   </div>
                 </div>
@@ -670,19 +723,19 @@ export default function Books() {
       {filteredBooks.length === 0 && (
          <div className="text-center py-24 px-6 bg-slate-50/60 rounded-[80px] border-4 border-dashed border-slate-200 max-w-4xl mx-auto">
             <Bookmark className="w-16 h-16 text-slate-400 mx-auto mb-6" />
-            <p className="text-slate-800 font-extrabold text-2xl mb-3">ক্যাটালগ বর্তমানে খালি রয়েছে</p>
+            <p className="text-slate-800 font-extrabold text-2xl mb-3">{lang === 'BN' ? 'ক্যাটালগ বর্তমানে খালি রয়েছে' : 'Catalog is currently empty'}</p>
             <p className="text-slate-550 font-medium max-w-lg mx-auto text-sm leading-relaxed mb-8">
-              লাইব্রেরি ক্যাটালগটি বর্তমানে খালি রয়েছে। কোনো বই খুঁজে পাওয়া যায়নি।
+              {lang === 'BN' ? 'লাইব্রেরি ক্যাটালগটি বর্তমানে খালি রয়েছে। কোনো বই খুঁজে পাওয়া যায়নি।' : 'The library catalog is currently empty. No book listings could be located.'}
             </p>
             
             {isAdmin ? (
               <div className="max-w-md mx-auto p-6 bg-white rounded-3xl shadow-md border border-slate-100">
-                <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4">অ্যাডমিন অ্যাকশন প্যানেল</p>
+                <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4">{lang === 'BN' ? 'অ্যাডমিন অ্যাকশন প্যানেল' : 'Admin Action Panel'}</p>
                 <button 
                   type="button"
                   disabled={importingBooks}
                   onClick={async () => {
-                    if (!window.confirm('আপনি কি সুপাবেজ লাইব্রেরি ডাটাবেজে ১০০টি রিয়ালিস্টিক অর্থনীতি বই (১০টি সেকশন বা ক্যাটাগরিতে বিভক্ত) যুক্ত করতে চান? এটি করতে কয়েক সেকেন্ড সময় লাগতে পারে।')) return;
+                    if (!window.confirm(lang === 'BN' ? 'আপনি কি সুপাবেজ লাইব্রেরি ডাটাবেজে ১০০টি রিয়ালিস্টিক অর্থনীতি বই (১০টি সেকশন বা ক্যাটাগরিতে বিভক্ত) যুক্ত করতে চান? এটি করতে কয়েক সেকেন্ড সময় লাগতে পারে।' : 'Do you want to import 100 realistic Economics books?')) return;
                     setImportingBooks(true);
                     setImportProgress(0);
                     try {
@@ -720,11 +773,11 @@ export default function Books() {
                       const updatedCats = Array.from(new Set([...cats, ...importedCats]));
                       localStorage.setItem('econ_library_categories', JSON.stringify(updatedCats));
 
-                      alert(`সফলভাবে ১০০টি অর্থনীতি বিষয়ক বই যুক্ত করা হয়েছে!`);
+                      alert(lang === 'BN' ? 'সফলভাবে ১০০টি অর্থনীতি বিষয়ক বই যুক্ত করা হয়েছে!' : '100 economics books added successfully!');
                       loadAllBooks();
                     } catch (e: any) {
                       console.error('Import econ books error:', e);
-                      alert(`বইসমূহ যুক্ত করতে সমস্যা হয়েছে: ` + (e.message || e));
+                      alert(lang === 'BN' ? `বইসমূহ যুক্ত করতে সমস্যা হয়েছে: ` + (e.message || e) : 'Failed to import books: ' + (e.message || e));
                     } finally {
                       setImportingBooks(false);
                     }
@@ -734,19 +787,21 @@ export default function Books() {
                   {importingBooks ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>আপলোড হচ্ছে ({importProgress}%)</span>
+                      <span>{lang === 'BN' ? `আপলোড হচ্ছে (${importProgress}%)` : `Uploading (${importProgress}%)`}</span>
                     </>
                   ) : (
                     <>
                       <BookOpen className="w-4 h-4" />
-                      <span>১০০টি অর্থনীতি বই যুক্ত করুন</span>
+                      <span>{lang === 'BN' ? '১০০টি অর্থনীতি বই যুক্ত করুন' : 'Import 100 Economics Books'}</span>
                     </>
                   )}
                 </button>
               </div>
             ) : (
               <div className="inline-block px-6 py-3 bg-indigo-50 border border-indigo-100 rounded-2xl text-xs font-bold text-indigo-700">
-                অ্যাডমিন অ্যাকাউন্ট বা এডমিন ড্যাশবোর্ড থেকে বই সিঙ্ক/আপলোড করুন। আপনার ডিফল্ট এডমিনে লগইন করুন (Email: <span className="font-mono underline">eco24034@mbstu.ac.bd</span> অথবা অ্যাডমিন পাসওয়ার্ড দিয়ে)।
+                {lang === 'BN' 
+                  ? 'অ্যাডমিন অ্যাকাউন্ট বা এডমিন ড্যাশবোর্ড থেকে বই সিঙ্ক/আপলোড করুন। আপনার ডিফল্ট এডমিনে লগইন করুন (Email: eco24034@mbstu.ac.bd অথবা অ্যাডমিন পাসওয়ার্ড দিয়ে)।' 
+                  : 'Sync or upload books from your Admin dashboard. Please log in to your default Admin account (Email: eco24034@mbstu.ac.bd or using Admin password).'}
               </div>
             )}
          </div>
@@ -774,7 +829,7 @@ export default function Books() {
                   <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
                     <Plus className="w-8 h-8" />
                   </div>
-                  নতুন বই যুক্ত করুন
+                  {lang === 'BN' ? 'নতুন বই যুক্ত করুন' : 'Add New Book'}
                 </h2>
                 <button onClick={() => setShowAddModal(false)} className="p-3 bg-slate-50 rounded-full hover:bg-slate-100">
                    <X className="w-5 h-5 text-slate-400" />
@@ -784,7 +839,7 @@ export default function Books() {
               <form onSubmit={handleAddBook} className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">বইয়ের শিরোনাম</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{lang === 'BN' ? 'বইয়ের শিরোনাম' : 'Book Title'}</label>
                     <input 
                       required
                       type="text" 
@@ -794,7 +849,7 @@ export default function Books() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">লেখকের নাম</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{lang === 'BN' ? 'লেখকের নাম' : 'Author Name'}</label>
                     <input 
                       required
                       type="text" 
@@ -804,7 +859,7 @@ export default function Books() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">বইয়ের বিভাগ (ক্যাটাগরি)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{lang === 'BN' ? 'বইয়ের বিভাগ (ক্যাটাগরি)' : 'Category / Department'}</label>
                     <input 
                       required
                       type="text" 
@@ -817,27 +872,27 @@ export default function Books() {
                 
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">নির্ধারিত মূল্য</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{lang === 'BN' ? 'নির্ধারিত মূল্য' : 'Book Retail Price'}</label>
                     <input 
                       type="text" 
-                      placeholder="৳৪৫০ বা Free"
+                      placeholder={lang === 'BN' ? '৳৪৫০ বা Free' : '৳450 or Free'}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-600/10 font-bold"
                       value={newBook.price}
                       onChange={(e) => setNewBook({...newBook, price: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">কভার ইমেজ (লিংক অথবা আপলোড করুন - ১ মেগাবাইটের কম/1MB Limit)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{lang === 'BN' ? 'কভার ইমেজ (লিংক বা আপলোড করুন - ১ মেগাবাইটের কম)' : 'Book Cover Image (Link or Upload - <1MB)'}</label>
                     <div className="space-y-3">
                       <input 
                         type="url" 
-                        placeholder="কভার ইমেজ ডিরেক্ট লিংক (যেমন: https://...)"
+                        placeholder={lang === 'BN' ? "কভার ইমেজ ডিরেক্ট লিংক (যেমন: https://...)" : "Cover image Direct Link (e.g. https://...)"}
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-600/10 font-bold text-sm"
                         value={newBook.cover.startsWith('data:') ? '' : newBook.cover}
                         onChange={(e) => setNewBook({...newBook, cover: e.target.value})}
                       />
                       <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
-                        <span className="text-xs font-bold text-slate-500">অথবা ডিভাইস থেকে আপলোড করুন</span>
+                        <span className="text-xs font-bold text-slate-500">{lang === 'BN' ? 'অথবা ডিভাইস থেকে আপলোড করুন' : 'Or upload cover from device'}</span>
                         <input 
                           type="file" 
                           accept="image/*"
@@ -849,8 +904,8 @@ export default function Books() {
                         <div className="flex items-center gap-4 p-3 bg-indigo-50/30 rounded-2xl border border-indigo-100">
                           <img src={newBook.cover} alt="Preview" className="w-12 h-16 object-cover rounded-md shadow-sm" />
                           <div className="flex-1">
-                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block">কভার ইমেজ প্রিভিউ</span>
-                            <button type="button" onClick={() => setNewBook({...newBook, cover: ''})} className="text-xs text-rose-500 font-bold hover:underline">কভার রিমুভ করুন</button>
+                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block">{lang === 'BN' ? 'কভার ইমেজ প্রিভিউ' : 'Cover Image Preview'}</span>
+                            <button type="button" onClick={() => setNewBook({...newBook, cover: ''})} className="text-xs text-rose-500 font-bold hover:underline">{lang === 'BN' ? 'কভার রিমুভ করুন' : 'Remove Cover'}</button>
                           </div>
                         </div>
                       )}
@@ -858,14 +913,14 @@ export default function Books() {
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">সংগ্রহের অবস্থা (Status)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{lang === 'BN' ? 'সংগ্রহের অবস্থা (Status)' : 'Availability Status'}</label>
                     <select 
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-600/10 font-bold text-sm cursor-pointer"
                       value={newBook.status}
                       onChange={(e) => setNewBook({...newBook, status: e.target.value as any})}
                     >
-                      <option value="available">Available (অ্যাভেলেবল)</option>
-                      <option value="pre-order">Pre-order (প্রি-অর্ডার)</option>
+                      <option value="available">Available ({lang === 'BN' ? 'অ্যাভেলেবল' : 'Available'})</option>
+                      <option value="pre-order">Pre-order ({lang === 'BN' ? 'প্রি-অর্ডার' : 'Pre-order'})</option>
                     </select>
                   </div>
                   
@@ -877,7 +932,7 @@ export default function Books() {
                       checked={newBook.isEBook}
                       onChange={(e) => setNewBook({...newBook, isEBook: e.target.checked})}
                     />
-                    <label htmlFor="isEBook_modal" className="font-black text-indigo-900 text-sm">এটি একটি ডিজিটাল ই-বুক</label>
+                    <label htmlFor="isEBook_modal" className="font-black text-indigo-900 text-sm">{lang === 'BN' ? 'এটি একটি ডিজিটাল ই-বুক' : 'This is a Digital E-Book'}</label>
                   </div>
                 </div>
 
@@ -887,7 +942,7 @@ export default function Books() {
                     className="w-full py-6 bg-indigo-600 text-white rounded-[32px] font-black text-xl hover:bg-slate-900 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-4"
                   >
                     <CheckCircle2 className="w-8 h-8" />
-                    তালিকায় বই যুক্ত করুন
+                    {lang === 'BN' ? 'তালিকায় বই যুক্ত করুন' : 'Add Book to Catalog'}
                   </button>
                 </div>
               </form>
@@ -923,7 +978,7 @@ export default function Books() {
                    <BarChart3 className="w-[400px] h-[400px]" />
                 </div>
                 {selectedBook.cover ? (
-                  <img src={selectedBook.cover} className="w-full max-w-[300px] shadow-2xl rounded-2xl relative z-10" />
+                  <img src={selectedBook.cover} className="w-full max-w-[300px] shadow-2xl rounded-2xl relative z-10" alt="Cover" />
                 ) : (
                   <div className="w-48 h-72 bg-white rounded-2xl flex items-center justify-center shadow-lg relative z-10">
                     <BookOpen className="w-20 h-20 text-indigo-100" />
@@ -945,19 +1000,27 @@ export default function Books() {
                     <User className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Author / Writer</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{lang === 'BN' ? 'লেখক / অনুবাদক' : 'Author / Translator'}</p>
                     <p className="text-xl font-bold text-slate-900">{selectedBook.author}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 mb-12">
+                 <div className="grid grid-cols-2 gap-8 mb-12">
                    <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status</span>
-                      <span className="text-lg font-black text-slate-900">{selectedBook.status === 'available' ? 'Available Now' : 'Pre-Order Only'}</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">{lang === 'BN' ? 'স্ট্যাটাস / অবস্থা' : 'Availability Status'}</span>
+                      <span className="text-lg font-black text-slate-900 font-sans">
+                        {((selectedBook.status === 'available' || !selectedBook.status) && (selectedBook.stock !== undefined ? selectedBook.stock > 0 : true))
+                          ? (lang === 'BN' ? 'অ্যাভেলেবল আছেন' : 'Available Now') 
+                          : (lang === 'BN' ? 'অনুপলব্ধ / নিঃশেষ' : 'Not Available (Out of Stock)')}
+                      </span>
                    </div>
                    <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Book Type</span>
-                      <span className="text-lg font-black text-slate-900">{selectedBook.isEBook ? 'Digital E-Book' : 'Library Hardcopy'}</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">{lang === 'BN' ? 'বইয়ের ধরন' : 'Book Type'}</span>
+                      <span className="text-lg font-black text-slate-900">
+                        {selectedBook.isEBook 
+                          ? (lang === 'BN' ? 'ডিজিটাল ই-বুক' : 'Digital E-Book') 
+                          : (lang === 'BN' ? 'লাইব্রেরি হার্ডকপি' : 'Library Hardcopy')}
+                      </span>
                    </div>
                 </div>
 
@@ -972,7 +1035,7 @@ export default function Books() {
                           className="flex items-center justify-center gap-3 py-6 bg-purple-600 text-white rounded-[32px] font-black hover:bg-slate-900 transition-all shadow-xl shadow-purple-100"
                         >
                           <Eye className="w-5 h-5" />
-                          <span>অনলাইনে পড়ুন</span>
+                          <span>{lang === 'BN' ? 'অনলাইনে পড়ুন' : 'Read Online'}</span>
                         </a>
                         <a 
                           href={selectedBook.ebookUrl || '#'} 
@@ -980,16 +1043,18 @@ export default function Books() {
                           className="flex items-center justify-center gap-3 py-6 bg-white border-2 border-purple-200 text-purple-600 rounded-[32px] font-black hover:bg-purple-600 hover:text-white transition-all shadow-sm"
                         >
                           <Download className="w-5 h-5" />
-                          <span>ডাউনলোড</span>
+                          <span>{lang === 'BN' ? 'ডাউনলোড' : 'Download'}</span>
                         </a>
                       </div>
                     ) : (
                       <div className="p-8 flex items-start gap-5">
                         <AlertCircle className="w-10 h-10 text-rose-500 shrink-0" />
                         <div>
-                          <p className="text-rose-900 font-black mb-2 text-lg">অ্যাক্সেস সংরক্ষিত!</p>
+                          <p className="text-rose-900 font-black mb-2 text-lg">{lang === 'BN' ? 'অ্যাক্সেস সংরক্ষিত!' : 'Access Restricted!'}</p>
                           <p className="text-rose-600 text-sm font-bold leading-relaxed">
-                            ই-বুক সুবিধার জন্য MBSTU অর্থনীতি বিভাগের (ব্যাচ ২০-২৫) সক্রিয় ভেরিফাইড ইমেইল প্রয়োজন।
+                            {lang === 'BN' 
+                              ? 'ই-বুক সুবিধার জন্য MBSTU অর্থনীতি বিভাগের (ব্যাচ ২০-২৫) সক্রিয় ভেরিফاید ইমেইল প্রয়োজন।' 
+                              : 'Access to Digital E-Books is reserved exclusively for verified, active MBSTU Economics students (Batch 20-25).'}
                           </p>
                         </div>
                       </div>
@@ -999,11 +1064,21 @@ export default function Books() {
 
                 {!selectedBook.isEBook && (
                   <button 
+                    disabled={!((selectedBook.status === 'available' || !selectedBook.status) && (selectedBook.stock !== undefined ? selectedBook.stock > 0 : true))}
                     onClick={() => handleOpenBorrowModal(selectedBook)}
-                    className="w-full py-7 bg-indigo-600 hover:bg-slate-900 text-white rounded-[35px] font-black flex items-center justify-center space-x-5 shadow-2xl shadow-indigo-100 transition-all transform active:scale-95 duration-200 animate-pulse"
+                    className={cn(
+                      "w-full py-7 text-white rounded-[35px] font-black flex items-center justify-center space-x-5 shadow-2xl transition-all transform duration-200",
+                      ((selectedBook.status === 'available' || !selectedBook.status) && (selectedBook.stock !== undefined ? selectedBook.stock > 0 : true))
+                        ? "bg-indigo-600 hover:bg-slate-900 shadow-indigo-100 active:scale-95 animate-pulse cursor-pointer"
+                        : "bg-slate-300 border border-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                    )}
                   >
                     <BookOpen className="w-8 h-8 text-indigo-300" />
-                    <span className="text-2xl">ধার নেওয়ার আবেদন (Borrow Request)</span>
+                    <span className="text-2xl">
+                      {((selectedBook.status === 'available' || !selectedBook.status) && (selectedBook.stock !== undefined ? selectedBook.stock > 0 : true))
+                        ? (lang === 'BN' ? 'ধার নেওয়ার আবেদন (Borrow)' : 'Request Book Loan (Borrow)')
+                        : (lang === 'BN' ? 'দুঃখিত, স্টক নিঃশেষ' : 'Out of Stock / Not Available')}
+                    </span>
                   </button>
                 )}
               </div>
@@ -1031,12 +1106,14 @@ export default function Books() {
             >
               <h3 className="text-2xl font-black text-slate-900 mb-2 flex items-center gap-3">
                 <BookOpen className="w-6 h-6 text-indigo-600" />
-                <span>বই ধার নেওয়ার আবেদন</span>
+                <span>{lang === 'BN' ? 'বই ধার নেওয়ার আবেদন' : 'Request Book Loan'}</span>
               </h3>
-              <p className="text-xs font-bold text-slate-400 mb-6 uppercase tracking-wider">ডিপার্টমেন্টাল লাইব্রেরি বই ইস্যুর তথ্যসমূহ</p>
+              <p className="text-xs font-bold text-slate-400 mb-6 uppercase tracking-wider">
+                {lang === 'BN' ? 'ডিপার্টমেন্টাল লাইব্রেরি বই ইস্যুর তথ্যসমূহ' : 'Departmental Library Book Issue Details'}
+              </p>
               
               <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl mb-6 flex gap-3 text-xs text-slate-600 leading-relaxed">
-                <img src={selectedBook.cover} alt={selectedBook.title} className="w-12 h-16 object-cover rounded-lg shadow-sm" />
+                <img src={selectedBook.cover || ''} alt={selectedBook.title} className="w-12 h-16 object-cover rounded-lg shadow-sm" />
                 <div>
                   <h4 className="font-extrabold text-indigo-900 text-sm line-clamp-1">{selectedBook.title}</h4>
                   <p className="font-bold text-slate-400 mt-0.5">{selectedBook.author}</p>
@@ -1045,7 +1122,7 @@ export default function Books() {
 
               <form onSubmit={handleBorrowSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">আবেদনকারীর নাম</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{lang === 'BN' ? 'আবেদনকারীর নাম' : "Applicant's Name"}</label>
                   <input 
                     type="text" 
                     required 
@@ -1055,7 +1132,7 @@ export default function Books() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">যোগাযোগের মোবাইল নম্বর</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{lang === 'BN' ? 'যোগাযোগের মোবাইল নম্বর' : 'Contact Mobile Number'}</label>
                   <input 
                     type="tel" 
                     required 
@@ -1065,9 +1142,9 @@ export default function Books() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">কন্টক / মন্তব্য (Optional Notes/Purpose)</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{lang === 'BN' ? 'মন্তব্য বা উদ্দেশ্য (Optional Notes/Purpose)' : 'Purpose Notes (Optional)'}</label>
                   <textarea 
-                    placeholder="কোন্ উদ্দেশ্যে বইটি প্রয়োজন বা ব্যবহারের সময়কাল সম্পর্কে সংক্ষেপে লিখতে পারেন..." 
+                    placeholder={lang === 'BN' ? "কোন্ উদ্দেশ্যে বইটি প্রয়োজন বা ব্যবহারের সময়কাল সম্পর্কে সংক্ষেপে লিখতে পারেন..." : "Briefly mention study duration or study purpose..."} 
                     value={borrowNotes} 
                     onChange={(e) => setBorrowNotes(e.target.value)}
                     rows={3}
@@ -1076,19 +1153,21 @@ export default function Books() {
                 </div>
 
                 <div className="p-4 bg-slate-50 rounded-2xl text-[10px] font-bold text-slate-400 leading-relaxed">
-                  💡 আবেদন সফল করার পর অ্যাডমিন রিভিউ করে বইটি সংগ্রহের জন্য একটি নির্দিষ্ট তারিখ ও বেলা সময় নির্ধারণ করে দেবেন। আপনি আপনার প্রোফাইলের "বর্তমানের আবেদন" ট্যাব থেকে সংগ্রহ সময় পরিলক্ষণ করতে পারবেন।
+                  {lang === 'BN' 
+                    ? '💡 আবেদন সফল করার পর অ্যাডমিন রিভিউ করে বইটি সংগ্রহের জন্য একটি নির্দিষ্ট তারিখ ও বেলা সময় নির্ধারণ করে দেবেন। আপনি আপনার প্রোফাইলের "বর্তমানের আবেদন" ট্যাব থেকে সংগ্রহ সময় পরিলক্ষণ করতে পারবেন।' 
+                    : '💡 After successful request submission, the admin will review and schedule a pickup time. You can monitor the scheduled collection date in your account profile dashboard.'}
                 </div>
 
                 <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
-                  <button type="button" onClick={() => setIsBorrowModalOpen(false)} className="px-6 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl text-xs">বাতিল</button>
+                  <button type="button" onClick={() => setIsBorrowModalOpen(false)} className="px-6 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl text-xs">{lang === 'BN' ? 'বাতিল' : 'Cancel'}</button>
                   <button type="submit" disabled={isBorrowing} className="px-8 py-3 bg-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-indigo-150 flex items-center justify-center gap-2">
                     {isBorrowing ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>প্রক্রিয়াধীন...</span>
+                        <span>{lang === 'BN' ? 'প্রক্রিয়াধীন...' : 'Processing...'}</span>
                       </>
                     ) : (
-                      <span>আবেদন নিশ্চিত করুন</span>
+                      <span>{lang === 'BN' ? 'আবেদন নিশ্চিত করুন' : 'Confirm Request'}</span>
                     )}
                   </button>
                 </div>

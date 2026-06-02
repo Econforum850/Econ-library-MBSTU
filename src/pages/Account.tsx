@@ -16,7 +16,23 @@ export default function Account() {
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'current' | 'history' | 'orders'>('current');
+  const [lang, setLang] = useState<string>('BN');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const savedLang = localStorage.getItem('preferred_lang') || 'BN';
+    setLang(savedLang);
+
+    const handleStorage = () => {
+      const currentLang = localStorage.getItem('preferred_lang') || 'BN';
+      setLang(currentLang);
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('loggedInUser');
@@ -127,7 +143,13 @@ export default function Account() {
               user.status === 'accepted' || user.status === 'active' ? "bg-emerald-500 text-white" : 
               user.status === 'pending' ? "bg-amber-500 text-white" : "bg-rose-500 text-white"
             )}>
-              {user.status === 'accepted' ? 'সক্রিয়' : user.status === 'pending' ? 'পেন্ডিং' : user.status === 'rejected' ? 'বাতিল' : user.status}
+              {user.status === 'accepted' || user.status === 'active'
+                ? (lang === 'BN' ? 'সক্রিয়' : 'Active') 
+                : user.status === 'pending' 
+                ? (lang === 'BN' ? 'পেন্ডিং' : 'Pending') 
+                : user.status === 'rejected' 
+                ? (lang === 'BN' ? 'বাতিল' : 'Rejected') 
+                : user.status}
             </div>
           </div>
 
@@ -135,14 +157,16 @@ export default function Account() {
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 space-y-4 md:space-y-0">
               <div>
                 <h1 className="text-4xl font-black text-slate-900 mb-2">{user.name}</h1>
-                <p className="text-indigo-600 font-black uppercase tracking-widest text-xs">Member ID: {user.id}</p>
+                <p className="text-indigo-600 font-black uppercase tracking-widest text-xs">
+                  {lang === 'BN' ? 'সদস্য আইডি:' : 'Member ID:'} {user.id}
+                </p>
               </div>
               <button 
                 onClick={handleLogout}
                 className="px-6 py-3 bg-rose-50 text-rose-600 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center space-x-2 hover:bg-rose-100 transition-all self-center md:self-start"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Logout</span>
+                <span>{lang === 'BN' ? 'লগআউট' : 'Logout'}</span>
               </button>
             </div>
 
@@ -157,11 +181,11 @@ export default function Account() {
               </div>
               <div className="flex items-center space-x-3 text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                 <UserIcon className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span className="text-xs font-bold truncate">{user.occupation || 'Member'}</span>
+                <span className="text-xs font-bold truncate">{user.occupation || (lang === 'BN' ? 'সদস্য' : 'Member')}</span>
               </div>
               <div className="flex items-center space-x-3 text-slate-500 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                 <MapPin className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span className="text-xs font-bold truncate">{user.address || 'Address not set'}</span>
+                <span className="text-xs font-bold truncate">{user.address || (lang === 'BN' ? 'ঠিকানা দেয়া হয়নি' : 'Address not set')}</span>
               </div>
             </div>
           </div>
@@ -175,9 +199,13 @@ export default function Account() {
               <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
                  <BookIcon className="w-5 h-5" />
               </div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">বর্তমানে কাছে আছে</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {lang === 'BN' ? 'বর্তমানে কাছে আছে' : 'Currently Borrowed'}
+              </span>
            </div>
-           <div className="text-4xl font-black text-slate-900">{currentBooks.length} টি</div>
+           <div className="text-4xl font-black text-slate-900">
+             {currentBooks.length} {lang === 'BN' ? 'টি' : 'Books'}
+           </div>
         </div>
 
         <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm text-left">
@@ -185,9 +213,13 @@ export default function Account() {
               <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
                  <History className="w-5 h-5" />
               </div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মোট পড়া বই</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {lang === 'BN' ? 'মোট পড়া বই' : 'Total Read Books'}
+              </span>
            </div>
-           <div className="text-4xl font-black text-slate-900">{pastBooks.length} টি</div>
+           <div className="text-4xl font-black text-slate-900">
+             {pastBooks.length} {lang === 'BN' ? 'টি' : 'Books'}
+           </div>
         </div>
 
         <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm text-left animate-in fade-in">
@@ -195,9 +227,13 @@ export default function Account() {
               <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                  <Receipt className="w-5 h-5" />
               </div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">মোট শপ অর্ডার</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {lang === 'BN' ? 'মোট শপ অর্ডার' : 'Total Store Orders'}
+              </span>
            </div>
-           <div className="text-4xl font-black text-slate-900">{orders.length} টি</div>
+           <div className="text-4xl font-black text-slate-900">
+             {orders.length} {lang === 'BN' ? 'টি' : 'Orders'}
+           </div>
         </div>
 
         <div className="bg-slate-900 p-8 rounded-[32px] shadow-xl shadow-indigo-100 relative overflow-hidden group text-left">
@@ -207,11 +243,13 @@ export default function Account() {
                   <div className="w-10 h-10 bg-white/10 text-indigo-300 rounded-xl flex items-center justify-center">
                     <Wallet className="w-5 h-5" />
                   </div>
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">বকেয়া পরিমাণ</span>
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                    {lang === 'BN' ? 'বকেয়া পরিমাণ' : 'Outstanding Dues'}
+                  </span>
               </div>
-              <div className="text-4xl font-black text-white">৳ {user.dues}</div>
-           </div>
-        </div>
+               <div className="text-4xl font-black text-white">৳ {user.dues}</div>
+            </div>
+         </div>
       </div>
 
       {/* Books & Orders List Section in responsive columns */}
@@ -222,19 +260,19 @@ export default function Account() {
               onClick={() => setActiveTab('current')}
               className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'current' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
              >
-               বর্তমানে পঠিত বই ({currentBooks.length})
+               {lang === 'BN' ? 'বর্তমানে পঠিত বই' : 'Current Book Loans'} ({currentBooks.length})
              </button>
              <button 
               onClick={() => setActiveTab('history')}
               className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'history' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
              >
-               পুরানো পঠিত রেকর্ড ({pastBooks.length})
+               {lang === 'BN' ? 'পুরানো পঠিত রেকর্ড' : 'Reading History'} ({pastBooks.length})
              </button>
              <button 
               onClick={() => setActiveTab('orders')}
               className={`text-xs md:text-sm font-black uppercase tracking-widest pb-2 border-b-4 transition-all ${activeTab === 'orders' ? 'border-indigo-600 text-slate-900' : 'border-transparent text-slate-400'}`}
              >
-               আমার বুক অর্ডার শপ ({orders.length})
+               {lang === 'BN' ? 'আমার বুক অর্ডার শপ' : 'My Bookstore Orders'} ({orders.length})
              </button>
           </div>
 
