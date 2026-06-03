@@ -21,6 +21,24 @@ export default function IdCardDownloader({ member, onSuccess }: IdCardDownloader
 
   // Backwards-compatible custom Issue Date and Expiry Date structure parsing
   const getDates = () => {
+    if (member.membershipExpiry) {
+      let expiryFormatted = member.membershipExpiry;
+      if (expiryFormatted.includes('-')) {
+        const parts = expiryFormatted.split('-');
+        if (parts.length === 3) {
+          expiryFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+      }
+      let issue = member.joinDate || new Date().toLocaleDateString('bn-BD');
+      if (issue.includes('|')) {
+        issue = issue.split('|')[0];
+      }
+      return {
+        issueDate: issue,
+        expiryDate: expiryFormatted
+      };
+    }
+
     if (member.joinDate && member.joinDate.includes('|')) {
       const parts = member.joinDate.split('|');
       return {

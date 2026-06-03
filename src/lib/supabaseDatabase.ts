@@ -57,6 +57,9 @@ export interface SupabaseMember {
   batchSession?: string;
   bloodGroup?: string;
   department?: string;
+  lostCardStatus?: 'none' | 'requested' | 'reissued';
+  renewalStatus?: 'none' | 'requested' | 'renewed';
+  membershipExpiry?: string;       // 'YYYY-MM-DD'
 }
 
 export interface SupabaseDonor {
@@ -578,7 +581,10 @@ export const db = {
           studentRoll: m.studentRoll || '',
           batchSession: m.batchSession || '',
           bloodGroup: m.bloodGroup || '',
-          department: m.department || ''
+          department: m.department || '',
+          membershipExpiry: m.membershipExpiry || '',
+          lostCardStatus: m.lostCardStatus || 'none',
+          renewalStatus: m.renewalStatus || 'none'
         };
         // Automatically calculate dynamic dues if accepted/active
         if (baseMem.status === 'accepted' || baseMem.status === 'active') {
@@ -697,7 +703,10 @@ export const db = {
       studentRoll: member.studentRoll || '',
       batchSession: member.batchSession || '',
       bloodGroup: member.bloodGroup || '',
-      department: member.department || ''
+      department: member.department || '',
+      lostCardStatus: member.lostCardStatus || 'none',
+      renewalStatus: member.renewalStatus || 'none',
+      membershipExpiry: member.membershipExpiry || ''
     };
 
     // Keep baseDues synchronized if there are manual additions or deductions
@@ -730,7 +739,10 @@ export const db = {
         studentRoll: finalizedMem.studentRoll,
         batchSession: finalizedMem.batchSession,
         bloodGroup: finalizedMem.bloodGroup,
-        department: finalizedMem.department
+        department: finalizedMem.department,
+        lostCardStatus: finalizedMem.lostCardStatus,
+        renewalStatus: finalizedMem.renewalStatus,
+        membershipExpiry: finalizedMem.membershipExpiry
       };
 
       await setDoc(docRef, dbPayload, { merge: true });
@@ -747,6 +759,37 @@ export const db = {
     }
     saveLocalData('db_members', local);
     return finalizedMem;
+  },
+
+  calculateMembershipExpiry(baseDateStr: string, yearsOffset: number = 1): string {
+    try {
+      let baseDate = new Date();
+      if (baseDateStr) {
+        if (baseDateStr.includes('-')) {
+          const parts = baseDateStr.split('-');
+          if (parts.length === 3) {
+            baseDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          }
+        } else if (baseDateStr.includes('/')) {
+          const parts = baseDateStr.split('/');
+          if (parts.length === 3) {
+            baseDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+          }
+        } else {
+          const parsed = new Date(baseDateStr);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        }
+      }
+      baseDate.setFullYear(baseDate.getFullYear() + yearsOffset);
+      const yyyy = baseDate.getFullYear();
+      const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(baseDate.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    } catch (e) {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() + yearsOffset);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
   },
 
   async deleteMember(id: string): Promise<boolean> {

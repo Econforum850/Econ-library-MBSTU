@@ -13,6 +13,7 @@ import { cn } from '@/src/lib/utils';
 import { db, SupabaseMember } from '@/src/lib/supabaseDatabase';
 import { motion, AnimatePresence } from 'motion/react';
 import IdCardDownloader from '@/src/components/admin/IdCardDownloader';
+import { generateLibraryCardPdf } from '@/src/lib/pdfHelper';
 
 const initialMembers: any[] = [];
 
@@ -31,7 +32,268 @@ export default function AdminUsers() {
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedSubject, setCopiedSubject] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'renewal-requested' | 'reissue-requested'>('all');
+  const [processingServices, setProcessingServices] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+
+  const handleApproveRenewal = async (member: SupabaseMember) => {
+    try {
+      setProcessingServices(true);
+      
+      // Calculate next expiry date (add 1 year to current expiry or today)
+      let currentExpiry = member.paidUntilDate;
+      let newExpiryDateStr = '';
+      
+      try {
+        let baseDate = new Date();
+        if (currentExpiry) {
+          const parts = currentExpiry.split('-'); // yyyy-mm-dd
+          if (parts.length === 3) {
+            baseDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          }
+        }
+        baseDate.setFullYear(baseDate.getFullYear() + 1);
+        const yyyy = baseDate.getFullYear();
+        const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(baseDate.getDate()).padStart(2, '0');
+        newExpiryDateStr = `${yyyy}-${mm}-${dd}`;
+      } catch (dateErr) {
+        // Fallback
+        const d = new Date();
+        d.setFullYear(d.getFullYear() + 1);
+        newExpiryDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      const updated = {
+        ...member,
+        paidUntilDate: newExpiryDateStr,
+        yearlyFeeStatus: 'paid' as const,
+        renewalStatus: 'none' as const,
+        dues: Math.max(0, (member.dues || 0) + 50) // Optional charge for renewal
+      };
+
+      await db.saveMember(updated);
+      try {
+        await db.addAuditLog('APPROVE_RENEWAL', `মেম্বারশিপ নবায়ন অনুমোদন করা হয়েছে: ${member.name} (নতুন মেয়াদ: ${newExpiryDateStr})`);
+      } catch (_) {}
+      
+      setSelectedMember(updated);
+      await loadMembers();
+
+      // Send Renewal confirmation email
+      const emailSubject = 'অভিনন্দন! আপনার লাইব্রেরি মেম্বারশিপ নবায়ন সম্পন্ন হয়েছে - MBSTU Econ Library';
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+            <h2 style="color: #4f46e5; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+            <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+          </div>
+          <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+            <p style="font-size: 16px; font-weight: bold;">প্রিয় ${member.name},</p>
+            <p>আপনার লাইব্রেরি মেম্বারশিপটি ১ বছরের জন্য সফলভাবে নবায়ন করা হয়েছে।</p>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 12px; margin: 25px 0;">
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">নতুন মেয়াদ উত্তীর্ণের তারিখ:</td>
+                  <td style="padding: 6px 0; color: #10b981; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">${newExpiryDateStr}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">ফি স্ট্যাটাস:</td>
+                  <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">পরিশোধিত (৳৫০ বকেয়া যুক্ত হয়েছে)</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          <p style="font-size: 11px; text-align: center; color: #94a3b8;">&copy; Department of Economics, MBSTU. All Rights Reserved.</p>
+        </div>
+      `;
+
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: updated.email,
+          subject: emailSubject,
+          html: emailHtml
+        })
+      }).catch(err => console.warn('Email renewal fail:', err));
+
+      alert('মেম্বারশিপ নবায়ন সফলভাবে অনুমোদিত এবং ইমেইল পাঠানো হয়েছে!');
+    } catch (err: any) {
+      console.error(err);
+      alert('নবায়ন অনুমোদনে সমস্যা হয়েছে।');
+    } finally {
+      setProcessingServices(false);
+    }
+  };
+
+  const handleApproveReissue = async (member: SupabaseMember) => {
+    try {
+      setProcessingServices(true);
+      
+      const updated = {
+        ...member,
+        lostCardStatus: 'none' as const,
+        dues: (member.dues || 0) + 100 // Charge ৳100 for reissue replacement
+      };
+
+      await db.saveMember(updated);
+      try {
+        await db.addAuditLog('APPROVE_REISSUE', `হারানো কার্ড রি-ইস্যু অনুমোদন করা হয়েছে: ${member.name} (রি-ইস্যু ফি: ৳১০০ বকেয়াতে চার্জ)`);
+      } catch (_) {}
+
+      setSelectedMember(updated);
+      await loadMembers();
+
+      // Generate Card PDF
+      let pdfBase64 = '';
+      try {
+        pdfBase64 = await generateLibraryCardPdf(updated);
+      } catch (pdfErr) {
+        console.warn('PDF Reissue Card build failed:', pdfErr);
+      }
+
+      // Send Fresh Card attached email
+      const emailSubject = 'ফাইল সংযুক্ত! আপনার নতুন লাইব্রেরি কার্ড ইস্যু সম্পন্ন হয়েছে - MBSTU Econ Library';
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+          <h2 style="color: #4f46e5; text-align: center;">MBSTU Econ Library</h2>
+          <p>প্রিয় ${member.name},</p>
+          <p>আপনার হারানো আইডি কার্ডের বদলে একটি নতুন ডিজিটাল পরিচয়পত্র রি-ইস্যু করা হয়েছে। আপনার নতুন কার্ডের পিডিএফ এই ইমেইলের সাথে <strong>সংযুক্ত করা হলো</strong>।</p>
+          <p>কার্ড ট্র্যাকিং এর জন্য রি-ইস্যু সার্ভিস চার্জ বাবদ ৳১০০ আপনার অ্যাকাউন্ট বকেয়াতে যুক্ত করা হয়েছে।</p>
+          <p style="font-size: 11px; text-align: center; color: #94a3b8;">&copy; Department of Economics, MBSTU. All Rights Reserved.</p>
+        </div>
+      `;
+
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: updated.email,
+          subject: emailSubject,
+          html: emailHtml,
+          pdfAttachment: pdfBase64
+        })
+      }).catch(err => console.warn('Email reissue error:', err));
+
+      alert('হারানো কার্ড রি-ইস্যু সফলভাবে অনুমোদিত এবং নতুন পিডিএফ কার্ড সংযুক্ত করে ইমেইল পাঠানো হয়েছে!');
+    } catch (err: any) {
+      console.error(err);
+      alert('রি-ইস্যু অনুমোদনে সমস্যা হয়েছে।');
+    } finally {
+      setProcessingServices(false);
+    }
+  };
+
+  const handleSendExpiryReminder = async (member: SupabaseMember) => {
+    try {
+      setSendingReminder(member.id);
+      
+      const emailSubject = '⚠️ জরুরি নোটিশ: আপনার লাইব্রেরি মেম্বারশিপের মেয়াদ উত্তীর্ণ হতে চলেছে - MBSTU Econ Library';
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+            <h2 style="color: #ef4444; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+            <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+          </div>
+          <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+            <p style="font-size: 16px; font-weight: bold;">প্রিয় ${member.name},</p>
+            <p>আপনাকে বিনীতভাবে জানানো যাচ্ছে যে, <strong>MBSTU Econ Library & Organization</strong>-এ আপনার মেম্বারশিপের মেয়াদ আগামী <strong>${member.membershipExpiry || member.paidUntilDate}</strong> তারিখে শেষ হতে চলেছে।</p>
+            <p>লাইব্রেরির বই ধার রাখা বা নতুন কোনো বই ইস্যু সুবিধা সচল রাখতে অনুগ্রহ করে দ্রুত সময়ে আপনার লাইব্রেরি ড্যাশবোর্ডে লগইন করে নবায়ন করার জন্য আবেদন করুন।</p>
+            
+            <div style="background-color: #fffbeb; border: 1px solid #fef3c7; padding: 18px; border-radius: 12px; margin: 25px 0;">
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 6px 0; color: #b45309; font-weight: bold; border-bottom: 1px dashed #fef3c7;">লাইব্রেরি আইডি:</td>
+                  <td style="padding: 6px 0; color: #78350f; font-weight: 800; border-bottom: 1px dashed #fef3c7;">ECO-${member.id.padStart(4, '0')}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #b45309; font-weight: bold; border-bottom: 1px dashed #fef3c7;">মেয়াদ উত্তীর্ণের তারিখ:</td>
+                  <td style="padding: 6px 0; color: #ef4444; font-weight: 800; border-bottom: 1px dashed #fef3c7;">${member.membershipExpiry || member.paidUntilDate}</td>
+                </tr>
+              </table>
+            </div>
+            
+            <p>লগইন করে প্রোফাইলের "কার্ড নবায়ন" অপশন থেকে আবেদন করুন। নবায়ন ফি অফলাইনে ডিপার্টমেন্ট ডেস্কে পরিশোধযোগ্য।</p>
+          </div>
+          
+          <div style="text-align: center; margin: 35px 0 20px 0;">
+            <a href="${window.location.origin}/login" style="background-color: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 10px; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">মেম্বারশিপ নবায়ন আবেদন করুন</a>
+          </div>
+          
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+          <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+            <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+          </div>
+        </div>
+      `;
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: member.email,
+          subject: emailSubject,
+          html: emailHtml
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('মেয়াদ উত্তীর্ণ হওয়ার সতর্কবার্তা ইমেইলে শিক্ষার্থীর কাছে পাঠানো হয়েছে!');
+        try {
+          await db.addAuditLog('SEND_EXPIRY_REMINDER', `মেয়াদ উত্তীর্ণের সতর্কবার্তা মেইল পাঠানো হয়েছে: ${member.name} (মেয়াদ: ${member.membershipExpiry || member.paidUntilDate})`);
+        } catch (_) {}
+      } else {
+        alert('ইমেইল পাঠানো সম্ভব হয়নি: ' + (data.error || 'Server error'));
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('ইমেইল সার্ভিসের সাথে সংযুক্ত হতে ব্যর্থ।');
+    } finally {
+      setSendingReminder(null);
+    }
+  };
+
+  const handleRenewMembership = async (member: SupabaseMember) => {
+    try {
+      setProcessingServices(true);
+      
+      // Determine the base date for calculating the new expiry date.
+      let baseDateStr = member.membershipExpiry || member.paidUntilDate || '';
+      if (!baseDateStr && member.joinDate) {
+        const parts = member.joinDate.split('|');
+        if (parts.length > 1) {
+          baseDateStr = parts[1];
+        } else {
+          baseDateStr = parts[0];
+        }
+      }
+      
+      // Calculate new expiry date by 1 year offset using calculateMembershipExpiry
+      const newExpiry = db.calculateMembershipExpiry(baseDateStr, 1);
+      
+      const updated: SupabaseMember = {
+        ...member,
+        membershipExpiry: newExpiry,
+        paidUntilDate: newExpiry // keep paidUntilDate in sync
+      };
+
+      await db.saveMember(updated);
+      
+      try {
+        await db.addAuditLog('RENEW_MEMBERSHIP', `মেম্বারশিপ নবায়ন সম্পন্ন: ${member.name} (নতুন মেয়াদ উত্তীর্ণের তারিখ: ${newExpiry})`);
+      } catch (_) {}
+
+      setSelectedMember(updated);
+      await loadMembers();
+      alert(`মেম্বারশিপ সফলভাবে ১ বছর নবায়ন করা হয়েছে! নতুন মেয়াদ উত্তীর্ণের তারিখ: ${newExpiry}`);
+    } catch (err: any) {
+      console.error(err);
+      alert('মেম্বারশিপ নবায়নে সমস্যা হয়েছে: ' + (err.message || err));
+    } finally {
+      setProcessingServices(false);
+    }
+  };
 
   // Approval Custom Card Expiry and Issue Date configurator modal states
   const [showApprovalConfigModal, setShowApprovalConfigModal] = useState(false);
@@ -224,6 +486,17 @@ export default function AdminUsers() {
         initialDuesValue = 50; 
       }
 
+      // Convert formattedExpiryStr (e.g., DD/MM/YYYY) to YYYY-MM-DD
+      let dbExpiryStr = '';
+      if (formattedExpiryStr.includes('/')) {
+        const parts = formattedExpiryStr.split('/');
+        if (parts.length === 3) {
+          dbExpiryStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+      } else {
+        dbExpiryStr = formattedExpiryStr;
+      }
+
       const updated = {
         ...memberToApprove,
         status: 'accepted' as const,
@@ -233,7 +506,8 @@ export default function AdminUsers() {
         paidUntilDate: calculatedPaidUntil,
         paidAccountYears: isInitialFeePaid ? paymentYear : '',
         baseDues: 0,
-        dues: initialDuesValue
+        dues: initialDuesValue,
+        membershipExpiry: dbExpiryStr
       };
       
       await db.saveMember(updated);
@@ -265,6 +539,14 @@ export default function AdminUsers() {
       setShowApprovalConfigModal(false);
       setMemberToApprove(null);
 
+      // 1. Generate the Library Card PDF in the background
+      let pdfBase64 = '';
+      try {
+        pdfBase64 = await generateLibraryCardPdf(updated);
+      } catch (pdfErr) {
+        console.warn('PDF Card generation in background failed:', pdfErr);
+      }
+
       // Background email alert dispatch
       const emailSubject = 'স্বাগতম! আপনার মেম্বারশিপ আবেদন অনুমোদিত হয়েছে - MBSTU Econ Library';
       const emailHtml = `
@@ -276,13 +558,21 @@ export default function AdminUsers() {
           
           <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
             <p style="font-size: 16px; font-weight: bold;">প্রিয় ${updated.name},</p>
-            <p>শুভেচ্ছা ও অভিনন্দন! অত্যন্ত আনন্দের সাথে জানাচ্ছি যে, আপনার সদস্যপদ আবেদনটি এডমিন বা কো-অর্ডিনেটর কর্তৃক অনুমোদিত করা হয়েছে।</p>
+            <p>শুভেচ্ছা ও অভিনন্দন! অত্যন্ত আনন্দের সাথে জানাচ্ছি যে, আপনার সদস্যপদ আবেদনটি এডমিন বা কো-অর্ডিনেটর কর্তৃক অনুমোদিত করা হয়েছে। আপনার নতুন মেম্বারশিপ ডিজিটাল ক্যাডটি (Library Card) পিডিএফ সংযুক্ত করে ইমেইলে পাঠিয়ে দেওয়া হলো।</p>
             
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 12px; margin: 25px 0;">
-              <p style="margin: 0 0 10px 0; font-weight: bold; color: #4f46e5; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">আইডি তথ্য ও মেয়াদকাল:</p>
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: #4f46e5; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">লগইন তথ্য ও লাইব্রেরি আইডি:</p>
               <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
                 <tr>
-                  <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">সদস্য আইডি:</td>
+                  <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">লগইন ইমেইল (ID):</td>
+                  <td style="padding: 6px 0; color: #0f172a; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">${updated.email}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">পাসওয়ার্ড:</td>
+                  <td style="padding: 6px 0; color: #0f172a; font-weight: 800; border-bottom: 1px dashed #e2e8f0; font-family: monospace;">${updated.password || 'রেজিস্ট্রেশনের সময় প্রদত্ত পাসওয়ার্ড'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">সদস্য লাইব্রেরি আইডি:</td>
                   <td style="padding: 6px 0; color: #0f172a; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">ECO-${updated.id.padStart(4, '0')}</td>
                 </tr>
                 <tr>
@@ -293,18 +583,14 @@ export default function AdminUsers() {
                   <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">কার্ডের মেয়াদকাল:</td>
                   <td style="padding: 6px 0; color: #ef4444; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">${formattedExpiryStr}</td>
                 </tr>
-                <tr>
-                  <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">সদস্যপদ রোল:</td>
-                  <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${updated.role}</td>
-                </tr>
               </table>
             </div>
             
-            <p>এখন আপনি সরাসরি আপনার ড্যাশবোর্ডে লগইন করে আপনার ব্যক্তিগত ডিজিটাল মেম্বারশিপ আইডি কার্ডটি ডাউনলোড করতে পারবেন।</p>
+            <p>অনুগ্রহ করে সংযুক্ত লাইব্রেরি মেম্বার কার্ডের পিডিএফ সংস্করণটি আপনার ফোনে সংরক্ষণ করুন অথবা প্রিন্ট করে নিন। লাইব্রেরিতে বই লোন বা ইস্যুর সময় এই কার্ডের কিউআর (QR) কোডটি স্ক্যান করা আবশ্যক।</p>
           </div>
           
           <div style="text-align: center; margin: 35px 0 20px 0;">
-            <a href="${window.location.origin}/login" style="background-color: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 10px; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">প্রোফাইল ড্যাশবোর্ডে লগইন করুন</a>
+            <a href="${window.location.origin}/login" style="background-color: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 10px; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">লাইব্রেরি অ্যাকাউন্টে লগইন করুন</a>
           </div>
           
           <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
@@ -322,7 +608,8 @@ export default function AdminUsers() {
         body: JSON.stringify({
           to: updated.email,
           subject: emailSubject,
-          html: emailHtml
+          html: emailHtml,
+          pdfAttachment: pdfBase64
         })
       }).catch(err => console.warn('Silent SMTP background welcome welcome attempt failed:', err));
 
@@ -372,6 +659,8 @@ export default function AdminUsers() {
     if (statusFilter === 'pending') return m.status === 'pending';
     if (statusFilter === 'active') return m.status === 'accepted' || m.status === 'active';
     if (statusFilter === 'rejected') return m.status === 'rejected';
+    if (statusFilter === 'renewal-requested') return m.renewalStatus === 'requested';
+    if (statusFilter === 'reissue-requested') return m.lostCardStatus === 'requested';
     
     return true;
   });
@@ -435,6 +724,8 @@ export default function AdminUsers() {
               <option value="pending">পেন্ডিং (Pending)</option>
               <option value="active">সক্রিয় (Active)</option>
               <option value="rejected">বাতিল (Rejected)</option>
+              <option value="renewal-requested">নবায়ন আবেদন (Renewal Requests)</option>
+              <option value="reissue-requested">কার্ড রি-ইস্যু (Card Reissue Requests)</option>
             </select>
           </div>
         </div>
@@ -643,12 +934,50 @@ export default function AdminUsers() {
                         </button>
                       </>
                     ) : selectedMember.status === 'accepted' || selectedMember.status === 'active' ? (
-                      <button 
-                        onClick={() => handleStatusUpdate(selectedMember, 'rejected')}
-                        className="px-6 py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs"
-                      >
-                        নিষ্ক্রিয়/বাতিল করুন
-                      </button>
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        {selectedMember.renewalStatus === 'requested' && (
+                          <button 
+                            disabled={processingServices}
+                            onClick={() => handleApproveRenewal(selectedMember)}
+                            className="px-5 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs flex items-center gap-2"
+                          >
+                            {processingServices ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            নবায়ন অনুমোদন
+                          </button>
+                        )}
+                        {selectedMember.lostCardStatus === 'requested' && (
+                          <button 
+                            disabled={processingServices}
+                            onClick={() => handleApproveReissue(selectedMember)}
+                            className="px-5 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs flex items-center gap-2"
+                          >
+                            {processingServices ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                            কার্ড রি-ইস্যু অনুমোদন
+                          </button>
+                        )}
+                        <button 
+                          disabled={processingServices}
+                          onClick={() => handleRenewMembership(selectedMember)}
+                          className="px-5 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs flex items-center gap-2"
+                        >
+                          {processingServices ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                          নবায়ন করুন (+১ বছর)
+                        </button>
+                        <button 
+                          disabled={sendingReminder !== null}
+                          onClick={() => handleSendExpiryReminder(selectedMember)}
+                          className="px-5 py-4 bg-amber-600 hover:bg-amber-700 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs flex items-center gap-2"
+                        >
+                          {sendingReminder === selectedMember.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                          মেয়াদ রিমাইন্ডার মেইল
+                        </button>
+                        <button 
+                          onClick={() => handleStatusUpdate(selectedMember, 'rejected')}
+                          className="px-5 py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-[22px] font-black transition-all active:scale-95 shadow-md text-xs"
+                        >
+                          নিষ্ক্রিয়/বাতিল করুন
+                        </button>
+                      </div>
                     ) : (
                       <button 
                         onClick={() => handleStatusUpdate(selectedMember, 'accepted')}

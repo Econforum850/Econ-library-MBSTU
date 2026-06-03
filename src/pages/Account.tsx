@@ -1,7 +1,7 @@
 import { 
   TrendingUp, TrendingDown, Wallet, User as UserIcon, Phone, MapPin, 
   AtSign, Book as BookIcon, History, LogOut, Loader2, AlertCircle, ShoppingCart, 
-  Receipt, Calendar, ShieldAlert, Award, Check, Sparkles, Library
+  Receipt, Calendar, ShieldAlert, Award, Check, Sparkles, Library, RefreshCw, Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
@@ -26,6 +26,60 @@ export default function Account() {
   const [editBatch, setEditBatch] = useState('');
   const [editBlood, setEditBlood] = useState('');
   const [editDept, setEditDept] = useState('');
+
+  // Renewal and Lost Card Reissue States
+  const [requestingRenewal, setRequestingRenewal] = useState(false);
+  const [requestingReissue, setRequestingReissue] = useState(false);
+
+  const handleRequestRenewal = async () => {
+    if (!user) return;
+    try {
+      setRequestingRenewal(true);
+      const updatedUser = await db.saveMember({
+        ...user,
+        renewalStatus: 'requested'
+      });
+      setUser(updatedUser);
+      localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+      try {
+        await db.addAuditLog('RENEWAL_REQUEST', `মেম্বারশিপ নবায়নের অনুরোধ: ${user.name} (ID: ${user.id})`);
+      } catch (_) {}
+      alert(lang === 'BN' ? 'মেম্বারশিপ নবায়ন আবেদন সফলভাবে জমা হয়েছে!' : 'Membership renewal application submitted successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('আবেদন জমা করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setRequestingRenewal(false);
+    }
+  };
+
+  const handleRequestReissue = async () => {
+    if (!user) return;
+    
+    const confirmReq = window.confirm(lang === 'BN' 
+      ? 'আপনি কি নিশ্চিতভাবে এই আইডি কার্ডটির বদলে একটি নতুন কার্ড রি-ইস্যু করার আবেদন করতে চান?' 
+      : 'Are you sure you want to request a reissue of your library card?');
+    if (!confirmReq) return;
+
+    try {
+      setRequestingReissue(true);
+      const updatedUser = await db.saveMember({
+        ...user,
+        lostCardStatus: 'requested'
+      });
+      setUser(updatedUser);
+      localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+      try {
+        await db.addAuditLog('REISSUE_REQUEST', `কার্ড রি-ইস্যু অনুরোধ: ${user.name} (ID: ${user.id})`);
+      } catch (_) {}
+      alert(lang === 'BN' ? 'কার্ড রি-ইস্যু আবেদন সফলভাবে জমা হয়েছে!' : 'Card reissue application submitted successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('আবেদন জমা করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setRequestingReissue(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -469,6 +523,84 @@ export default function Account() {
               </p>
             </div>
           )}
+
+          {/* MEMBERSHIP SERVICES CARD */}
+          {(user.status === 'accepted' || user.status === 'active') ? (
+            <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm space-y-5 text-left">
+              <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900">
+                    {lang === 'BN' ? 'মেম্বারশিপ ও কার্ড সার্ভিসেস' : 'Membership & Card Services'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                    {lang === 'BN' ? 'কার্ড নবায়ন এবং হারানো কার্ড রি-ইস্যু আবেদন করুন' : 'Apply for card renewal or lost card replacement'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-400">{lang === 'BN' ? 'মেয়াদ উত্তীর্ণের তারিখ:' : 'Expiry Date:'}</span>
+                    <span className="text-slate-700">{user.paidUntilDate || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-400">{lang === 'BN' ? 'ফি পরিশোধের ধরন:' : 'Fee Status:'}</span>
+                    <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${user.yearlyFeeStatus === 'paid' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                      {user.yearlyFeeStatus === 'paid' ? (lang === 'BN' ? 'পরিশোধিত' : 'বকেয়া') : (lang === 'BN' ? 'বকেয়া' : 'Unpaid')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2.5">
+                  {/* Membership Renewal Request Action */}
+                  {user.renewalStatus === 'requested' ? (
+                    <div className="w-full text-center py-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-black">
+                      ⏳ {lang === 'BN' ? 'মেম্বারশিপ নবায়ন আবেদন পেন্ডিং' : 'Renewal Request Pending...'}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRequestRenewal}
+                      disabled={requestingRenewal}
+                      className="w-full py-3 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-black text-xs transition-colors flex items-center justify-center gap-2"
+                    >
+                      {requestingRenewal ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      )}
+                      <span>{lang === 'BN' ? 'মেম্বারশিপ নবায়ন আবেদন' : 'Apply for Membership Renewal'}</span>
+                    </button>
+                  )}
+
+                  {/* Lost Card Reissue Action */}
+                  {user.lostCardStatus === 'requested' ? (
+                    <div className="w-full text-center py-3 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-black">
+                      ⏳ {lang === 'BN' ? 'কার্ড রি-ইস্যু আবেদন পেন্ডিং' : 'Card Reissue Pending...'}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRequestReissue}
+                      disabled={requestingReissue}
+                      className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-850 text-white rounded-xl font-black text-xs transition-colors flex items-center justify-center gap-2"
+                    >
+                      {requestingReissue ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      <span>{lang === 'BN' ? 'হারানো কার্ড রি-ইস্যু আবেদন' : 'Apply for Lost Card Reissue'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {/* EDIT DETAILS CARD FORM */}
           <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm space-y-5 text-left">

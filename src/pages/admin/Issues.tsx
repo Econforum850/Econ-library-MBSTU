@@ -153,7 +153,9 @@ export default function AdminIssues() {
         memberName,
         issueDate: formatDateToSlash(issueDate) || new Date().toLocaleDateString('bn-BD'),
         dueDate: formatDateToSlash(dueDate) || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('bn-BD'),
-        status: 'Active'
+        status: 'Active',
+        memberId: selectedMemberId || undefined,
+        bookId: selectedBookId || undefined
       };
 
       await db.saveIssue(newIssue);
@@ -183,8 +185,47 @@ export default function AdminIssues() {
     }
   };
 
+  const parseSlashedDate = (slashDateStr: string): Date | null => {
+    if (!slashDateStr) return null;
+    const parts = slashDateStr.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      return new Date(year, month, day);
+    }
+    const dashes = slashDateStr.split('-');
+    if (dashes.length === 3) {
+      const year = parseInt(dashes[0], 10);
+      const month = parseInt(dashes[1], 10) - 1;
+      const day = parseInt(dashes[2], 10);
+      return new Date(year, month, day);
+    }
+    return null;
+  };
+
   const handleReturnIssue = async (issue: SheetIssue) => {
-    if (!window.confirm(`আপনি কি নিশ্চিত যে "${issue.bookTitle}" বইটি ফেরত নিতে চান?`)) {
+    // Determine fine first
+    const currentDueDate = parseSlashedDate(issue.dueDate);
+    let fineAmount = 0;
+    let daysLate = 0;
+    if (currentDueDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      currentDueDate.setHours(0, 0, 0, 0);
+      const diffTime = today.getTime() - currentDueDate.getTime();
+      if (diffTime > 0) {
+        daysLate = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        fineAmount = daysLate * 5; // ৳৫ per day fine
+      }
+    }
+
+    let confirmMsg = `আপনি কি নিশ্চিত যে "${issue.bookTitle}" বইটি ফেরত নিতে চান?`;
+    if (fineAmount > 0) {
+      confirmMsg = `বইটি ফেরত নিতে ${daysLate} দিন বিলম্ব হয়েছে! বিলম্ব জরিমানা বাবদ মোট ৳${fineAmount} সদস্যের বকেয়াতে যোগ করা হবে। আপনি কি নিশ্চিত?`;
+    }
+
+    if (!window.confirm(confirmMsg)) {
       return;
     }
 
@@ -208,11 +249,83 @@ export default function AdminIssues() {
         await db.saveBook(updatedBook);
       }
 
+      // Add fine to member dues
+      let resolvedMember = members.find(m => m.id === issue.memberId || m.name.includes(issue.memberName.split(' (#')[0]));
+      if (resolvedMember && fineAmount > 0) {
+        const updatedMember = {
+          ...resolvedMember,
+          dues: (resolvedMember.dues || 0) + fineAmount
+        };
+        await db.saveMember(updatedMember);
+        try {
+          await db.addAuditLog('BOOK_RETURN_FINE', `বিলম্ব জরিমানা ও বকেয়া যোগ: ৳${fineAmount} -> সদস্য: ${updatedMember.name} (বই: ${issue.bookTitle}, ${daysLate} দিন বিলম্ব)`);
+        } catch (_) {}
+      }
+
       try {
-        await db.addAuditLog('RETURN_BOOK', `বই ফেরত নেওয়া হয়েছে: ${issue.bookTitle} -> সদস্য: ${issue.memberName}`);
+        await db.addAuditLog('RETURN_BOOK', `বই ফেরত নেওয়া হয়েছে: ${issue.bookTitle} -> সদস্য: ${issue.memberName} ${fineAmount > 0 ? `(জরিমানা: ৳${fineAmount})` : ''}`);
       } catch (_) {}
 
-      alert('বইটি ফেরত নেওয়া হয়েছে এবং ষ্টক রেজিস্ট্রি আপডেট করা হয়েছে!');
+      // Dispatch Email Confirmation using user's configured eeconlibrary.mbstu@gmail.com
+      const recipientEmail = resolvedMember?.email;
+      if (recipientEmail) {
+        const emailSubject = `সফল রিটার্ন সম্পন্ন: ${issue.bookTitle} - MBSTU Econ Library`;
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+              <h2 style="color: #10b981; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+              <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+            </div>
+            <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+              <p style="font-size: 16px; font-weight: bold;">প্রিয় ${resolvedMember.name},</p>
+              <p>আপনার ইস্যুকৃত বইটি লাইব্রেরিতে সফলভাবে ফেরত নেওয়া হয়েছে।</p>
+              
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 12px; margin: 25px 0;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #10b981; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">রিটার্ন বিবরণী:</p>
+                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">বইয়ের নাম:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${issue.bookTitle}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">ফেরত প্রদানের তারিখ:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${new Date().toLocaleDateString('bn-BD')}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">ফেরতের শেষ তারিখ:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${issue.dueDate}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">বিলম্বিত সময়:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${daysLate > 0 ? `${daysLate} দিন` : '০ দিন (বিলম্ব হয়নি)'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">বিলম্ব জরিমানা:</td>
+                    <td style="padding: 6px 0; color: ${fineAmount > 0 ? '#ef4444' : '#10b981'}; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">${fineAmount > 0 ? `৳${fineAmount} (বকেয়াতে যুক্ত)` : '৳০ (কোনো জরিমানা নেই)'}</td>
+                  </tr>
+                </table>
+              </div>
+              <p>লাইব্রেরি ব্যবহারের জন্য ধন্যবাদ! পরবর্তী বই ধারের আবেদন দেখতে যেকোনো সময় আমাদের ওয়েবসাইট ব্রাউজ করুন।</p>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+            <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+              <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+            </div>
+          </div>
+        `;
+
+        fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: recipientEmail,
+            subject: emailSubject,
+            html: emailHtml
+          })
+        }).catch(err => console.warn('Email return fail:', err));
+      }
+
+      alert('বইটি সফলভাবে ফেরত নেওয়া হয়েছে এবং ষ্টক ও জরিমানা আপডেট করা হয়েছে!');
       await loadData();
     } catch (err) {
       console.error('Error returning book issue:', err);
@@ -273,6 +386,59 @@ export default function AdminIssues() {
       try {
         await db.addAuditLog('APPROVE_BORROW_REQUEST', `ধারের আবেদন অনুমোদিত: ${approvingIssue.bookTitle} -> সদস্য: ${approvingIssue.memberName}`);
       } catch (_) {}
+
+      // Dispatch Email Confirmation using user's configured eeconlibrary.mbstu@gmail.com
+      const resolvedMember = members.find(m => m.id === approvingIssue.memberId || m.name.includes(approvingIssue.memberName.split(' (#')[0]));
+      const recipientEmail = resolvedMember?.email;
+      if (recipientEmail) {
+        const emailSubject = `বই ধার অনুমোদন নোটিশ - MBSTU Econ Library`;
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+              <h2 style="color: #4f46e5; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+              <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+            </div>
+            <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+              <p style="font-size: 16px; font-weight: bold;">প্রিয় ${resolvedMember.name},</p>
+              <p>আপনার বই ধার নেওয়ার আবেদনটি সফলভাবে অনুমোদন করা হয়েছে। বইটি সংগ্রহের সময় এবং শেষ ফেরতের তারিখ নিচে উল্লেখ করা হলো:</p>
+              
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 12px; margin: 25px 0;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #4f46e5; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">সরাসরি সংগ্রহ বিবরণী:</p>
+                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">বইয়ের নাম:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${approvingIssue.bookTitle}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">সংগ্রহের সময় (Pickup):</td>
+                    <td style="padding: 6px 0; color: #4f46e5; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">${approvePickupDate}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">ফেরতের তারিখ (Due Date):</td>
+                    <td style="padding: 6px 0; color: #ef4444; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${formatDateToSlash(approveDueDate) || approvingIssue.dueDate}</td>
+                  </tr>
+                </table>
+              </div>
+              <p>দয়া করে আপনার ডিজিটাল মেম্বার লাইব্রেরি কার্ডটি সাথে রাখুন। বিভাগে গিয়ে দায়িত্বপ্রাপ্ত কর্মকর্তার কাছে কার্ডের কিউআর কোড স্ক্যান করে বইটি সংগ্রহ করুন।</p>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+            <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+              <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+            </div>
+          </div>
+        `;
+
+        fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: recipientEmail,
+            subject: emailSubject,
+            html: emailHtml
+          })
+        }).catch(err => console.warn('Email borrow approval mail fail:', err));
+      }
+
       alert('ধার নেওয়ার আবেদনটি সফলভাবে অনুমোদিত হয়েছে এবং সংগ্রহের সময় নির্ধারণ করা হয়েছে!');
       setIsApproveModalOpen(false);
       setApprovingIssue(null);

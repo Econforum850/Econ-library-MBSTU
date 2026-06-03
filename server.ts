@@ -9,16 +9,15 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Setup nodemailer transporter bound to Gmail credentials
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'eeconlibrary.mbstu@gmail.com',
-    // In production, users should configure a secret App Password.
-    // We will supply the direct password as requested fallback.
-    pass: process.env.GMAIL_APP_PASSWORD || 'eeconlibrary.mbstu@gmail.com@#'
-  }
-});
+// Setup nodemailer transporter bound dynamically to Gmail credentials
+function getTransporter() {
+  const user = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+  const pass = process.env.GMAIL_APP_PASSWORD || 'eeconlibrary.mbstu@gmail.com@#';
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass }
+  });
+}
 
 // Secure API endpoint to dispatch membership and ID Card confirmations
 app.post('/api/send-email', async (req: express.Request, res: express.Response) => {
@@ -30,8 +29,9 @@ app.post('/api/send-email', async (req: express.Request, res: express.Response) 
   }
 
   try {
+    const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
     const mailOptions: any = {
-      from: '"MBSTU Econ Library & Organisation" <eeconlibrary.mbstu@gmail.com>',
+      from: `"MBSTU Econ Library & Organisation" <${senderUser}>`,
       to,
       subject,
       html
@@ -48,6 +48,7 @@ app.post('/api/send-email', async (req: express.Request, res: express.Response) 
       ];
     }
 
+    const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('Email dispatched successfully:', info.messageId);
     res.json({ success: true, messageId: info.messageId });

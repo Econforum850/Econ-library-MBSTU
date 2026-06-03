@@ -6,13 +6,15 @@ interface RequestWithBody extends IncomingMessage {
   body?: any;
 }
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'eeconlibrary.mbstu@gmail.com',
-    pass: process.env.GMAIL_APP_PASSWORD || 'eeconlibrary.mbstu@gmail.com@#'
-  }
-});
+// Setup nodemailer transporter dynamically to Gmail credentials
+function getTransporter() {
+  const user = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+  const pass = process.env.GMAIL_APP_PASSWORD || 'eeconlibrary.mbstu@gmail.com@#';
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass }
+  });
+}
 
 export default async function handler(req: RequestWithBody, res: ServerResponse & { status: (code: number) => any; json: (data: any) => any }) {
   // CORS Headers
@@ -51,8 +53,9 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
       return;
     }
 
+    const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
     const mailOptions: any = {
-      from: '"MBSTU Econ Library & Organisation" <eeconlibrary.mbstu@gmail.com>',
+      from: `"MBSTU Econ Library & Organisation" <${senderUser}>`,
       to,
       subject,
       html
@@ -69,6 +72,7 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
       ];
     }
 
+    const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
     res.status(200);
     res.json({ success: true, messageId: info.messageId });
