@@ -61,7 +61,7 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
       body = JSON.parse(body);
     }
 
-    const { to, subject, html, pdfAttachment } = body || {};
+    const { to, subject, html, pdfAttachment, customAttachment } = body || {};
 
     if (!to || !subject || !html) {
       res.status(400);
@@ -80,8 +80,17 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
       html
     };
 
-    if (pdfAttachment) {
-      const base64Data = pdfAttachment.split(';base64,').pop();
+    if (customAttachment) {
+      const base64Data = customAttachment.base64.split(';base64,').pop() || '';
+      mailOptions.attachments = [
+        {
+          filename: customAttachment.filename || 'attachment.pdf',
+          content: Buffer.from(base64Data, 'base64'),
+          contentType: customAttachment.contentType || 'application/octet-stream'
+        }
+      ];
+    } else if (pdfAttachment) {
+      const base64Data = pdfAttachment.split(';base64,').pop() || '';
       mailOptions.attachments = [
         {
           filename: 'library_card.pdf',

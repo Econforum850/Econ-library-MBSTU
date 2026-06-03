@@ -1750,6 +1750,7 @@ export const db = {
     html: string;
     type: string;
     pdfAttachment?: string;
+    customAttachment?: { filename: string; base64: string; contentType: string };
   }): Promise<{ success: boolean; messageId?: string; error?: string; sender?: string }> {
     try {
       const response = await fetch('/api/send-email', {
@@ -1759,7 +1760,8 @@ export const db = {
           to: params.to,
           subject: params.subject,
           html: params.html,
-          pdfAttachment: params.pdfAttachment
+          pdfAttachment: params.pdfAttachment,
+          customAttachment: params.customAttachment
         })
       });
 

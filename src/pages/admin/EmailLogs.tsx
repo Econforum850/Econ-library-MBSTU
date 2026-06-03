@@ -4,7 +4,8 @@ import {
   Mail, CheckCircle2, XCircle, Search, Trash2, RotateCcw, 
   ShieldAlert, Clock, UserMinus, RefreshCw, AlertTriangle, 
   ChevronRight, BadgeInfo, Terminal, Check, AlertCircle,
-  Activity, Key, Globe, UserX, Eye, Info, Sparkles, Ban
+  Activity, Key, Globe, UserX, Eye, Info, Sparkles, Ban,
+  Send, Paperclip, Upload, X, FileText, CheckSquare
 } from 'lucide-react';
 import { db, SupabaseEmailLog, SupabaseMember } from '@/src/lib/supabaseDatabase';
 import { diagnoseSMTPError, aggregateSMTPLogs } from '@/src/lib/smtpDiagnostic';
@@ -18,6 +19,21 @@ export default function EmailLogs() {
   const [filterType, setFilterType] = useState<string>('all');
   const [smtpChecking, setSmtpChecking] = useState(false);
   const [smtpStatus, setSmtpStatus] = useState<any>(null);
+
+  // Tabs state
+  const [activeTab, setActiveTab] = useState<'logs' | 'compose'>('logs');
+
+  // Custom Mail Composer States
+  const [recipientType, setRecipientType] = useState<'member' | 'manual'>('member');
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
+  const [customRecipientEmail, setCustomRecipientEmail] = useState<string>('');
+  const [recipientSearch, setRecipientSearch] = useState<string>('');
+  const [composeSubject, setComposeSubject] = useState<string>('');
+  const [composeType, setComposeType] = useState<string>('EVENT_INVITATION');
+  const [composeBody, setComposeBody] = useState<string>('');
+  const [composeAttachment, setComposeAttachment] = useState<{ filename: string; base64: string; contentType: string } | null>(null);
+  const [isSendingCompose, setIsSendingCompose] = useState<boolean>(false);
+  const [composeStatus, setComposeStatus] = useState<{ success: boolean; message: string } | null>(null);
 
   // Diagnostic states
   const [filterSmtpCategory, setFilterSmtpCategory] = useState<string>('all');
@@ -157,6 +173,122 @@ export default function EmailLogs() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('ফাইল সাইজ ১০ মেগাবাইটের বেশি হওয়া যাবে না।');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setComposeAttachment({
+        filename: file.name,
+        base64: reader.result as string,
+        contentType: file.type || 'application/octet-stream'
+      });
+    };
+    reader.onerror = () => {
+      alert('ফাইল পড়তে সমস্যা হয়েছে।');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSendCustomEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setComposeStatus(null);
+
+    let toEmail = '';
+    if (recipientType === 'member') {
+      const match = members.find(m => m.id === selectedMemberId);
+      if (!match) {
+        alert('অনুগ্রহ করে একজন লাইব্রেরি সদস্য নির্বাচন করুন।');
+        return;
+      }
+      toEmail = match.email;
+    } else {
+      if (!customRecipientEmail.trim()) {
+        alert('অনুগ্রহ করে প্রাপকের ইমেইল এড্রেস টাইপ করুন।');
+        return;
+      }
+      toEmail = customRecipientEmail.trim();
+    }
+
+    if (!composeSubject.trim()) {
+      alert('অনুগ্রহ করে ইমেইলের একটি বিষয় (Subject) লিখুন।');
+      return;
+    }
+
+    if (!composeBody.trim()) {
+      alert('অনুগ্রহ করে ইমেইলের কোনো বার্তা/সংবাদ (Message Body) লিখুন।');
+      return;
+    }
+
+    setIsSendingCompose(true);
+
+    try {
+      const formattedHtml = `
+<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e8ed; border-radius: 12px; background-color: #ffffff; color: #2d3748; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+  <!-- Header Banner -->
+  <div style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); padding: 24px; border-radius: 10px 10px 0 0; text-align: center; color: #ffffff;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.15); color: #ffffff;">MBSTU Econ Library & Organisation</h2>
+    <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9; color: #ffffff;">গুরুত্বপূর্ণ বিজ্ঞপ্তি ও বিশেষ নোটিশ</p>
+  </div>
+  
+  <!-- Body Content -->
+  <div style="padding: 24px; line-height: 1.6;">
+    <h3 style="margin-top: 0; color: #1a202c; font-size: 16px; font-weight: 700; border-bottom: 2px solid #edf2f7; padding-bottom: 12px; margin-bottom: 16px;">
+      📢 ${composeSubject}
+    </h3>
+    <div style="white-space: pre-wrap; font-size: 14px; color: #4a5568;">${composeBody}</div>
+  </div>
+  
+  <!-- Footer Disclaimer -->
+  <div style="background-color: #f7fafc; padding: 16px; border-radius: 0 0 10px 10px; border-top: 1px solid #edf2f7; text-align: center; font-size: 11px; color: #718096; line-height: 1.5;">
+    <p style="margin: 0 0 4px 0;">এটি মাওলানা ভাসানী বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয় অর্থনীতি বিভাগ লাইব্রেরি থেকে একটি কাস্টম প্রেরিত বার্তা।</p>
+    <p style="margin: 0;">&copy; 2026 MBSTU Econ Library. All rights reserved.</p>
+  </div>
+</div>
+      `;
+
+      const result = await db.sendEmailWithLog({
+        to: toEmail,
+        subject: composeSubject,
+        html: formattedHtml,
+        type: composeType,
+        customAttachment: composeAttachment || undefined
+      });
+
+      if (result.success) {
+        setComposeStatus({
+          success: true,
+          message: `ইমেইলটি (${toEmail}) এর নিকট সফলভাবে পাঠানো হয়েছে এবং ইতিহাস লগে রেকর্ড করা হয়েছে!`
+        });
+        setComposeSubject('');
+        setComposeBody('');
+        setComposeAttachment(null);
+        setSelectedMemberId('');
+        setCustomRecipientEmail('');
+        await loadData();
+      } else {
+        setComposeStatus({
+          success: false,
+          message: `ইমেইল প্রেরণ ব্যর্থ হয়েছে। ত্রুটি: ${result.error}`
+        });
+      }
+    } catch (err: any) {
+      console.error(err);
+      setComposeStatus({
+        success: false,
+        message: `নেটওয়ার্ক সংযোগ ত্রুটি: ${err.message}`
+      });
+    } finally {
+      setIsSendingCompose(false);
+    }
+  };
+
   // Processing list filtering
   const filteredLogs = logs.filter(log => {
     const matchesSearch = log.recipient.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -259,8 +391,32 @@ export default function EmailLogs() {
         </div>
       </div>
 
-      {/* Main Panel splitting Logs Table and Live SMTP configuration diagnoser */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Tab Switcher */}
+      <div className="flex border-b border-slate-200 gap-6 mt-2">
+        <button
+          onClick={() => setActiveTab('logs')}
+          className={`pb-3.5 text-xs md:text-sm font-bold transition-all relative ${
+            activeTab === 'logs' 
+              ? 'text-indigo-600 border-b-2 border-indigo-600' 
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          📬 ইমেইল আদান-প্রদান ইতিহাস (Delivery History Logs)
+        </button>
+        <button
+          onClick={() => setActiveTab('compose')}
+          className={`pb-3.5 text-xs md:text-sm font-bold transition-all relative ${
+            activeTab === 'compose' 
+              ? 'text-indigo-600 border-b-2 border-indigo-600' 
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          ✉️ কাস্টম নোটিশ ও ইভেন্ট ইমেইল পাঠান (Compose Custom Notice)
+        </button>
+      </div>
+
+      {activeTab === 'logs' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Logs Table Area */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -547,7 +703,264 @@ export default function EmailLogs() {
           </div>
         </div>
       </div>
+      ) : (
+        /* Email Composer Tab */
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
+          <div className="border-b border-slate-100 pb-4">
+            <h2 className="text-base font-bold text-slate-900 font-sans">কাস্টম নোটিশ ও ইভেন্ট ইমেইল পাঠান (Compose & Send Custom Notification)</h2>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              যেকোনো নিবন্ধিত সদস্য বা যেকোনো ইমেইলে সরাসরি পিডিএফ, কাস্টম ফাইল ও কাস্টম নোটিশ বার্তা প্রেরণ করুন।
+            </p>
+          </div>
 
+          <form onSubmit={handleSendCustomEmail} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Box: Recipients & Meta */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-700">প্রাপক নির্বাচনের ধরণ (Recipient Type):</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecipientType('member');
+                      setSelectedMemberId('');
+                    }}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all ${
+                      recipientType === 'member'
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    নিবন্ধিত সদস্য তালিকা
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecipientType('manual');
+                      setCustomRecipientEmail('');
+                    }}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all ${
+                      recipientType === 'manual'
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ম্যানুয়াল ইমেইল লিখুন
+                  </button>
+                </div>
+              </div>
+
+              {recipientType === 'member' ? (
+                <div className="space-y-3 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black text-slate-600">মেম্বার খুঁজুন (Search Member):</label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="নাম, ইমেইল বা আইডি দিয়ে ফিল্টার করুন..."
+                        value={recipientSearch}
+                        onChange={(e) => setRecipientSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black text-slate-600">মেম্বার নির্বাচন করুন (Select Member *):</label>
+                    <select
+                      value={selectedMemberId}
+                      onChange={(e) => setSelectedMemberId(e.target.value)}
+                      className="w-full text-xs bg-white border border-slate-200 px-3 py-2 rounded-lg font-bold focus:outline-none"
+                    >
+                      <option value="">-- মেম্বার সিলেক্ট করুন --</option>
+                      {members
+                        .filter(m => 
+                          m.name.toLowerCase().includes(recipientSearch.toLowerCase()) || 
+                          m.email.toLowerCase().includes(recipientSearch.toLowerCase()) || 
+                          (m.phone && m.phone.includes(recipientSearch))
+                        )
+                        .slice(0, 50)
+                        .map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.email}) {m.phone ? `[ID: ${m.phone}]` : ''}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <label className="text-[11px] font-black text-slate-600">প্রাপকের ইমেইল এড্রেস (Recipient Email *):</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="example@gmail.com"
+                    value={customRecipientEmail}
+                    onChange={(e) => setCustomRecipientEmail(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-700">বিজ্ঞপ্তি ক্যাটাগরি (Notification Type):</label>
+                <select
+                  value={composeType}
+                  onChange={(e) => setComposeType(e.target.value)}
+                  className="w-full text-xs bg-white border border-slate-200 px-3 py-2.5 rounded-xl font-bold focus:outline-none"
+                >
+                  <option value="EVENT_INVITATION">🎉 ইভেন্ট আমন্ত্রণ (EVENT_INVITATION)</option>
+                  <option value="SPECIAL_NOTICE">📢 বিশেষ নোটিশ (SPECIAL_NOTICE)</option>
+                  <option value="GENERAL_ANNOUNCEMENT">✉️ সাধারণ বিজ্ঞপ্তি (GENERAL_ANNOUNCEMENT)</option>
+                  <option value="DUE_REMINDER">⏰ পরিশোধ সতর্কবার্তা (DUE_REMINDER)</option>
+                </select>
+              </div>
+
+              {/* File Attachment Area */}
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-700">ফাইল সংযুক্ত করুন (Attachment File - Max 10MB):</label>
+                {!composeAttachment ? (
+                  <label className="flex flex-col items-center justify-center border border-dashed border-slate-200 hover:border-indigo-400 p-6 rounded-2xl cursor-pointer transition-colors bg-slate-50/50 hover:bg-indigo-50/5">
+                    <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                    <span className="text-xs font-black text-slate-700">ক্লিক করে ফাইল বা নোটিশ সিলেক্ট করুন</span>
+                    <span className="text-[10px] text-slate-400 mt-1">PDF, DOCX, Images, CSV ইত্যাদি (দশ মেগাবাইট সর্বোচ্চ)</span>
+                    <input 
+                      type="file" 
+                      onChange={handleFileChange}
+                      className="hidden" 
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center justify-between p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-2xl">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-slate-800 truncate">{composeAttachment.filename}</p>
+                        <p className="text-[9.5px] text-indigo-600 font-bold uppercase mt-0.5">{composeAttachment.contentType}</p>
+                      </div>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setComposeAttachment(null)}
+                      className="p-1 hover:bg-rose-100 hover:text-rose-600 rounded-lg text-slate-400 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Box: Content & Action */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-700">বিজ্ঞপ্তির বিষয় (Email Subject *):</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ইমেইল এর টাইটেল বা বিষয় এখানে লিখুন..."
+                  value={composeSubject}
+                  onChange={(e) => setComposeSubject(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-black text-slate-700">বার্তার বিশদ বিবরণ (Message Body *):</label>
+                  <span className="text-[10px] text-slate-400 font-medium">Automatic professional template wrapping</span>
+                </div>
+                <textarea
+                  required
+                  rows={6}
+                  placeholder="আপনার কাঙ্ক্ষিত নোটিশ বা বিশেষ তথ্যমূলক মেসেজটি এখানে লিখুন..."
+                  value={composeBody}
+                  onChange={(e) => setComposeBody(e.target.value)}
+                  className="w-full px-4 py-3 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium leading-relaxed"
+                />
+              </div>
+
+              {/* Status Alert box */}
+              {composeStatus && (
+                <div className={`p-4 rounded-xl border text-xs leading-relaxed ${
+                  composeStatus.success 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}>
+                  <p className="font-bold flex items-center gap-1.5">
+                    {composeStatus.success ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertCircle className="w-4 h-4 text-rose-500" />}
+                    {composeStatus.success ? 'সফলভাবে পাঠানো হয়েছে' : 'ইমেইল প্রেরণ ব্যর্থ'}
+                  </p>
+                  <p className="mt-1 font-medium text-[11px]">{composeStatus.message}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComposeSubject('');
+                    setComposeBody('');
+                    setComposeAttachment(null);
+                    setComposeStatus(null);
+                    setSelectedMemberId('');
+                    setCustomRecipientEmail('');
+                  }}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all active:scale-95"
+                >
+                  রিসেট করুন
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingCompose}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-500/10 active:scale-95 transition-all"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {isSendingCompose ? 'ইমেইল পাঠানো হচ্ছে...' : 'ইমেইল পাঠান'}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {/* Email Preview Section */}
+          <div className="border-t border-slate-100 pt-6 space-y-3">
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5 text-indigo-500" />
+              লাইভ ইমেইল প্রিভিউ (Live Email Layout Preview)
+            </h3>
+            
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/50 max-h-96 overflow-y-auto">
+              <div className="font-sans max-w-lg mx-auto p-4 border border-slate-200 rounded-xl bg-white text-slate-800 shadow-sm text-left">
+                {/* Header Banner */}
+                <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 p-5 rounded-t-lg text-center text-white">
+                  <p className="font-extrabold text-sm tracking-tight m-0 text-white">MBSTU Econ Library & Organisation</p>
+                  <p className="text-[10px] opacity-80 font-bold m-0 mt-0.5 text-white">গুরুত্বपूर्ण বিজ্ঞপ্তি ও বিশেষ নোটিশ</p>
+                </div>
+                
+                {/* Body Content */}
+                <div className="py-6 px-4 space-y-4">
+                  <h4 className="font-bold text-slate-900 border-b border-slate-100 pb-2.5 text-xs">
+                    📢 {composeSubject || 'বিজ্ঞপ্তির বিষয় বা শিরোনাম এখানে দেখাবে'}
+                  </h4>
+                  <p className="whitespace-pre-wrap text-slate-600 font-medium text-xs leading-relaxed">
+                    {composeBody || 'আপনার বার্তাটি এখানে সুন্দর নকশায় দেখাবে...'}
+                  </p>
+                </div>
+                
+                {/* Footer Disclaimer */}
+                <div className="bg-slate-50 p-4 rounded-b-lg border-t border-slate-100 text-center text-[9px] text-slate-400 font-medium leading-normal">
+                  <p className="m-0">এটি মাওলানা ভাসানী বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয় অর্থনীতি বিভাগ লাইব্রেরি থেকে একটি কাস্টম প্রেরণিত বার্তা।</p>
+                  <p className="m-0 mt-0.5">&copy; 2026 MBSTU Econ Library. All rights reserved.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* SMTP Diagnostic Detail Interactive Overlay Modal */}
       <AnimatePresence>
         {selectedDiagnosticLog && (() => {

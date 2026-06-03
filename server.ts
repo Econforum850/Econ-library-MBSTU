@@ -74,8 +74,18 @@ app.post('/api/send-email', async (req: express.Request, res: express.Response) 
       html
     };
 
-    if (req.body.pdfAttachment) {
-      const base64Data = req.body.pdfAttachment.split(';base64,').pop();
+    if (req.body.customAttachment) {
+      const attachment = req.body.customAttachment;
+      const base64Data = attachment.base64.split(';base64,').pop() || '';
+      mailOptions.attachments = [
+        {
+          filename: attachment.filename || 'attachment.pdf',
+          content: Buffer.from(base64Data, 'base64'),
+          contentType: attachment.contentType || 'application/octet-stream'
+        }
+      ];
+    } else if (req.body.pdfAttachment) {
+      const base64Data = req.body.pdfAttachment.split(';base64,').pop() || '';
       mailOptions.attachments = [
         {
           filename: 'library_card.pdf',
