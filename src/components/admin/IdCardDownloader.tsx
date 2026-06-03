@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, Loader2, ArrowRightLeft, CheckCircle2, ShieldAlert, Mail, AlertCircle } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { SupabaseMember } from '../../lib/supabaseDatabase';
+import { SupabaseMember, db } from '../../lib/supabaseDatabase';
 
 interface IdCardDownloaderProps {
   member: SupabaseMember;
@@ -403,21 +403,15 @@ export default function IdCardDownloader({ member, onSuccess }: IdCardDownloader
         </div>
       `;
 
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: member.email,
-          subject: emailSubject,
-          html: emailHtml,
-          pdfAttachment: pdfDataUri
-        })
+      const data = await db.sendEmailWithLog({
+        to: member.email,
+        subject: emailSubject,
+        html: emailHtml,
+        pdfAttachment: pdfDataUri,
+        type: 'ID_CARD_DOWNLOAD'
       });
 
-      const data = await response.json();
-      if (response.ok && data.success) {
+      if (data.success) {
         setEmailSentSuccess(true);
         setTimeout(() => setEmailSentSuccess(false), 8000);
       } else {

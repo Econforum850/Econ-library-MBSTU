@@ -1,5 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Helper to parse JSON body since Vercel's standard bodies are parsed, but let's be super safe and parse robustly
 interface RequestWithBody extends IncomingMessage {
@@ -8,10 +12,20 @@ interface RequestWithBody extends IncomingMessage {
 
 // Setup nodemailer transporter dynamically to Gmail credentials
 function getTransporter() {
-  const user = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
-  const pass = process.env.GMAIL_APP_PASSWORD || 'eeconlibrary.mbstu@gmail.com@#';
+  const user = (process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com').trim();
+  let pass = process.env.GMAIL_APP_PASSWORD;
+  
+  if (!pass) {
+    throw new Error('Gmail SMTP Configuration Error: GMAIL_APP_PASSWORD environment variable is missing or empty. Please create an App Password in your Google Account Security settings and add it to GMAIL_APP_PASSWORD under AI Studio Settings tab.');
+  }
+
+  // Remove any spaces (including spaces inside the 16-character google app password) and trim whitespace
+  pass = pass.trim().replace(/\s+/g, '');
+
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: { user, pass }
   });
 }
@@ -38,6 +52,8 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
     return;
   }
 
+  let recipientEmail = 'unknown';
+
   try {
     // Vercel pre-parses req.body, but if it doesn't, we can fallback
     let body = req.body;
@@ -53,7 +69,10 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
       return;
     }
 
+    recipientEmail = to;
+
     const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+    console.log(`[SMTP Attempt SV] Initiating email dispatch to: ${to} with subject: "${subject}" from sender: ${senderUser}`);
     const mailOptions: any = {
       from: `"MBSTU Econ Library & Organisation" <${senderUser}>`,
       to,
@@ -74,14 +93,17 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
 
     const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
+    console.log(`[SMTP Success SV] Email dispatched successfully to ${to}. Message-ID: ${info.messageId}`);
     res.status(200);
-    res.json({ success: true, messageId: info.messageId });
+    res.json({ success: true, messageId: info.messageId, sender: senderUser });
   } catch (err: any) {
-    console.error('Vercel Serverless Email send failed:', err);
+    const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+    console.error(`[SMTP Failure SV] Email send failed for ${recipientEmail}:`, err);
     res.status(500);
     res.json({ 
       error: 'SMTP mail transmission failed.', 
-      details: err.message 
+      details: err.message,
+      sender: senderUser
     });
   }
 }

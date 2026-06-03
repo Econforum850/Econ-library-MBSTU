@@ -5,7 +5,7 @@ import {
   User, LayoutDashboard, Users, BookOpen, QrCode, 
   Scan, ArrowLeftRight, ShoppingBag, Receipt, 
   Wallet, Heart, BarChart3, Settings, LogOut, 
-  Search, ExternalLink, Calendar, Image, Shield
+  Search, ExternalLink, Calendar, Image, Shield, Mail
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useEffect } from 'react';
@@ -21,6 +21,7 @@ const menuItems = [
   { icon: ShoppingBag, label: 'বই ও শপ ব্যবস্থাপনা (Catalog)', path: '/admin/shop' },
   { icon: Receipt, label: 'বই ধার ও অর্ডার তালিকা (Borrow Request List)', path: '/admin/orders' },
   { icon: Wallet, label: 'সদস্যদের বকেয়া (Dues)', path: '/admin/dues' },
+  { icon: Mail, label: 'জিমেইল ইতিহাস (Email Logs)', path: '/admin/email-logs' },
   { icon: Calendar, label: 'ইভেন্ট ও নোটিশ (Events)', path: '/admin/events' },
   { icon: Heart, label: 'দাতা সদস্য (Donors)', path: '/admin/donors' },
   { icon: Image, label: 'গ্রাফিক্স ও মিডিয়া (Graphics)', path: '/admin/graphics' },

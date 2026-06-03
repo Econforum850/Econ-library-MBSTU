@@ -74,5 +74,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.resource.data.actionType is string && request.resource.data.affectedRecordId is string;
     }
+
+    // Email logs collection
+    match /email_logs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

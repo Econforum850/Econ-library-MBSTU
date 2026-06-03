@@ -314,15 +314,20 @@ export default function AdminIssues() {
           </div>
         `;
 
-        fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        try {
+          const data = await db.sendEmailWithLog({
             to: recipientEmail,
             subject: emailSubject,
-            html: emailHtml
-          })
-        }).catch(err => console.warn('Email return fail:', err));
+            html: emailHtml,
+            type: 'RETURN_RECEIPT'
+          });
+          if (!data.success) {
+            console.warn('Email return fail:', data);
+            alert(`বইটি লাইব্রেরিতে ফেরত নেওয়া হয়েছে!\n\n⚠️ তবে শিক্ষার্থীকে রিটার্ন রশিদ ইমেইল পাঠানো যায়নি।\nকারণ: ${data.error || 'SMTP Connection Error'}`);
+          }
+        } catch (err: any) {
+          console.warn('Email return network fail:', err);
+        }
       }
 
       alert('বইটি সফলভাবে ফেরত নেওয়া হয়েছে এবং ষ্টক ও জরিমানা আপডেট করা হয়েছে!');
@@ -428,15 +433,20 @@ export default function AdminIssues() {
           </div>
         `;
 
-        fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        try {
+          const data = await db.sendEmailWithLog({
             to: recipientEmail,
             subject: emailSubject,
-            html: emailHtml
-          })
-        }).catch(err => console.warn('Email borrow approval mail fail:', err));
+            html: emailHtml,
+            type: 'BORROW_APPROVAL'
+          });
+          if (!data.success) {
+            console.warn('Email borrow approval mail fail:', data);
+            alert(`ধারের আবেদনটি অনুমোদিত হয়েছে!\n\n⚠️ তবে বই ধারের অনুমোদন নিশ্চিতকরণ ইমেইল পাঠানো যায়নি।\nকারণ: ${data.error || 'SMTP Connection Error'}`);
+          }
+        } catch (err: any) {
+          console.warn('Email borrow approval network fail:', err);
+        }
       }
 
       alert('ধার নেওয়ার আবেদনটি সফলভাবে অনুমোদিত হয়েছে এবং সংগ্রহের সময় নির্ধারণ করা হয়েছে!');

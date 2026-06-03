@@ -26,6 +26,7 @@ import AdminEvents from './pages/admin/Events';
 import AdminScanner from './pages/admin/Scanner';
 import AdminGraphics from './pages/admin/Graphics';
 import AdminSubAdmins from './pages/admin/SubAdmins';
+import AdminEmailLogs from './pages/admin/EmailLogs';
 
 export default function App() {
   return (
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="shop" element={<AdminShop />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="dues" element={<AdminDues />} />
+          <Route path="email-logs" element={<AdminEmailLogs />} />
           <Route path="events" element={<AdminEvents />} />
           <Route path="donors" element={<AdminDonors />} />
           <Route path="graphics" element={<AdminGraphics />} />

@@ -164,6 +164,18 @@ export interface SupabaseAuditLog {
   affectedRecordId: string;
 }
 
+export interface SupabaseEmailLog {
+  id: string;
+  recipient: string;
+  subject: string;
+  timestamp: string;
+  status: 'success' | 'failed';
+  errorDetails?: string;
+  sender: string;
+  type?: string;
+  messageId?: string;
+}
+
 // ==========================================
 // OFFLINE FALLBACK UTILS
 // ==========================================
@@ -1622,5 +1634,180 @@ export const db = {
     } catch (_) {}
 
     return finalizedLog;
+  },
+
+  async getEmailLogs(): Promise<SupabaseEmailLog[]> {
+    const colPath = 'email_logs';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: SupabaseEmailLog[] = [];
+      querySnapshot.forEach((d) => {
+        const r = d.data();
+        mapped.push({
+          id: d.id,
+          recipient: r.recipient || '',
+          subject: r.subject || '',
+          timestamp: r.timestamp || '',
+          status: r.status || 'failed',
+          errorDetails: r.errorDetails || '',
+          sender: r.sender || '',
+          type: r.type || '',
+          messageId: r.messageId || ''
+        });
+      });
+      mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      saveLocalData('db_email_logs', mapped);
+      return mapped;
+    } catch (err) {
+      console.warn("Firestore getEmailLogs failed:", err);
+      try {
+        const stored = localStorage.getItem('db_email_logs');
+        if (stored) {
+          const logs = JSON.parse(stored) as SupabaseEmailLog[];
+          logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          return logs;
+        }
+      } catch (_) {}
+      return [];
+    }
+  },
+
+  async addEmailLog(log: Partial<SupabaseEmailLog>): Promise<SupabaseEmailLog> {
+    const colPath = 'email_logs';
+    const id = doc(collection(firestoreDb, colPath)).id;
+    
+    const finalizedLog: SupabaseEmailLog = {
+      id,
+      recipient: log.recipient || '',
+      subject: log.subject || '',
+      timestamp: log.timestamp || new Date().toISOString(),
+      status: log.status || 'failed',
+      errorDetails: log.errorDetails || '',
+      sender: log.sender || '',
+      type: log.type || 'GENERAL',
+      messageId: log.messageId || ''
+    };
+
+    try {
+      await setDoc(doc(firestoreDb, colPath, id), finalizedLog);
+    } catch (err) {
+      console.error("Firestore addEmailLog failed:", err);
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${id}`);
+    }
+
+    try {
+      const stored = localStorage.getItem('db_email_logs');
+      const all: SupabaseEmailLog[] = stored ? JSON.parse(stored) : [];
+      all.push(finalizedLog);
+      localStorage.setItem('db_email_logs', JSON.stringify(all));
+    } catch (_) {}
+
+    return finalizedLog;
+  },
+
+  async deleteEmailLog(id: string): Promise<boolean> {
+    const colPath = 'email_logs';
+    try {
+      await deleteDoc(doc(firestoreDb, colPath, id));
+    } catch (err) {
+      console.error("Firestore deleteEmailLog failed:", err);
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
+    }
+    try {
+      const stored = localStorage.getItem('db_email_logs');
+      if (stored) {
+        const all: SupabaseEmailLog[] = JSON.parse(stored);
+        const filtered = all.filter(l => l.id !== id);
+        localStorage.setItem('db_email_logs', JSON.stringify(filtered));
+      }
+    } catch (_) {}
+    return true;
+  },
+
+  async clearEmailLogs(): Promise<boolean> {
+    const colPath = 'email_logs';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const batchPromises: Promise<void>[] = [];
+      querySnapshot.forEach((d) => {
+        batchPromises.push(deleteDoc(doc(firestoreDb, colPath, d.id)));
+      });
+      await Promise.all(batchPromises);
+      saveLocalData('db_email_logs', []);
+      return true;
+    } catch (err) {
+      console.error("Firestore clearEmailLogs failed:", err);
+      saveLocalData('db_email_logs', []);
+      return true;
+    }
+  },
+
+  async sendEmailWithLog(params: {
+    to: string;
+    subject: string;
+    html: string;
+    type: string;
+    pdfAttachment?: string;
+  }): Promise<{ success: boolean; messageId?: string; error?: string; sender?: string }> {
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: params.to,
+          subject: params.subject,
+          html: params.html,
+          pdfAttachment: params.pdfAttachment
+        })
+      });
+
+      const data = await response.json();
+      const statusValue = (response.ok && data.success) ? 'success' : 'failed';
+      const errorStr = (response.ok && data.success) ? '' : (data.details || data.error || 'SMTP failed');
+      const senderVal = data.sender || 'eeconlibrary.mbstu@gmail.com';
+
+      // Log the attempt
+      await this.addEmailLog({
+        recipient: params.to,
+        subject: params.subject,
+        timestamp: new Date().toISOString(),
+        status: statusValue as 'success' | 'failed',
+        errorDetails: errorStr,
+        sender: senderVal,
+        type: params.type,
+        messageId: data.messageId || ''
+      });
+
+      return {
+        success: response.ok && data.success,
+        messageId: data.messageId,
+        error: errorStr,
+        sender: senderVal
+      };
+    } catch (err: any) {
+      console.error('sendEmailWithLog network error:', err);
+      const fallbackSender = 'eeconlibrary.mbstu@gmail.com';
+      try {
+        await this.addEmailLog({
+          recipient: params.to,
+          subject: params.subject,
+          timestamp: new Date().toISOString(),
+          status: 'failed',
+          errorDetails: err.message || 'Network connection failed',
+          sender: fallbackSender,
+          type: params.type,
+          messageId: ''
+        });
+      } catch (logErr) {
+        console.error('Failed to save fail log to DB:', logErr);
+      }
+      return {
+        success: false,
+        error: err.message || 'Network connection failed',
+        sender: fallbackSender
+      };
+    }
   }
 };

@@ -108,15 +108,16 @@ export default function AdminUsers() {
         </div>
       `;
 
-      fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: updated.email,
-          subject: emailSubject,
-          html: emailHtml
-        })
-      }).catch(err => console.warn('Email renewal fail:', err));
+      db.sendEmailWithLog({
+        to: updated.email,
+        subject: emailSubject,
+        html: emailHtml,
+        type: 'RENEWAL_APPROVAL'
+      }).then(res => {
+        if (!res.success) {
+          console.warn('Email renewal fail:', res.error);
+        }
+      });
 
       alert('মেম্বারশিপ নবায়ন সফলভাবে অনুমোদিত এবং ইমেইল পাঠানো হয়েছে!');
     } catch (err: any) {
@@ -165,16 +166,17 @@ export default function AdminUsers() {
         </div>
       `;
 
-      fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: updated.email,
-          subject: emailSubject,
-          html: emailHtml,
-          pdfAttachment: pdfBase64
-        })
-      }).catch(err => console.warn('Email reissue error:', err));
+      db.sendEmailWithLog({
+        to: updated.email,
+        subject: emailSubject,
+        html: emailHtml,
+        pdfAttachment: pdfBase64,
+        type: 'REISSUE_CARD'
+      }).then(res => {
+        if (!res.success) {
+          console.warn('Email reissue error:', res.error);
+        }
+      });
 
       alert('হারানো কার্ড রি-ইস্যু সফলভাবে অনুমোদিত এবং নতুন পিডিএফ কার্ড সংযুক্ত করে ইমেইল পাঠানো হয়েছে!');
     } catch (err: any) {
@@ -228,16 +230,12 @@ export default function AdminUsers() {
         </div>
       `;
 
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: member.email,
-          subject: emailSubject,
-          html: emailHtml
-        })
+      const data = await db.sendEmailWithLog({
+        to: member.email,
+        subject: emailSubject,
+        html: emailHtml,
+        type: 'EXPIRY_REMINDER'
       });
-      const data = await response.json();
       if (data.success) {
         alert('মেয়াদ উত্তীর্ণ হওয়ার সতর্কবার্তা ইমেইলে শিক্ষার্থীর কাছে পাঠানো হয়েছে!');
         try {
@@ -602,16 +600,24 @@ export default function AdminUsers() {
         </div>
       `;
 
-      fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      try {
+        const data = await db.sendEmailWithLog({
           to: updated.email,
           subject: emailSubject,
           html: emailHtml,
-          pdfAttachment: pdfBase64
-        })
-      }).catch(err => console.warn('Silent SMTP background welcome welcome attempt failed:', err));
+          pdfAttachment: pdfBase64,
+          type: 'WELCOME'
+        });
+        if (!data.success) {
+          console.warn('Silent SMTP background welcome welcome attempt failed:', data);
+          alert(`সদস্য সক্রিয়করণ সফল হয়েছে!\n\n⚠️ তবে শিক্ষার্থীকে স্বাগতম ইমেইল পাঠানো যায়নি।\nকারণ: ${data.error || 'SMTP Connection Error'}\n\nদয়া করে .env ফাইলে GMAIL_USER ও GMAIL_APP_PASSWORD সঠিক আছে কিনা নিশ্চিত করুন বা জিমেইলে App Password সক্রিয় করুন।`);
+        } else {
+          alert('সদস্য সফলভাবে সক্রিয় হয়েছে এবং নিশ্চিতকরণ ইমেইল পাঠানো হয়েছে!');
+        }
+      } catch (err: any) {
+        console.warn('Silent SMTP background welcome welcome network failed:', err);
+        alert('সদস্য সক্রিয়করণ সফল হয়েছে, কিন্তু নেটওয়ার্ক ত্রুটির কারণে স্বাগত ইমেইল পাঠানো যায়নি।');
+      }
 
     } catch (err: any) {
       console.error('Failed to approve member:', err);

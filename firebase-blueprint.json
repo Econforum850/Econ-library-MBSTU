@@ -124,6 +124,23 @@
         "status": { "type": "string", "enum": ["Pending", "Shipped", "Delivered", "Cancelled"] }
       },
       "required": ["customerName", "customerPhone", "items", "total"]
+    },
+    "EmailLog": {
+      "title": "EmailLog",
+      "description": "Log of emails dispatched by the system for audit and delivery verification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique log identifier" },
+        "recipient": { "type": "string", "description": "Student/recipient email address" },
+        "subject": { "type": "string", "description": "Subject line of the email" },
+        "timestamp": { "type": "string", "description": "ISO timestamp when dispatch was attempted" },
+        "status": { "type": "string", "enum": ["success", "failed"], "description": "Delivery outcome status" },
+        "errorDetails": { "type": "string", "description": "SMTP error reason if delivery failed" },
+        "sender": { "type": "string", "description": "Configured SMTP Gmail user address" },
+        "type": { "type": "string", "description": "Type of email notification (WELCOME, REMINDER, etc.)" },
+        "messageId": { "type": "string", "description": "SMTP returned Message-ID for tracking" }
+      },
+      "required": ["recipient", "subject", "timestamp", "status", "sender"]
     }
   },
   "firestore": {
@@ -154,6 +171,10 @@
     "orders/{orderId}": {
       "schema": "Order",
       "description": "Collection of purchases and orders."
+    },
+    "email_logs/{logId}": {
+      "schema": "EmailLog",
+      "description": "Collection of outgoing email status history."
     }
   }
 }
