@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
 // Load environment variables from .env file
-dotenv.config();
+dotenv.config({ override: true });
 
 // Helper to parse JSON body since Vercel's standard bodies are parsed, but let's be super safe and parse robustly
 interface RequestWithBody extends IncomingMessage {
@@ -12,7 +12,7 @@ interface RequestWithBody extends IncomingMessage {
 
 // Setup nodemailer transporter dynamically to Gmail credentials
 function getTransporter() {
-  const user = (process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com').trim();
+  const user = (process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd').trim();
   let pass = process.env.GMAIL_APP_PASSWORD;
   
   if (!pass) {
@@ -71,7 +71,7 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
 
     recipientEmail = to;
 
-    const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+    const senderUser = process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd';
     console.log(`[SMTP Attempt SV] Initiating email dispatch to: ${to} with subject: "${subject}" from sender: ${senderUser}`);
     const mailOptions: any = {
       from: `"MBSTU Econ Library & Organisation" <${senderUser}>`,
@@ -97,7 +97,7 @@ export default async function handler(req: RequestWithBody, res: ServerResponse 
     res.status(200);
     res.json({ success: true, messageId: info.messageId, sender: senderUser });
   } catch (err: any) {
-    const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+    const senderUser = process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd';
     console.error(`[SMTP Failure SV] Email send failed for ${recipientEmail}:`, err);
     res.status(500);
     res.json({ 

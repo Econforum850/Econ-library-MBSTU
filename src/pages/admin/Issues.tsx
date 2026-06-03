@@ -266,7 +266,7 @@ export default function AdminIssues() {
         await db.addAuditLog('RETURN_BOOK', `বই ফেরত নেওয়া হয়েছে: ${issue.bookTitle} -> সদস্য: ${issue.memberName} ${fineAmount > 0 ? `(জরিমানা: ৳${fineAmount})` : ''}`);
       } catch (_) {}
 
-      // Dispatch Email Confirmation using user's configured eeconlibrary.mbstu@gmail.com
+      // Dispatch Email Confirmation using user's configured eco24034@mbstu.ac.bd
       const recipientEmail = resolvedMember?.email;
       if (recipientEmail) {
         const emailSubject = `সফল রিটার্ন সম্পন্ন: ${issue.bookTitle} - MBSTU Econ Library`;
@@ -392,7 +392,7 @@ export default function AdminIssues() {
         await db.addAuditLog('APPROVE_BORROW_REQUEST', `ধারের আবেদন অনুমোদিত: ${approvingIssue.bookTitle} -> সদস্য: ${approvingIssue.memberName}`);
       } catch (_) {}
 
-      // Dispatch Email Confirmation using user's configured eeconlibrary.mbstu@gmail.com
+      // Dispatch Email Confirmation using user's configured eco24034@mbstu.ac.bd
       const resolvedMember = members.find(m => m.id === approvingIssue.memberId || m.name.includes(approvingIssue.memberName.split(' (#')[0]));
       const recipientEmail = resolvedMember?.email;
       if (recipientEmail) {

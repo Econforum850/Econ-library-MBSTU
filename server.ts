@@ -5,7 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 
 // Load environment variables from .env file
-dotenv.config();
+dotenv.config({ override: true });
 
 const app = express();
 const PORT = 3000;
@@ -15,7 +15,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Setup nodemailer transporter bound dynamically to Gmail credentials
 function getTransporter() {
-  const user = (process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com').trim();
+  const user = (process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd').trim();
   let pass = process.env.GMAIL_APP_PASSWORD;
   
   if (!pass) {
@@ -41,7 +41,7 @@ app.get('/api/test-email', async (req, res) => {
     res.json({
       success: true,
       message: 'SMTP connection successfully established with Gmail!',
-      user: process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com (default fallback)'
+      user: process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd (default fallback)'
     });
   } catch (err: any) {
     console.error('SMTP verification failed:', err);
@@ -65,7 +65,7 @@ app.post('/api/send-email', async (req: express.Request, res: express.Response) 
   }
 
   try {
-    const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+    const senderUser = process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd';
     console.log(`[SMTP Attempt] Initiating email dispatch to: ${to} with subject: "${subject}" from sender: ${senderUser}`);
     const mailOptions: any = {
       from: `"MBSTU Econ Library & Organisation" <${senderUser}>`,
@@ -90,7 +90,7 @@ app.post('/api/send-email', async (req: express.Request, res: express.Response) 
     console.log(`[SMTP Success] Email dispatched successfully to ${to}. Message-ID: ${info.messageId}`);
     res.json({ success: true, messageId: info.messageId, sender: senderUser });
   } catch (err: any) {
-    const senderUser = process.env.GMAIL_USER || 'eeconlibrary.mbstu@gmail.com';
+    const senderUser = process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd';
     console.error(`[SMTP Failure] Core Email sending module error sending to ${to}:`, err);
     res.status(500).json({ 
       error: 'SMTP mail transmission failed.', 

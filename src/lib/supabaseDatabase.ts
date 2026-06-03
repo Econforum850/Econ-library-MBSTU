@@ -1766,7 +1766,7 @@ export const db = {
       const data = await response.json();
       const statusValue = (response.ok && data.success) ? 'success' : 'failed';
       const errorStr = (response.ok && data.success) ? '' : (data.details || data.error || 'SMTP failed');
-      const senderVal = data.sender || 'eeconlibrary.mbstu@gmail.com';
+      const senderVal = data.sender || 'eco24034@mbstu.ac.bd';
 
       // Log the attempt
       await this.addEmailLog({
@@ -1788,7 +1788,7 @@ export const db = {
       };
     } catch (err: any) {
       console.error('sendEmailWithLog network error:', err);
-      const fallbackSender = 'eeconlibrary.mbstu@gmail.com';
+      const fallbackSender = 'eco24034@mbstu.ac.bd';
       try {
         await this.addEmailLog({
           recipient: params.to,
