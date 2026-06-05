@@ -50,6 +50,16 @@ export default function Footer() {
                     ইভেন্ট ও নোটিশ
                   </Link>
                 </li>
+                <li>
+                  <Link to="/membership" className="text-sm font-bold text-slate-600 hover:text-[#352df2] transition-colors inline-block">
+                    মেম্বারশিপ গাইডলাইন ও নিয়ম
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/contact" className="text-sm font-bold text-slate-600 hover:text-[#352df2] transition-colors inline-block">
+                    যোগাযোগ এবং ফিডব্যাক
+                  </Link>
+                </li>
                 <li className="pt-2 border-t border-dashed border-slate-100">
                   <Link 
                     to="/admin/login" 

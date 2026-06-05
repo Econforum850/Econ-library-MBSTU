@@ -7,6 +7,8 @@ import Donors from './pages/Donors';
 import Account from './pages/Account';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Contact from './pages/Contact';
+import Membership from './pages/Membership';
 
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -41,6 +43,8 @@ export default function App() {
           <Route path="account" element={<Account />} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
+          <Route path="contact" element={<Contact />} />
+          <Route path="membership" element={<Membership />} />
         </Route>
 
         {/* Admin Routes */}
