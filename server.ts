@@ -1,8 +1,11 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import nodemailer from 'nodemailer';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
 // Load environment variables from .env file
 dotenv.config({ override: true });
@@ -13,11 +16,47 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+async function getSMTPSettingsFromFirestore() {
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (!fs.existsSync(configPath)) {
+      return null;
+    }
+    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    
+    // Check if the app is already initialized to avoid duplicate initialization error
+    const apps = getApps();
+    const app = apps.length > 0 ? apps[0] : initializeApp(firebaseConfig);
+    const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    
+    const smtpDocRef = doc(db, 'settings', 'smtp');
+    const snapshot = await getDoc(smtpDocRef);
+    if (snapshot.exists()) {
+      return snapshot.data();
+    }
+  } catch (error) {
+    console.error('[firebase-backend] Error fetching SMTP settings:', error);
+  }
+  return null;
+}
+
 // Setup nodemailer transporter bound dynamically to Gmail credentials
-function getTransporter() {
-  const user = (process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd').trim();
+async function getTransporter() {
+  let user = (process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd').trim();
   let pass = process.env.GMAIL_APP_PASSWORD;
   
+  if (!pass) {
+    console.log('[SMTP Server] GMAIL_APP_PASSWORD is blank. Attempting Firestore DB credentials fallback.');
+    const dbSettings = await getSMTPSettingsFromFirestore();
+    if (dbSettings && dbSettings.gmailAppPassword) {
+      if (dbSettings.gmailUser) {
+        user = dbSettings.gmailUser.trim();
+      }
+      pass = dbSettings.gmailAppPassword.trim();
+      console.log('[SMTP Server] Loaded credentials from Firestore successfully.');
+    }
+  }
+
   if (!pass) {
     throw new Error('Gmail SMTP Configuration Error: GMAIL_APP_PASSWORD environment variable is missing or empty. Please create an App Password in your Google Account Security settings and add it to GMAIL_APP_PASSWORD under AI Studio Settings tab.');
   }
@@ -36,7 +75,7 @@ function getTransporter() {
 // SMTP diagnostics endpoint to verify credentials in realtime
 app.get('/api/test-email', async (req, res) => {
   try {
-    const transporter = getTransporter();
+    const transporter = await getTransporter();
     await transporter.verify();
     res.json({
       success: true,
@@ -95,7 +134,7 @@ app.post('/api/send-email', async (req: express.Request, res: express.Response) 
       ];
     }
 
-    const transporter = getTransporter();
+    const transporter = await getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log(`[SMTP Success] Email dispatched successfully to ${to}. Message-ID: ${info.messageId}`);
     res.json({ success: true, messageId: info.messageId, sender: senderUser });

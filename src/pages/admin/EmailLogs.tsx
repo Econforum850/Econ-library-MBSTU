@@ -45,6 +45,11 @@ export default function EmailLogs() {
   // Deleting state
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
+  // SMTP DB Settings states
+  const [gmailUser, setGmailUser] = useState<string>('');
+  const [gmailAppPassword, setGmailAppPassword] = useState<string>('');
+  const [savingSMTPSettings, setSavingSMTPSettings] = useState<boolean>(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -64,7 +69,40 @@ export default function EmailLogs() {
     } catch (err) {
       console.error('Failed to load members:', err);
     }
+
+    try {
+      if (db.getSMTPSettings) {
+        const smtpSettings = await db.getSMTPSettings();
+        if (smtpSettings) {
+          setGmailUser(smtpSettings.gmailUser || '');
+          setGmailAppPassword(smtpSettings.gmailAppPassword || '');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load SMTP settings:', err);
+    }
+
     setLoading(false);
+  };
+
+  const handleSaveSMTPSettings = async () => {
+    if (!gmailUser.trim() || !gmailAppPassword.trim()) {
+      alert('দয়া করে জিমেইল এবং ১৬-ডিজিটের অ্যাপ পাসওয়ার্ড দুটিই ইনপুট দিন।');
+      return;
+    }
+    setSavingSMTPSettings(true);
+    try {
+      const res = await db.saveSMTPSettings(gmailUser, gmailAppPassword);
+      if (res) {
+        alert('জিমেইল SMTP ক্রেডেনশিয়াল ডাটাবেজে সফলভাবে সেভ হয়েছে!');
+      } else {
+        alert('ক্রেডেনশিয়াল সেভ করা সম্ভব হয়নি।');
+      }
+    } catch (err: any) {
+      alert('ত্রুটি: ' + err.message);
+    } finally {
+      setSavingSMTPSettings(false);
+    }
   };
 
   const handleTestSMTP = async () => {
@@ -645,15 +683,62 @@ export default function EmailLogs() {
             <p className="text-xs text-slate-500 leading-normal font-medium">
               আপনার জিমেইল অ্যাকাউন্ট কানেকশন বা পাসওয়ার্ডে কোনো ত্রুটি থাকলে তা লাইভ পরীক্ষা করে দেখতে পারেন। এটি সরাসরি আপনার ইমেইলের পোর্ট ও কানেকশন টিজার চেক করে ফলাফল দেখাবে।
             </p>
-            
-            <button
-              onClick={handleTestSMTP}
-              disabled={smtpChecking}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-indigo-500/10 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${smtpChecking ? 'animate-spin' : ''}`} />
-              {smtpChecking ? 'কানেকশন চেক হচ্ছে...' : 'SMTP কানেকশন টেস্ট করুন'}
-            </button>
+
+            {/* SMTP Settings Credentials inputs */}
+            <div className="border-t border-slate-100 pt-3 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-black text-slate-700 Bn">
+                <Key className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                ক্লাউড SMTP সেটিং (Cloud Credentials Backup)
+              </div>
+              <p className="text-[10px] text-slate-500 leading-normal font-medium">
+                ভার্সেল বা ব্রাউজারের বাইরের সিস্টেমে জিমেইল সচল করতে এখানে আপনার ক্রেডেনশিয়াল সেভ করে রাখুন। এটি সরাসরি ক্লাউড ডাটাবেজে সংরক্ষিত হবে এবং ব্যাকএন্ড রানটাইম এটি ব্যবহার করবে।
+              </p>
+              
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] font-black text-slate-600">জিমেইল ইউজার (Gmail Address):</label>
+                  <input
+                    type="email"
+                    placeholder="example@gmail.com"
+                    value={gmailUser}
+                    onChange={(e) => setGmailUser(e.target.value)}
+                    className="w-full mt-1 px-3 py-1.5 text-xs bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold transition-all"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-[10px] font-black text-slate-600">জিমেইল অ্যাপ পাসওয়ার্ড (App Password - 16 chars):</label>
+                  <input
+                    type="password"
+                    placeholder="xxxx xxxx xxxx xxxx"
+                    value={gmailAppPassword}
+                    onChange={(e) => setGmailAppPassword(e.target.value)}
+                    className="w-full mt-1 px-3 py-1.5 text-xs bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono transition-all"
+                  />
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={handleSaveSMTPSettings}
+                  disabled={savingSMTPSettings}
+                  className="w-full mt-1 py-2 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 text-indigo-700 active:scale-98 text-xs font-extrabold rounded-lg border border-indigo-200/40 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  {savingSMTPSettings ? 'সেভ করা হচ্ছে...' : 'সেভ করুন (Save Credentials)'}
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-3 space-y-2">
+              <button
+                onClick={handleTestSMTP}
+                disabled={smtpChecking}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-indigo-500/10 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${smtpChecking ? 'animate-spin' : ''}`} />
+                {smtpChecking ? 'কানেকশন চেক হচ্ছে...' : 'SMTP কানেকশন টেস্ট করুন'}
+              </button>
+            </div>
 
             {smtpStatus && (
               <div className={`p-4 rounded-xl border text-xs leading-relaxed space-y-2 ${

@@ -1,14 +1,54 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
 // Load environment variables from .env file
 dotenv.config({ override: true });
 
-function getTransporter() {
-  const user = (process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd').trim();
+async function getSMTPSettingsFromFirestore() {
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (!fs.existsSync(configPath)) {
+      return null;
+    }
+    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    
+    // Check if the app is already initialized to avoid duplicate initialization error
+    const apps = getApps();
+    const app = apps.length > 0 ? apps[0] : initializeApp(firebaseConfig);
+    const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    
+    const smtpDocRef = doc(db, 'settings', 'smtp');
+    const snapshot = await getDoc(smtpDocRef);
+    if (snapshot.exists()) {
+      return snapshot.data();
+    }
+  } catch (error) {
+    console.error('[firebase-backend] Error fetching SMTP settings:', error);
+  }
+  return null;
+}
+
+async function getTransporter() {
+  let user = (process.env.GMAIL_USER || 'eco24034@mbstu.ac.bd').trim();
   let pass = process.env.GMAIL_APP_PASSWORD;
   
+  if (!pass) {
+    console.log('[SMTP Test API] GMAIL_APP_PASSWORD is blank. Attempting Firestore DB credentials fallback.');
+    const dbSettings = await getSMTPSettingsFromFirestore();
+    if (dbSettings && dbSettings.gmailAppPassword) {
+      if (dbSettings.gmailUser) {
+        user = dbSettings.gmailUser.trim();
+      }
+      pass = dbSettings.gmailAppPassword.trim();
+      console.log('[SMTP Test API] Loaded credentials from Firestore successfully.');
+    }
+  }
+
   if (!pass) {
     throw new Error('Gmail SMTP Configuration Error: GMAIL_APP_PASSWORD environment variable is missing or empty. Please create an App Password in your Google Account Security settings.');
   }
@@ -41,7 +81,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse 
   }
 
   try {
-    const transporter = getTransporter();
+    const transporter = await getTransporter();
     await transporter.verify();
     res.status(200);
     res.json({

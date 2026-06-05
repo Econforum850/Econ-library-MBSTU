@@ -141,6 +141,17 @@
         "messageId": { "type": "string", "description": "SMTP returned Message-ID for tracking" }
       },
       "required": ["recipient", "subject", "timestamp", "status", "sender"]
+    },
+    "SmtpSettings": {
+      "title": "SmtpSettings",
+      "description": "Custom Gmail SMTP credentials backup settings.",
+      "type": "object",
+      "properties": {
+        "gmailUser": { "type": "string" },
+        "gmailAppPassword": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["gmailAppPassword"]
     }
   },
   "firestore": {
@@ -175,6 +186,10 @@
     "email_logs/{logId}": {
       "schema": "EmailLog",
       "description": "Collection of outgoing email status history."
+    },
+    "settings/{settingId}": {
+      "schema": "SmtpSettings",
+      "description": "Saved system configuration profiles."
     }
   }
 }
