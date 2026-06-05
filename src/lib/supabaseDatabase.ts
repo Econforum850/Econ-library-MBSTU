@@ -30,6 +30,12 @@ export interface SupabaseBook {
   stock: number;
   isEBook: boolean;
   ebookUrl?: string;
+  isbn?: string;
+  totalCopies?: number;
+  issuedCopies?: number;
+  reservedCopies?: number;
+  lostCopies?: number;
+  damagedCopies?: number;
 }
 
 export interface SupabaseMember {
@@ -357,6 +363,13 @@ export const db = {
       const mapped: SupabaseBook[] = [];
       querySnapshot.forEach((d) => {
         const b = d.data();
+        const total = b.totalCopies !== undefined ? Number(b.totalCopies) : (b.stock !== undefined ? Number(b.stock) : 1);
+        const issued = b.issuedCopies !== undefined ? Number(b.issuedCopies) : 0;
+        const reserved = b.reservedCopies !== undefined ? Number(b.reservedCopies) : 0;
+        const lost = b.lostCopies !== undefined ? Number(b.lostCopies) : 0;
+        const damaged = b.damagedCopies !== undefined ? Number(b.damagedCopies) : 0;
+        const available = Math.max(0, total - issued - reserved - lost - damaged);
+
         mapped.push({
           id: d.id,
           title: b.title || '',
@@ -365,11 +378,17 @@ export const db = {
           cover: b.cover || '',
           bookId: b.bookId || '',
           shelfNo: b.shelfNo || 'N/A',
-          status: b.status || 'available',
+          status: b.status || (available > 0 ? 'available' : 'pre-order'),
           price: b.price || '৳০',
-          stock: b.stock || 1,
+          stock: available,
           isEBook: b.isEBook ?? false,
-          ebookUrl: b.ebookUrl || ''
+          ebookUrl: b.ebookUrl || '',
+          isbn: b.isbn || '',
+          totalCopies: total,
+          issuedCopies: issued,
+          reservedCopies: reserved,
+          lostCopies: lost,
+          damagedCopies: damaged
         });
       });
 
@@ -391,20 +410,29 @@ export const db = {
         const sheetUrl = localStorage.getItem('sheet_inventory') || import.meta.env.VITE_GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRfFFE_8E7kQVRGRXuN_HZDMFQWZvfhxnVU7SI0sZi8mCp2am8qsa5eNeT6WYVkF8kQdza8eWcYWk07/pub?output=csv';
         if (sheetUrl) {
           const sheetBooks = await fetchBooksFromSheet(sheetUrl);
-          const parsedBooks: SupabaseBook[] = sheetBooks.map((b, i) => ({
-            id: b.id || `b-${100 + i}`,
-            title: b.title || 'শিরোনামহীন',
-            author: b.author || 'অজ্ঞাত লেখক',
-            category: b.category || 'সাধারণ',
-            cover: b.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
-            bookId: b.bookId || `BK-${100 + i}`,
-            shelfNo: b.shelfNo || 'N/A',
-            status: b.status || 'available',
-            price: b.price || '৳০',
-            stock: b.stock || 1,
-            isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || !!b.ebookUrl,
-            ebookUrl: b.ebookUrl || ''
-          }));
+          const parsedBooks: SupabaseBook[] = sheetBooks.map((b, i) => {
+            const stockVal = b.stock || 1;
+            return {
+              id: b.id || `b-${100 + i}`,
+              title: b.title || 'শিরোনামহীন',
+              author: b.author || 'অজ্ঞাত লেখক',
+              category: b.category || 'সাধারণ',
+              cover: b.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
+              bookId: b.bookId || `BK-${100 + i}`,
+              shelfNo: b.shelfNo || 'N/A',
+              status: b.status || 'available',
+              price: b.price || '৳০',
+              stock: stockVal,
+              isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || !!b.ebookUrl,
+              ebookUrl: b.ebookUrl || '',
+              isbn: b.isbn || '',
+              totalCopies: stockVal,
+              issuedCopies: 0,
+              reservedCopies: 0,
+              lostCopies: 0,
+              damagedCopies: 0
+            };
+          });
           if (parsedBooks.length > 0) {
             saveLocalData('db_books', parsedBooks);
             // Proactively upload to the real database
@@ -426,6 +454,13 @@ export const db = {
     const finalId = book.id || doc(collection(firestoreDb, colPath)).id;
     const docRef = doc(firestoreDb, colPath, finalId);
 
+    const total = book.totalCopies !== undefined ? Number(book.totalCopies) : (book.stock !== undefined ? Number(book.stock) : 1);
+    const issued = book.issuedCopies !== undefined ? Number(book.issuedCopies) : 0;
+    const reserved = book.reservedCopies !== undefined ? Number(book.reservedCopies) : 0;
+    const lost = book.lostCopies !== undefined ? Number(book.lostCopies) : 0;
+    const damaged = book.damagedCopies !== undefined ? Number(book.damagedCopies) : 0;
+    const available = Math.max(0, total - issued - reserved - lost - damaged);
+
     const finalizedBook: SupabaseBook = {
       id: finalId,
       title: book.title || 'শিরোনামহীন',
@@ -434,11 +469,17 @@ export const db = {
       cover: book.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
       bookId: book.bookId || `BK-${Math.floor(100 + Math.random() * 900)}`,
       shelfNo: book.shelfNo || 'N/A',
-      status: book.status || 'available',
+      status: available > 0 ? 'available' : 'pre-order',
       price: book.price || '৳০',
-      stock: book.stock ?? 1,
+      stock: available,
       isEBook: book.isEBook ?? false,
-      ebookUrl: book.ebookUrl || ''
+      ebookUrl: book.ebookUrl || '',
+      isbn: book.isbn || '',
+      totalCopies: total,
+      issuedCopies: issued,
+      reservedCopies: reserved,
+      lostCopies: lost,
+      damagedCopies: damaged
     };
 
     try {
@@ -453,7 +494,13 @@ export const db = {
         price: finalizedBook.price,
         stock: finalizedBook.stock,
         isEBook: finalizedBook.isEBook,
-        ebookUrl: finalizedBook.ebookUrl
+        ebookUrl: finalizedBook.ebookUrl,
+        isbn: finalizedBook.isbn,
+        totalCopies: finalizedBook.totalCopies,
+        issuedCopies: finalizedBook.issuedCopies,
+        reservedCopies: finalizedBook.reservedCopies,
+        lostCopies: finalizedBook.lostCopies,
+        damagedCopies: finalizedBook.damagedCopies
       };
 
       await setDoc(docRef, dbPayload, { merge: true });

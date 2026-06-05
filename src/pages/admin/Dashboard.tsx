@@ -3,7 +3,8 @@ import {
   Users, BookOpen, Clock, Wallet, 
   Plus, ShoppingCart, MessageSquare, 
   ArrowRight, Activity, TrendingUp,
-  Loader2, CheckCircle2, Heart, FileText, Bell, Check, X
+  Loader2, CheckCircle2, Heart, FileText, Bell, Check, X,
+  Coins, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -28,6 +29,12 @@ export default function AdminDashboard() {
   const [shopCount, setShopCount] = useState<number>(0);
   const [balance, setBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Global Metrics details
+  const [totalMembers, setTotalMembers] = useState<number>(0);
+  const [pendingMembersCount, setPendingMembersCount] = useState<number>(0);
+  const [totalDues, setTotalDues] = useState<number>(0);
+  const [activeIssues, setActiveIssues] = useState<number>(0);
 
   interface AppNotification {
     id: string;
@@ -57,11 +64,19 @@ export default function AdminDashboard() {
         setBookCount(books.length);
 
         const members = await db.getMembers();
-        const acceptedCount = members.filter(m => String(m.status || '').toLowerCase() === 'accepted').length;
+        setTotalMembers(members.length);
+        const acceptedCount = members.filter(m => String(m.status || '').toLowerCase() === 'accepted' || String(m.status || '').toLowerCase() === 'active').length;
         setMemberCount(acceptedCount);
+        const pendingCount = members.filter(m => String(m.status || '').toLowerCase() === 'pending').length;
+        setPendingMembersCount(pendingCount);
+
+        const duesSum = members.reduce((sum, m) => sum + (m.dues || 0), 0);
+        setTotalDues(duesSum);
 
         const issues = await db.getIssues();
-        setIssueCount(issues.filter(i => i.status === 'Active').length);
+        const activeIssuesCount = issues.filter(i => i.status === 'Active').length;
+        setIssueCount(activeIssuesCount);
+        setActiveIssues(activeIssuesCount);
 
         const donors = await db.getDonors();
         setDonorCount(donors.length);
@@ -236,6 +251,113 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Global Metrics Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="bg-slate-900 text-white rounded-[40px] p-8 md:p-10 shadow-xl relative overflow-hidden border border-slate-800"
+      >
+        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-rose-500/5 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+        
+        <div className="relative z-10">
+          <div className="flex items-center space-x-3 mb-8">
+            <span className="w-2.5 h-6 bg-indigo-500 rounded-full inline-block animate-pulse"></span>
+            <div>
+              <h3 className="text-xl font-black tracking-tight text-white uppercase">সার্বিক পরিসংখ্যান (Global Metrics)</h3>
+              <p className="text-[10px] font-black text-[#a5b4fc] tracking-wider uppercase mt-1">Unified Multi-source Library Ledger Summary</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* Member counts card */}
+            <div className="bg-slate-950/60 p-6 rounded-3xl border border-slate-800 backdrop-blur-md flex flex-col justify-between hover:border-indigo-500/40 transition-colors group">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">সদস্য বিবরণী</span>
+                  <Users className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white">{totalMembers}</span>
+                    <span className="text-xs text-slate-400 font-bold">নিবন্ধিত (Total Members)</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-indigo-500 h-full rounded-full transition-all duration-1000"
+                      style={{ width: `${totalMembers > 0 ? (memberCount / totalMembers) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-6 pt-4 border-t border-slate-800/80 text-xs font-bold text-slate-400">
+                <div>
+                  <span className="block text-emerald-450 text-emerald-400 font-black text-sm">{memberCount} জন</span>
+                  অনুমোদিত (Accepted)
+                </div>
+                <div>
+                  <span className="block text-amber-450 text-amber-400 font-black text-sm">{pendingMembersCount} জন</span>
+                  পেন্ডিং (Pending)
+                </div>
+              </div>
+            </div>
+
+            {/* Total dues card */}
+            <div className="bg-slate-950/60 p-6 rounded-3xl border border-slate-800 backdrop-blur-md flex flex-col justify-between hover:border-rose-500/40 transition-colors group">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#fca5a5]">আর্থিক বকেয়া</span>
+                  <Coins className="w-5 h-5 text-rose-400 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-rose-400">৳{totalDues.toLocaleString('bn-BD')}</span>
+                    <span className="text-xs text-slate-400 font-bold">মোট বকেয়া (Total Dues)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-bold leading-normal">
+                    সদস্যদের হিসাব বিবরণী ও বই ক্রয়ের লাইব্রেরি ড্যাশবোর্ড থেকে সংগৃহীত বকেয়া ঋণ।
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-bold">
+                <span className="text-rose-400 font-semibold">তাৎক্ষণিক বকেয়া চেক</span>
+                <Link to="/admin/users" className="text-[#a5b4fc] hover:text-white flex items-center gap-1 group/btn">
+                  হিসাব বহি <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Outstanding issues card */}
+            <div className="bg-slate-950/60 p-6 rounded-3xl border border-slate-800 backdrop-blur-md flex flex-col justify-between hover:border-amber-500/40 transition-colors group">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-200">বই ইস্যু ও ট্র্যাকিং</span>
+                  <AlertTriangle className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-amber-400">{activeIssues} টি</span>
+                    <span className="text-xs text-slate-400 font-bold">সচল ইস্যু (Outstanding)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-bold leading-normal">
+                    বর্তমানে পাঠকদের দেয়া এবং এখনও ফেরত না হওয়া সক্রিয় বইয়ের মোট পরিমাণ।
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-bold">
+                <span className="text-amber-400 font-semibold">ধার ট্র্যাকিং সক্রিয়</span>
+                <Link to="/admin/issues" className="text-[#a5b4fc] hover:text-white flex items-center gap-1 group/btn">
+                  কার্যাবলী <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </motion.div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -6,14 +6,19 @@ import {
   Bookmark, CheckCircle2, XCircle,
   ImageIcon, X, Loader2, AlertTriangle,
   RefreshCw, FileText, Download, Eye, LayoutGrid, List as ListIcon,
-  Package, DollarSign, HardDrive, Inbox
+  Package, DollarSign, HardDrive, Inbox, Printer
 } from 'lucide-react';
+import { 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, 
+  PieChart, Pie, Cell, AreaChart, Area
+} from 'recharts';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, SupabaseBook } from '@/src/lib/supabaseDatabase';
 import { getCurrentAdminUser } from '@/src/lib/adminAuth';
 import { SUPABASE_URL, SUPABASE_PUBLIC_KEY } from '@/src/supabaseClient';
 import { defaultEconBooks } from '@/src/lib/defaultEconBooks';
+import BookDetailsModal from '@/src/components/admin/BookDetailsModal';
 
 interface ExtendedBook extends SupabaseBook {}
 
@@ -30,6 +35,96 @@ export default function AdminInventory() {
   const [customScriptUrl, setCustomScriptUrl] = useState(localStorage.getItem('script_url') || 'https://script.google.com/macros/s/AKfycbyt-HKZBQZ3WWQ5tJ-S5GmVY-wyi2OPRNPHyXFGjMuux5SrhN1ywTX_SlR8yocdC3Z-jQ/exec');
   const [tempUrl, setTempUrl] = useState(SUPABASE_URL);
   const [tempKey, setTempKey] = useState(SUPABASE_PUBLIC_KEY);
+
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState<SupabaseBook | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [issues, setIssues] = useState<any[]>([]);
+  const [selectedDashboardCategory, setSelectedDashboardCategory] = useState<string>('all');
+  const [categoryFilterInTable, setCategoryFilterInTable] = useState<string>('all');
+
+  const parsePriceNumber = (priceVal: any): number => {
+    if (!priceVal) return 0;
+    const str = String(priceVal);
+    const bngToEng: Record<string, string> = {
+      '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+      '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+    };
+    let normalized = '';
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (bngToEng[char] !== undefined) {
+        normalized += bngToEng[char];
+      } else {
+        normalized += char;
+      }
+    }
+    const cleaned = normalized.replace(/[^0-9.]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const formatBengaliNumber = (num: number): string => {
+    const engToBng: Record<string, string> = {
+      '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪',
+      '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯'
+    };
+    return String(num).split('').map(char => engToBng[char] || char).join('');
+  };
+
+  const exportToExcel = () => {
+    if (books.length === 0) {
+      alert('এক্সপোর্ট করার জন্য কোনো বই ক্যাটালগে নেই!');
+      return;
+    }
+    
+    let tableHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+    tableHtml += `<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Inventory Assets</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>`;
+    tableHtml += `<h2>MBSTU Econ Library - Inventory Stock Register Report</h2>`;
+    tableHtml += `<p>Generated: ${new Date().toLocaleDateString('bn-BD')} | Total Records: ${books.length}</p>`;
+    tableHtml += `<table border="1" style="border-collapse: collapse;">`;
+    tableHtml += `<tr style="background-color: #4f46e5; color: white; font-weight: bold;">`;
+    tableHtml += `<th>ক্রমিক নং</th><th>বুক আইডি (Book ID)</th><th>বইয়ের নাম (Title)</th><th>লেখক (Author)</th><th>ক্যাটাগরি (Category)</th><th>মূল্য (Price)</th><th>মজুদ (Stock)</th><th>ভৌত কপি (Physical Quantity)</th><th>ইস্যুকৃত (Issued)</th><th>ক্ষতিগ্রস্ত (Damaged)</th><th>হারানো (Lost)</th><th>শেলফ নম্বর (Shelf)</th><th>টাইপ (Type)</th>`;
+    tableHtml += `</tr>`;
+    
+    books.forEach((book, idx) => {
+      const total = book.totalCopies !== undefined ? book.totalCopies : book.stock;
+      tableHtml += `<tr>`;
+      tableHtml += `<td style="text-align: center;">${idx + 1}</td>`;
+      tableHtml += `<td style="font-family: monospace;">${book.bookId || ''}</td>`;
+      tableHtml += `<td><strong>${book.title || ''}</strong></td>`;
+      tableHtml += `<td>${book.author || ''}</td>`;
+      tableHtml += `<td>${book.category || ''}</td>`;
+      tableHtml += `<td style="text-align: right;">${book.price || ''}</td>`;
+      tableHtml += `<td style="text-align: center; font-weight: bold; color: #16a34a;">${book.stock || 1}</td>`;
+      tableHtml += `<td style="text-align: center;">${total}</td>`;
+      tableHtml += `<td style="text-align: center; color: #2563eb;">${book.issuedCopies || 0}</td>`;
+      tableHtml += `<td style="text-align: center; color: #dc2626;">${book.damagedCopies || 0}</td>`;
+      tableHtml += `<td style="text-align: center; color: #4b5563;">${book.lostCopies || 0}</td>`;
+      tableHtml += `<td style="text-align: center;">${book.shelfNo || 'N/A'}</td>`;
+      tableHtml += `<td style="text-align: center;">${book.isEBook ? 'E-Book (PDF)' : 'Physical'}</td>`;
+      tableHtml += `</tr>`;
+    });
+    tableHtml += `</table></body></html>`;
+
+    // Convert to Excel Blob
+    const blob = new Blob(['\ufeff' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `mbstu_econ_library_${new Date().toISOString().split('T')[0]}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleViewDetailsClick = (book: SupabaseBook) => {
+    setSelectedBookForDetails(book);
+    setIsDetailModalOpen(true);
+  };
   
   // Dynamic Category state
   const [categories, setCategories] = useState<string[]>(() => {
@@ -74,14 +169,24 @@ export default function AdminInventory() {
     isEBook: false,
     ebookUrl: '',
     bookId: '',
-    shelfNo: 'N/A'
+    shelfNo: 'N/A',
+    isbn: '',
+    totalCopies: 1,
+    issuedCopies: 0,
+    reservedCopies: 0,
+    lostCopies: 0,
+    damagedCopies: 0
   });
 
   const loadBooks = async () => {
     try {
       setLoading(true);
-      const allBooks = await db.getBooks();
+      const [allBooks, allIssues] = await Promise.all([
+        db.getBooks(),
+        db.getIssues().catch(() => [])
+      ]);
       setBooks(allBooks);
+      setIssues(allIssues || []);
       const isLive = await db.isSupabaseConnected();
       setIsUsingSheet(isLive);
     } catch (err) {
@@ -123,7 +228,13 @@ export default function AdminInventory() {
       isEBook: !!book.isEBook,
       ebookUrl: book.ebookUrl || '',
       bookId: book.bookId || '',
-      shelfNo: book.shelfNo || 'N/A'
+      shelfNo: book.shelfNo || 'N/A',
+      isbn: book.isbn || '',
+      totalCopies: book.totalCopies !== undefined ? book.totalCopies : book.stock,
+      issuedCopies: book.issuedCopies || 0,
+      reservedCopies: book.reservedCopies || 0,
+      lostCopies: book.lostCopies || 0,
+      damagedCopies: book.damagedCopies || 0
     });
     setIsModalOpen(true);
   };
@@ -162,14 +273,20 @@ export default function AdminInventory() {
         title: newBook.title,
         author: newBook.author,
         category: newBook.category,
-        stock: newBook.stock,
+        stock: newBook.stock || 1,
         price: newBook.price || '৳০',
         cover: newBook.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
         isEBook: newBook.isEBook,
         ebookUrl: newBook.isEBook ? newBook.ebookUrl : '',
         bookId: newBook.bookId || `ID-${Math.floor(Math.random() * 1000)}`,
         shelfNo: newBook.shelfNo || 'N/A',
-        status: 'available'
+        status: 'available',
+        isbn: newBook.isbn || '',
+        totalCopies: newBook.totalCopies !== undefined ? Number(newBook.totalCopies) : Number(newBook.stock),
+        issuedCopies: newBook.issuedCopies || 0,
+        reservedCopies: newBook.reservedCopies || 0,
+        lostCopies: newBook.lostCopies || 0,
+        damagedCopies: newBook.damagedCopies || 0
       };
 
       if (editingBookId) {
@@ -191,7 +308,8 @@ export default function AdminInventory() {
       setEditingBookId(null);
       setNewBook({
         title: '', author: '', category: 'সাধারণ', stock: 1, price: '',
-        cover: '', isEBook: false, ebookUrl: '', bookId: '', shelfNo: 'N/A'
+        cover: '', isEBook: false, ebookUrl: '', bookId: '', shelfNo: 'N/A',
+        isbn: '', totalCopies: 1, issuedCopies: 0, reservedCopies: 0, lostCopies: 0, damagedCopies: 0
       });
       loadBooks();
     } catch (err: any) {
@@ -240,69 +358,497 @@ export default function AdminInventory() {
   };
 
   const filteredBooks = useMemo(() => {
-    return books.filter(book => 
-      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (book.bookId && book.bookId.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [books, searchTerm]);
+    return books.filter(book => {
+      const matchesSearch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        book.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (book.bookId && book.bookId.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const matchesCategory = categoryFilterInTable === 'all' || 
+        book.category === categoryFilterInTable;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [books, searchTerm, categoryFilterInTable]);
+
+  // Overall statistics and category-wise statistics compiling
+  const stats = useMemo(() => {
+    let totalTitles = books.length;
+    let totalPhysical = 0;
+    let totalAvailable = 0;
+    let totalIssued = 0;
+    let totalReserved = 0;
+    let totalLost = 0;
+    let totalDamaged = 0;
+    let totalEbooks = books.filter(b => b.isEBook).length;
+    let totalFinishedIssue = issues.filter(i => i.status === 'Returned').length;
+
+    books.forEach(b => {
+      const t = b.totalCopies !== undefined ? Number(b.totalCopies) : (b.stock !== undefined ? Number(b.stock) : 1);
+      const i = b.issuedCopies !== undefined ? Number(b.issuedCopies) : 0;
+      const r = b.reservedCopies !== undefined ? Number(b.reservedCopies) : 0;
+      const l = b.lostCopies !== undefined ? Number(b.lostCopies) : 0;
+      const d = b.damagedCopies !== undefined ? Number(b.damagedCopies) : 0;
+      const a = Math.max(0, t - i - r - l - d);
+
+      totalPhysical += t;
+      totalAvailable += a;
+      totalIssued += i;
+      totalReserved += r;
+      totalLost += l;
+      totalDamaged += d;
+    });
+
+    return {
+      totalTitles,
+      totalPhysical,
+      totalAvailable,
+      totalIssued,
+      totalReserved,
+      totalLost,
+      totalDamaged,
+      totalEbooks,
+      totalFinishedIssue
+    };
+  }, [books, issues]);
+
+  const categoryStats = useMemo(() => {
+    const statsMap: Record<string, {
+      category: string;
+      titlesCount: number;
+      totalPhysical: number;
+      available: number;
+      issued: number;
+      reserved: number;
+      lost: number;
+      damaged: number;
+      ebooksCount: number;
+    }> = {};
+
+    // Get all unique categories
+    const allKnownCats = Array.from(new Set([...categories, ...books.map(b => b.category || 'সাধারণ')]));
+
+    allKnownCats.forEach(cat => {
+      statsMap[cat] = {
+        category: cat,
+        titlesCount: 0,
+        totalPhysical: 0,
+        available: 0,
+        issued: 0,
+        reserved: 0,
+        lost: 0,
+        damaged: 0,
+        ebooksCount: 0
+      };
+    });
+
+    books.forEach(b => {
+      const cat = b.category || 'সাধারণ';
+      if (!statsMap[cat]) {
+        statsMap[cat] = {
+          category: cat,
+          titlesCount: 0,
+          totalPhysical: 0,
+          available: 0,
+          issued: 0,
+          reserved: 0,
+          lost: 0,
+          damaged: 0,
+          ebooksCount: 0
+        };
+      }
+      
+      const t = b.totalCopies !== undefined ? Number(b.totalCopies) : (b.stock !== undefined ? Number(b.stock) : 1);
+      const i = b.issuedCopies !== undefined ? Number(b.issuedCopies) : 0;
+      const r = b.reservedCopies !== undefined ? Number(b.reservedCopies) : 0;
+      const l = b.lostCopies !== undefined ? Number(b.lostCopies) : 0;
+      const d = b.damagedCopies !== undefined ? Number(b.damagedCopies) : 0;
+      const a = Math.max(0, t - i - r - l - d);
+
+      statsMap[cat].titlesCount += 1;
+      statsMap[cat].totalPhysical += t;
+      statsMap[cat].available += a;
+      statsMap[cat].issued += i;
+      statsMap[cat].reserved += r;
+      statsMap[cat].lost += l;
+      statsMap[cat].damaged += d;
+      if (b.isEBook) {
+        statsMap[cat].ebooksCount += 1;
+      }
+    });
+
+    return Object.values(statsMap);
+  }, [books, categories]);
+
+  // Selected Dashboard Category statistics
+  const selectedCatData = useMemo(() => {
+    if (selectedDashboardCategory === 'all') {
+      return {
+        category: 'সব ক্যাটাগরি',
+        titlesCount: stats.totalTitles,
+        totalPhysical: stats.totalPhysical,
+        available: stats.totalAvailable,
+        issued: stats.totalIssued,
+        reserved: stats.totalReserved,
+        lost: stats.totalLost,
+        damaged: stats.totalDamaged,
+        ebooksCount: stats.totalEbooks
+      };
+    }
+    const found = categoryStats.find(cs => cs.category === selectedDashboardCategory);
+    return found || {
+      category: selectedDashboardCategory,
+      titlesCount: 0,
+      totalPhysical: 0,
+      available: 0,
+      issued: 0,
+      reserved: 0,
+      lost: 0,
+      damaged: 0,
+      ebooksCount: 0
+    };
+  }, [selectedDashboardCategory, stats, categoryStats]);
+
+  const parsedStats = useMemo(() => {
+    let totalAssetValue = 0;
+    books.forEach(b => {
+      const price = parsePriceNumber(b.price);
+      const qty = b.totalCopies !== undefined ? Number(b.totalCopies) : (b.stock !== undefined ? Number(b.stock) : 1);
+      totalAssetValue += price * qty;
+    });
+
+    const circulationRate = stats.totalPhysical > 0 
+      ? Math.round((stats.totalIssued / stats.totalPhysical) * 100) 
+      : 0;
+
+    return {
+      totalAssetValue,
+      circulationRate
+    };
+  }, [books, stats]);
+
+  // Chart 1: Category Distribution of physical copies Vs available copies
+  const categoryChartData = useMemo(() => {
+    return categoryStats
+      .filter(item => item.totalPhysical > 0)
+      .map(item => ({
+        name: item.category.length > 12 ? item.category.substring(0, 12) + '...' : item.category,
+        fullName: item.category,
+        'মোট কপি': item.totalPhysical,
+        'অবশিষ্ট উপলব্ধ': item.available,
+        'ইস্যুকৃত কপি': item.issued
+      }))
+      .slice(0, 8); // Limits to top 8 active categories to keep it neat
+  }, [categoryStats]);
+
+  // Chart 2: Inventory Status Composition
+  const compositionChartData = useMemo(() => {
+    return [
+      { name: 'অবশিষ্ট উপলব্ধ', value: stats.totalAvailable, color: '#10b981' }, 
+      { name: 'ইস্যুকৃত কপি', value: stats.totalIssued, color: '#3b82f6' }, 
+      { name: 'সংরক্ষিত পেন্ডিং', value: stats.totalReserved, color: '#f59e0b' }, 
+      { name: 'মেরামতাধীন ড্যামেজ', value: stats.totalDamaged, color: '#f43f5e' }, 
+      { name: 'হারানো কপি', value: stats.totalLost, color: '#64748b' }
+    ].filter(item => item.value > 0);
+  }, [stats]);
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 pb-12">
-      {/* Dynamic Header */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="lg:col-span-2 bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8"
-        >
+    <div className="space-y-10 animate-in fade-in duration-700 pb-12 text-left print:p-0 print:m-0">
+      {/* Top Banner & Stat Cards */}
+      <div className="space-y-6 print:hidden">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-8 md:p-10 rounded-[45px] shadow-sm border border-slate-100">
           <div>
-            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest mb-4">
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-wider mb-3">
               <Package className="w-3.5 h-3.5" />
-              <span>ইভেন্টরি কন্ট্রোল</span>
+              <span>বিশ্ববিদ্যালয় ভৌত ট্র্যাকিং</span>
             </div>
-            <h2 className="text-4xl font-black text-slate-900 leading-tight mb-2 font-sans tracking-tight">বইয়ের বিশাল ক্যাটালগ</h2>
-            <p className="text-slate-500 font-bold max-w-md">মার্কেটপ্লেস ও লাইব্রেরির সকল বই এখন এক জায়গায়। স্টক ও ই-বুক কন্ট্রোল করুন সহজে।</p>
+            <h2 className="text-3xl font-black text-slate-900 leading-tight">লাইব্রেরি ইনভেন্টরি কন্ট্রোল</h2>
+            <p className="text-slate-400 font-bold text-xs mt-1">ভৌত বইয়ের কপি, ধারদান, হারানো এবং মেরামত ট্র্যাকিং রিয়েল-টাইমে নিয়ন্ত্রণ করুন</p>
           </div>
-          
-          <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-[40px] border border-slate-100 min-w-[200px]">
-            <span className="text-5xl font-black text-indigo-600 font-mono tracking-tighter">{books.length}</span>
-            <span className="text-xs font-black text-slate-400 uppercase tracking-widest mt-2 font-sans">মোট কালেকশন</span>
+          <div className="flex flex-wrap gap-2.5 w-full lg:w-auto">
+            <button 
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="flex-1 lg:flex-none flex items-center justify-center space-x-2 px-5 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-lg shadow-indigo-150 hover:bg-slate-900 transition-all cursor-pointer font-sans"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>নতুন বই যোগ করুন</span>
+            </button>
+            <button 
+              type="button"
+              onClick={handlePrint}
+              className="flex-1 lg:flex-none flex items-center justify-center space-x-2 px-5 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs hover:bg-indigo-700 transition-all cursor-pointer font-sans"
+            >
+              <Printer className="w-4 h-4 text-white" />
+              <span>প্রিন্ট রিপোর্ট</span>
+            </button>
+            <button 
+              type="button"
+              onClick={loadBooks}
+              className="px-5 py-4 bg-slate-100 text-slate-600 hover:text-slate-900 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer font-sans border"
+            >
+              <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+              <span>সিঙ্ক করুন</span>
+            </button>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="bg-slate-900 p-10 rounded-[50px] shadow-2xl flex flex-col justify-center gap-6 relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:scale-110 transition-transform">
-             <BookOpen className="w-32 h-32 text-white" />
-          </div>
-          <p className="text-indigo-400 font-black text-xs uppercase tracking-widest font-sans">কুইক একশন</p>
-          <button 
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="w-full py-5 bg-white text-slate-900 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-xl hover:bg-indigo-500 hover:text-white transition-all active:scale-95 group relative z-10 font-sans cursor-pointer"
-          >
-            <Plus className="w-6 h-6 transition-transform group-hover:rotate-90" />
-            <span>নতুন বই যুক্ত করুন</span>
-          </button>
-
-          <button 
-            type="button"
-            onClick={loadBooks}
-            className="w-full py-5 bg-slate-800 text-slate-300 rounded-3xl font-black flex items-center justify-center space-x-3 hover:bg-slate-700 transition-all active:scale-95 z-10 font-sans cursor-pointer"
-          >
-            <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
-            <span>ডেটা সিঙ্ক করুন</span>
-          </button>
-        </motion.div>
+        {/* Dynamic Multi-Column Bento Stat Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-11 gap-3">
+          {[
+            { label: 'মোট বই টাইটেল', count: stats.totalTitles, sub: 'শিরোনাম সংখ্যা', color: 'bg-indigo-50/60 text-indigo-700 border-indigo-100' },
+            { label: 'মোট ভৌত কপি', count: stats.totalPhysical, sub: 'লাইব্রেরি সাইজ', color: 'bg-slate-100/60 text-slate-800 border-slate-205' },
+            { label: 'অবশিষ্ট মজুদ', count: stats.totalAvailable, sub: 'আজকের উপলব্ধ', color: 'bg-emerald-50/60 text-emerald-700 border-emerald-150' },
+            { label: 'ইস্যুকৃত কপি', count: stats.totalIssued, sub: 'সদস্যদের হাতে', color: 'bg-blue-50/60 text-blue-700 border-blue-150' },
+            { label: 'সংরক্ষিত পেন্ডিং', count: stats.totalReserved, sub: 'পেন্ডিং রিকোয়েস্ট', color: 'bg-amber-50/60 text-amber-700 border-amber-150' },
+            { label: 'হারানো কপি', count: stats.totalLost, sub: 'রিভিউ প্রয়োজন', color: 'bg-orange-50/60 text-orange-700 border-orange-150' },
+            { label: 'ড্যামেজড কপি', count: stats.totalDamaged, sub: 'মেরামত চলছে', color: 'bg-rose-50/60 text-rose-700 border-rose-150' },
+            { label: 'ই-বুক (PDF)', count: stats.totalEbooks, sub: 'পড়ুন অনলাইনে', color: 'bg-purple-50/60 text-purple-700 border-purple-150' },
+            { label: 'পঠিত/ফেরত বই', count: stats.totalFinishedIssue, sub: 'সম্পন্ন ট্রানজেকশন', color: 'bg-teal-50/60 text-teal-700 border-teal-150' },
+            { label: 'লাইব্রেরি সম্পদ মূল্য', count: '৳' + formatBengaliNumber(parsedStats.totalAssetValue), sub: 'ক্যাপিটাল এসেট', color: 'bg-yellow-50/60 text-amber-900 border-yellow-200' },
+            { label: 'সার্কুলেশন রেট', count: formatBengaliNumber(parsedStats.circulationRate) + '%', sub: 'বই ব্যবহার হার', color: 'bg-cyan-50/60 text-cyan-800 border-cyan-155' }
+          ].map((stat, sIdx) => {
+            const countStr = typeof stat.count === 'number' ? formatBengaliNumber(stat.count) : stat.count;
+            return (
+              <div key={sIdx} className={cn("p-3.5 rounded-[22px] border flex flex-col justify-between shadow-sm hover:shadow-md transition-all bg-white", stat.color)}>
+                <span className="text-[9px] font-black uppercase tracking-wider opacity-80 mb-1.5">{stat.label}</span>
+                <div className="my-1 text-lg font-bold font-sans tracking-tight">{countStr}</div>
+                <span className="text-[8px] font-bold opacity-60 leading-none">{stat.sub}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
+      {/* DYNAMIC CATEGORY-WISE INTERACTIVE DASHBOARD SECTION */}
+      <div className="bg-white p-6 md:p-10 rounded-[45px] shadow-sm border border-slate-100 space-y-8 print:hidden">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6">
+          <div>
+            <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <span className="w-2.5 h-6 bg-indigo-600 rounded-full inline-block"></span>
+              ক্যাটাগরি ভিত্তিক ইনভেন্টরি ও ড্যাশবোর্ড বিশ্লেষণ
+            </h3>
+            <p className="text-slate-400 font-bold text-xs mt-1">ক্যাটাগরি ভিত্তিক ধার, পিডিএফ মজুদ এবং রিয়েল-টাইম হিসাব বিবরণী</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">বিশ্লেষণ ক্যাটাগরি:</span>
+            <select
+              value={selectedDashboardCategory}
+              onChange={(e) => setSelectedDashboardCategory(e.target.value)}
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-all outline-none"
+            >
+              <option value="all">সব ক্যাটাগরি একত্রিত (All)</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          {/* Column 1: Detailed metrics for selected category */}
+          <div className="xl:col-span-1 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-[35px] p-6 md:p-8 flex flex-col justify-between shadow-lg relative overflow-hidden text-left">
+            <div className="absolute top-0 right-0 w-44 h-44 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="space-y-6">
+              <div>
+                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-500/25">নির্বাচিত ক্যাটাগরি বিশ্লেষণ</span>
+                <h4 className="text-2xl font-black mt-3 text-slate-100 truncate leading-tight">{selectedCatData.category}</h4>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <span className="text-[9px] text-indigo-200 font-black uppercase tracking-wider block">বই টাইটেল সংখ্যা</span>
+                  <span className="text-2xl font-mono font-black mt-1 block">{selectedCatData.titlesCount} টি</span>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <span className="text-[9px] text-indigo-200 font-black uppercase tracking-wider block">মোট ভৌত কপি</span>
+                  <span className="text-2xl font-mono font-black mt-1 block">{selectedCatData.totalPhysical} টি</span>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <span className="text-[9px] text-emerald-300 font-black uppercase tracking-wider block">অবशिष्ट মজুদ</span>
+                  <span className="text-2xl font-mono font-black mt-1 block text-emerald-400">{selectedCatData.available} টি</span>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <span className="text-[9px] text-blue-300 font-black uppercase tracking-wider block">ইস্যুকৃত (Borrowed)</span>
+                  <span className="text-2xl font-mono font-black mt-1 block text-blue-400">{selectedCatData.issued} টি</span>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <span className="text-[9px] text-purple-300 font-black uppercase tracking-wider block">পিডিএফ সংস্করণ</span>
+                  <span className="text-2xl font-mono font-black mt-1 block text-purple-400">{selectedCatData.ebooksCount} টি</span>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <span className="text-[9px] text-amber-300 font-black uppercase tracking-wider block">পেন্ডিং / বুকড</span>
+                  <span className="text-2xl font-mono font-black mt-1 block text-amber-400">{selectedCatData.reserved} টি</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-white/10 mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilterInTable(selectedDashboardCategory);
+                  const listSection = document.getElementById('books-catalog-list-section');
+                  if (listSection) {
+                    listSection.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                className="flex-1 bg-white hover:bg-indigo-50 text-indigo-950 py-3.5 px-4 rounded-xl text-xs font-black transition-all text-center select-none cursor-pointer shadow-sm"
+              >
+                নিচের তালিকায় দেখুন
+              </button>
+              {selectedDashboardCategory !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDashboardCategory('all');
+                  }}
+                  className="bg-white/10 hover:bg-white/15 text-white py-3 px-3 rounded-xl text-xs font-black transition-all cursor-pointer"
+                >
+                  রিসেট
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Column 2 & 3: Category summary ledger table */}
+          <div className="xl:col-span-2 space-y-4">
+            <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest text-left">ক্যাটাগরি ভিত্তিক উপলব্ধ সংখ্যা ও ধার বিবরণী তালিকা (All Categories Summary)</h5>
+            
+            <div className="border border-slate-100 rounded-3xl overflow-hidden shadow-sm max-h-[360px] overflow-y-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 border-b border-slate-100">
+                    <th className="px-6 py-4 font-black">ক্যাটাগরি নাম</th>
+                    <th className="px-4 py-4 text-center font-black">টাইটেল</th>
+                    <th className="px-4 py-4 text-center font-black">মোট কপি</th>
+                    <th className="px-4 py-4 text-center font-black text-emerald-600">অবশিষ্ট উপলব্ধ</th>
+                    <th className="px-4 py-4 text-center font-black text-blue-600">ধারদান (Issued)</th>
+                    <th className="px-4 py-4 text-center font-black text-purple-600">পিডিএফ / ইবুক</th>
+                    <th className="px-6 py-4 text-center font-black">অ্যাকশন</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 text-slate-700">
+                  {categoryStats.map((item) => {
+                    const isSelected = item.category === selectedDashboardCategory;
+                    return (
+                      <tr 
+                        key={item.category} 
+                        className={cn(
+                          "hover:bg-slate-50/50 transition-colors cursor-pointer",
+                          isSelected && "bg-indigo-50/40 font-black text-slate-900"
+                        )}
+                        onClick={() => setSelectedDashboardCategory(item.category)}
+                      >
+                        <td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-1.5">
+                          {isSelected && <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full inline-block animate-pulse"></span>}
+                          {item.category}
+                        </td>
+                        <td className="px-4 py-4 text-center font-mono font-bold text-slate-600">{item.titlesCount} টি</td>
+                        <td className="px-4 py-4 text-center font-mono font-bold text-slate-600">{item.totalPhysical} টি</td>
+                        <td className="px-4 py-4 text-center font-mono font-black text-emerald-600 bg-emerald-50/10">{item.available} টি</td>
+                        <td className="px-4 py-4 text-center font-mono font-bold text-blue-600">{item.issued} টি</td>
+                        <td className="px-4 py-4 text-center font-mono font-bold text-purple-500">{item.ebooksCount} টি</td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDashboardCategory(item.category);
+                            }}
+                            className="text-[10px] bg-slate-100 hover:bg-slate-200 hover:text-indigo-700 text-slate-700 px-2.5 py-1.5 rounded-lg font-black transition-all cursor-pointer"
+                          >
+                            বিশ্লেষণ করুন
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* VISUAL ANALYTICS REPORT: CHARTS BLOCK */}
+      {categoryChartData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:hidden">
+          {/* Chart 1: Academic Categories Stock Distribution */}
+          <div className="lg:col-span-2 bg-white p-6 md:p-8 rounded-[40px] shadow-sm border border-slate-100 flex flex-col justify-between text-left">
+            <div className="mb-6">
+              <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl uppercase tracking-wider">স্টক ও ক্যাটালগ বন্টন</span>
+              <h4 className="text-lg font-black text-slate-800 mt-3 font-sans">প্রধান শিক্ষায়তনিক ক্যাটাগরি ও কপি বন্টন</h4>
+              <p className="text-[11px] font-bold text-slate-400 mt-1">সবচেয়ে জনপ্রিয় ৮টি ক্যাটাগরি অনুযায়ী মোট ভৌত কপি এবং উপলব্ধ কপি তুলনা</p>
+            </div>
+            
+            <div className="w-full h-82">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '16px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)', fontFamily: 'sans-serif', fontSize: '11px' }}
+                    cursor={{ fill: '#f8fafc' }}
+                  />
+                  <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }} />
+                  <Bar dataKey="মোট কপি" fill="#4f46e5" radius={[6, 6, 0, 0]} maxBarSize={24} />
+                  <Bar dataKey="অবशिष्ट উপলব্ধ" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Chart 2: Inventory Status Heath Composition */}
+          <div className="bg-white p-6 md:p-8 rounded-[40px] shadow-sm border border-slate-100 flex flex-col justify-between text-left">
+            <div className="mb-6">
+              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl uppercase tracking-wider">ইনভেন্টরি স্বাস্থ্য সূচক</span>
+              <h4 className="text-lg font-black text-slate-800 mt-3 font-sans">ভৌত সম্পদের অবস্থা অনুপাত</h4>
+              <p className="text-[11px] font-bold text-slate-400 mt-1">ধারদান, অবশিষ্ট স্টক, ড্যামেজ ও হারানো কপির আনুপাতিক সমন্বয়</p>
+            </div>
+
+            <div className="w-full h-52 flex items-center justify-center relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={compositionChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={75}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {compositionChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '16px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)', fontSize: '11px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute text-center flex flex-col items-center">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none">মোট কপি</span>
+                <span className="text-xl font-bold text-slate-850 mt-1 font-mono">{formatBengaliNumber(stats.totalPhysical)}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-slate-150 mt-4">
+              {compositionChartData.map((item, idx) => (
+                <div key={idx} className="flex items-center space-x-1.5 text-[10px] font-bold text-slate-500">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
+                  <span className="truncate">{item.name}: {formatBengaliNumber(item.value)} টি</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Control Bar */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/50 backdrop-blur-md p-4 rounded-[40px] border border-white/20 shadow-sm sticky top-4 z-40">
+      <div id="books-catalog-list-section" className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/50 backdrop-blur-md p-4 rounded-[40px] border border-white/20 shadow-sm sticky top-4 z-40 print:hidden text-left">
         <div className="relative w-full md:w-96 group">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
           <input 
@@ -310,19 +856,36 @@ export default function AdminInventory() {
             placeholder="বই, লেখক বা ক্যাটাগরি..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-16 pr-6 py-5 bg-white border border-slate-100 rounded-[30px] font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+            className="w-full pl-16 pr-6 py-5 bg-white border border-slate-100 rounded-[30px] font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-sans text-xs text-slate-800"
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Selective Category Search filter */}
+          <div className="relative flex items-center bg-white border border-slate-200 rounded-[24px] px-4 shadow-sm w-full md:w-auto">
+            <Filter className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
+            <select
+              value={categoryFilterInTable}
+              onChange={(e) => setCategoryFilterInTable(e.target.value)}
+              className="py-4 pr-8 text-xs font-black text-slate-700 bg-transparent focus:outline-none cursor-pointer outline-none font-sans"
+            >
+              <option value="all">সব ক্যাটাগরি (All Catalog)</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
              <button 
+              type="button"
               onClick={() => setViewMode('grid')}
               className={cn("p-3 rounded-xl transition-all", viewMode === 'grid' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400")}
              >
                <LayoutGrid className="w-5 h-5" />
              </button>
              <button 
+              type="button"
               onClick={() => setViewMode('list')}
               className={cn("p-3 rounded-xl transition-all", viewMode === 'list' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400")}
              >
@@ -333,15 +896,31 @@ export default function AdminInventory() {
           <button 
             type="button"
             onClick={exportToCSV}
-            className="flex items-center space-x-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[24px] text-xs font-black transition-all shadow-sm"
+            className="flex items-center space-x-2 px-4 py-3.5 bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 rounded-[18px] text-xs font-black transition-all shadow-sm cursor-pointer"
+            title="CSV ফরম্যাটে ক্যাটালগ এক্সপোর্ট করুন"
           >
             <Download className="w-4 h-4" />
             <span>CSV এক্সপোর্ট</span>
           </button>
           
-          <button className="flex items-center space-x-2 px-6 py-4 bg-white border border-slate-200 rounded-[24px] text-xs font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-            <Filter className="w-5 h-5" />
-            <span>ফিল্টার</span>
+          <button 
+            type="button"
+            onClick={exportToExcel}
+            className="flex items-center space-x-2 px-4 py-3.5 bg-emerald-50 border border-emerald-150 text-emerald-700 hover:bg-emerald-100 rounded-[18px] text-xs font-black transition-all shadow-sm cursor-pointer"
+            title="Excel ফরম্যাটে ক্যাটালগ এক্সপোর্ট করুন"
+          >
+            <FileText className="w-4 h-4" />
+            <span>EXCEL এক্সপোর্ট</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={handlePrint}
+            className="flex items-center space-x-2 px-4 py-3.5 bg-slate-950 text-white hover:bg-indigo-700 rounded-[18px] text-xs font-black transition-all shadow-sm cursor-pointer"
+            title="পূর্ণাঙ্গ প্রিন্ট এবং পিডিএফ রিপোর্ট প্রিপেয়ার করুন"
+          >
+            <Printer className="w-4 h-4" />
+            <span>প্রিন্ট / PDF রিপোর্ট</span>
           </button>
         </div>
       </div>
@@ -397,7 +976,7 @@ export default function AdminInventory() {
 
                   <div className="p-6 flex-1 flex flex-col">
                     <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block mb-1">{book.category}</span>
-                    <h3 className="text-lg font-black text-slate-900 leading-tight mb-1 truncate group-hover:text-indigo-600 transition-colors">{book.title}</h3>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight mb-1 truncate group-hover:text-indigo-600 transition-colors cursor-pointer" onClick={() => handleViewDetailsClick(book)}>{book.title}</h3>
                     <p className="text-sm font-bold text-slate-400 mb-6">{book.author}</p>
                     
                     <div className="mt-auto flex items-center justify-between pt-6 border-t border-slate-50">
@@ -458,7 +1037,7 @@ export default function AdminInventory() {
                                     )}
                                  </div>
                                  <div className="overflow-hidden">
-                                    <p className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors truncate">{book.title}</p>
+                                    <p className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors truncate cursor-pointer" onClick={() => handleViewDetailsClick(book)}>{book.title}</p>
                                     <p className="text-xs font-bold text-slate-400 truncate">{book.author}</p>
                                  </div>
                               </div>
@@ -736,6 +1315,166 @@ export default function AdminInventory() {
           </div>
         )}
       </AnimatePresence>
+
+      <BookDetailsModal 
+        book={selectedBookForDetails} 
+        isOpen={isDetailModalOpen} 
+        onClose={() => setIsDetailModalOpen(false)} 
+        onUpdate={() => {
+          loadBooks();
+          if (selectedBookForDetails) {
+            db.getBooks().then(updatedCollection => {
+              const matched = updatedCollection.find(b => b.id === selectedBookForDetails.id);
+              if (matched) setSelectedBookForDetails(matched);
+            });
+          }
+        }} 
+      />
+
+      {/* DETAILED PRINTABLE STOCK LEDGER / AUDIT STATEMENT */}
+      <div className="hidden print:block font-sans text-black p-8 bg-white max-w-4xl mx-auto">
+        {/* Header Block */}
+        <div className="text-center pb-6 mb-8 border-b-4 border-slate-900 text-left">
+          <h1 className="text-3xl font-black tracking-wide text-slate-900 uppercase">মওলানা ভাসানী বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয়</h1>
+          <h2 className="text-xl font-bold tracking-normal text-slate-800 mt-1">অর্থনীতি বিভাগীয় গ্রন্থাগার ও তথ্য কেন্দ্র (Economics Library & Information Center)</h2>
+          <p className="text-sm font-black text-slate-600 mt-1">সন্তোষ, টাঙ্গাইল-১৯০২, বাংলাদেশ (Santosh, Tangail-1902, Bangladesh)</p>
+          <div className="inline-block bg-slate-100 px-5 py-2 rounded-xl text-xs font-black uppercase text-slate-800 mt-4 border border-slate-300">
+            গ্রন্থাগার ক্যাটালগ ও ইনভেন্টরি স্টক রেজিস্টার রিপোর্ট (Inventory & Stock Register Ledger Statement)
+          </div>
+        </div>
+
+        {/* Metadata Details Row */}
+        <div className="grid grid-cols-2 gap-4 mb-8 text-xs border border-slate-200 p-4 rounded-2xl bg-slate-50/50">
+          <div className="text-left font-sans">
+            <p className="font-bold text-slate-600"><span className="font-black text-slate-900">রিপোর্ট আইডি:</span> REG-INV-{Math.floor(100000 + Math.random() * 900000)}</p>
+            <p className="font-bold text-slate-600 mt-1"><span className="font-black text-slate-900">প্রস্তুতকারী:</span> লাইব্রেরি সিস্টেম এডমিনিস্ট্রেটর (MBSTU Econ Library Admin)</p>
+          </div>
+          <div className="text-right font-sans">
+            <p className="font-bold text-slate-600"><span className="font-black text-slate-900">প্রিন্ট সময়কাল:</span> {new Date().toLocaleDateString('bn-BD')} | {new Date().toLocaleTimeString('bn-BD')}</p>
+            <p className="font-bold text-slate-600 mt-1"><span className="font-black text-slate-900">মোট বই রেকর্ড:</span> {formatBengaliNumber(books.length)} টি টাইটেল ({formatBengaliNumber(stats.totalPhysical)} টি ভৌত কপি)</p>
+          </div>
+        </div>
+
+        {/* Section 1: Executive Statistics Summary Table */}
+        <div className="mb-8">
+          <h3 className="text-sm font-black uppercase tracking-wide border-b-2 border-slate-800 pb-2 mb-4 text-slate-900 text-left">১. সামগ্রিক ইনভেন্টরি স্টক ইন্ডিকেটর (1. Overall Inventory Indicators)</h3>
+          <table className="w-full text-left text-xs border-collapse border border-slate-300">
+            <thead>
+              <tr className="bg-slate-100 text-slate-800 uppercase font-bold border-b border-slate-300">
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">মোট বই ক্যাটাগরি</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">মোট বই টাইটেল</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">মোট ভৌত কপি</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">লাইব্রেরিতে মজুদ</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">ধারদান (Issued)</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">মেরামতাধীন (Damaged)</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">হারানো বই সংখ্যা</th>
+                <th className="px-4 py-2.5 text-center">মোট পিডিএফ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="font-bold text-center border-b border-slate-300">
+                <td className="px-4 py-3 border-r border-slate-300">{formatBengaliNumber(categories.length)} টি</td>
+                <td className="px-4 py-3 border-r border-slate-300">{formatBengaliNumber(stats.totalTitles)} টি</td>
+                <td className="px-4 py-3 border-r border-slate-300">{formatBengaliNumber(stats.totalPhysical)} টি</td>
+                <td className="px-4 py-3 border-r border-slate-300 text-emerald-700">{formatBengaliNumber(stats.totalAvailable)} টি</td>
+                <td className="px-4 py-3 border-r border-slate-300 text-blue-700">{formatBengaliNumber(stats.totalIssued)} টি</td>
+                <td className="px-4 py-3 border-r border-slate-300 text-rose-700">{formatBengaliNumber(stats.totalDamaged)} টি</td>
+                <td className="px-4 py-3 border-r border-slate-300 text-orange-600">{formatBengaliNumber(stats.totalLost)} টি</td>
+                <td className="px-4 py-3 text-purple-700">{formatBengaliNumber(stats.totalEbooks)} টি</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="text-[10px] text-slate-500 italic mt-2 font-bold font-sans text-left">* দ্রষ্টব্য: অবশিষ্ট কলাম তথ্যসমূহ অনলাইন ডাটাবেস সিকিউরড সিঙ্কে ট্র্যাক করা হয়ে থাকে। আনুমানিক মোট সম্পদ মূল্যমান ৳{formatBengaliNumber(parsedStats.totalAssetValue)} টাকা।</p>
+        </div>
+
+        {/* Section 2: Category Ledger Summary Table */}
+        <div className="mb-8 page-break-inside-avoid">
+          <h3 className="text-sm font-black uppercase tracking-wide border-b-2 border-slate-800 pb-2 mb-4 text-slate-900 text-left">২. ক্যাটালগ ভিত্তিক স্টক বন্টন তালিকা (2. Category Stock Distribution)</h3>
+          <table className="w-full text-left text-xs border-collapse border border-slate-300">
+            <thead>
+              <tr className="bg-slate-50 text-slate-700 uppercase font-bold border-b border-slate-300">
+                <th className="px-4 py-2.5 border-r border-slate-300">ক্রম</th>
+                <th className="px-4 py-2.5 border-r border-slate-300">ক্যাটাগরি নাম (Category Name)</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">বই টাইটেল</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">মোট ভৌত কপি</th>
+                <th className="px-4 py-2.5 border-r border-slate-300 text-center">সহজলভ্য অবশিষ্টাংশ</th>
+                <th className="px-4 py-2.5 text-center">বর্তমানে ইস‍্যুকৃত</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categoryStats.map((item, idx) => (
+                <tr key={idx} className="border-b border-slate-200">
+                  <td className="px-4 py-2 border-r border-slate-200 font-bold text-center">{formatBengaliNumber(idx + 1)}</td>
+                  <td className="px-4 py-2 border-r border-slate-200 font-bold text-left">{item.category}</td>
+                  <td className="px-4 py-2 border-r border-slate-200 text-center">{formatBengaliNumber(item.titlesCount)} টি</td>
+                  <td className="px-4 py-2 border-r border-slate-200 text-center">{formatBengaliNumber(item.totalPhysical)} টি</td>
+                  <td className="px-4 py-2 border-r border-slate-200 text-center text-emerald-700 font-serif font-black">{formatBengaliNumber(item.available)} টি</td>
+                  <td className="px-4 py-2 text-center text-blue-700">{formatBengaliNumber(item.issued)} টি</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Section 3: Full Books Catalog Status Table */}
+        <div className="mb-10 page-break-before">
+          <h3 className="text-sm font-black uppercase tracking-wide border-b-2 border-slate-800 pb-2 mb-4 text-slate-900 text-left">৩. বিভাগীয় লাইব্রেরি ও স্টক রেজিস্টার ট্র্যাকিং (3. Comprehensive Ledger Register)</h3>
+          <table className="w-full text-left text-[10px] border-collapse border border-slate-300">
+            <thead>
+              <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+                <th className="px-2 py-2 border-r border-slate-300 text-center">আইডি</th>
+                <th className="px-3 py-2 border-r border-slate-300">বইয়ের শিরোনাম ও লেখক</th>
+                <th className="px-2 py-2 border-r border-slate-300 text-center">ক্যাটাগরি</th>
+                <th className="px-2 py-2 border-r border-slate-300 text-center">অবস্থান</th>
+                <th className="px-2 py-2 border-r border-slate-300 text-center">মূল্য</th>
+                <th className="px-2 py-2 border-r border-slate-300 text-center">মোট কপি</th>
+                <th className="px-2 py-2 border-r border-slate-300 text-center">ইস্যুকৃত</th>
+                <th className="px-2 py-2 text-center">অবশিষ্ট মজুদ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {books.map((book, bIdx) => {
+                const total = book.totalCopies !== undefined ? book.totalCopies : book.stock;
+                const available = Math.max(0, total - (book.issuedCopies || 0) - (book.reservedCopies || 0) - (book.lostCopies || 0) - (book.damagedCopies || 0));
+                return (
+                  <tr key={book.id} className="border-b border-slate-200">
+                    <td className="px-2 py-1.5 border-r border-slate-200 text-center font-mono font-bold">{book.bookId || 'N/A'}</td>
+                    <td className="px-3 py-1.5 border-r border-slate-200 text-left">
+                      <p className="font-bold text-slate-900 leading-tight">{book.title}</p>
+                      <p className="text-[9px] text-slate-500 italic font-bold">{book.author}</p>
+                    </td>
+                    <td className="px-2 py-1.5 border-r border-slate-200 text-center truncate max-w-[100px] font-bold text-left">{book.category}</td>
+                    <td className="px-2 py-1.5 border-r border-slate-200 text-center font-mono font-bold">{book.shelfNo || 'N/A'}</td>
+                    <td className="px-2 py-1.5 border-r border-slate-200 text-right font-serif font-black">{book.price || 'N/A'}</td>
+                    <td className="px-2 py-1.5 border-r border-slate-200 text-center font-bold">{formatBengaliNumber(total)}</td>
+                    <td className="px-2 py-1.5 border-r border-slate-200 text-center font-bold text-indigo-800">{formatBengaliNumber(book.issuedCopies || 0)}</td>
+                    <td className="px-2 py-1.5 text-center font-serif font-black text-emerald-800 bg-emerald-50/20">{formatBengaliNumber(available)} টি</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Signature Box */}
+        <div className="grid grid-cols-2 gap-12 mt-16 pt-12 border-t border-dashed border-slate-300 page-break-inside-avoid">
+          <div className="text-center">
+            <div className="w-48 h-10 border-b border-slate-100 border-b-slate-500 mx-auto"></div>
+            <p className="text-xs font-black text-slate-800 mt-2">গ্রন্থাগার ইনভেন্টরি অফিসার (সহাক্ষর ও সিল)</p>
+            <p className="text-[10px] text-slate-500 font-bold">তারিখ: ............................</p>
+          </div>
+          <div className="text-center">
+            <div className="w-48 h-10 border-b border-slate-100 border-b-slate-500 mx-auto"></div>
+            <p className="text-xs font-black text-slate-800 mt-2">বিভাগীয় প্রধান / প্রধান ডিরেক্টর লাইব্রেরি</p>
+            <p className="text-[10px] text-slate-500 font-bold">মওলানা ভাসানী বিজ্ঞান ও প্রযুক্তি বিশ্ববিদ্যালয়</p>
+          </div>
+        </div>
+
+        {/* Print only footer */}
+        <div className="mt-16 text-center text-[10px] font-bold text-slate-400 italic">
+          এই ইনভেন্টরি অডিট অ্যাকাউন্ট স্টেটমেন্ট ও স্টক লেজার ক্যাটালগ রিপোর্টটি সরাসরি বিশ্ববিদ্যালয়ের লাইব্রেরী অটোমেশন গেটওয়ে থেকে প্রস্তুতকৃত ও সুরক্ষিত।
+        </div>
+      </div>
     </div>
   );
 }

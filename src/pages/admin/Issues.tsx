@@ -160,12 +160,14 @@ export default function AdminIssues() {
 
       await db.saveIssue(newIssue);
 
-      // Interconnect: Automatically decrement the stock of the selected book
-      if (targetBook && targetBook.stock > 0) {
+      // Interconnect: Automatically increment the issued copies of the selected book
+      if (targetBook) {
+        const total = targetBook.totalCopies !== undefined ? Number(targetBook.totalCopies) : targetBook.stock;
+        const currentIssued = targetBook.issuedCopies !== undefined ? Number(targetBook.issuedCopies) : 0;
         const updatedBook = {
           ...targetBook,
-          stock: targetBook.stock - 1,
-          status: (targetBook.stock - 1 === 0) ? 'pre-order' as const : 'available' as const
+          totalCopies: total,
+          issuedCopies: currentIssued + 1
         };
         await db.saveBook(updatedBook);
       }
@@ -238,13 +240,13 @@ export default function AdminIssues() {
       };
       await db.saveIssue(updatedIssue);
 
-      // Interconnect: Automatically increment stock of the book if found by title
+      // Interconnect: Automatically decrement issued copies of the book if found by title
       const matchedBook = books.find(b => b.title.toLowerCase() === issue.bookTitle.toLowerCase() || b.id === issue.bookId);
       if (matchedBook) {
+        const currentIssued = matchedBook.issuedCopies !== undefined ? Number(matchedBook.issuedCopies) : 0;
         const updatedBook = {
           ...matchedBook,
-          stock: (matchedBook.stock || 0) + 1,
-          status: 'available' as const
+          issuedCopies: Math.max(0, currentIssued - 1)
         };
         await db.saveBook(updatedBook);
       }

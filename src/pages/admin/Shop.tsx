@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, Search, RefreshCw, Loader2, CheckCircle2, Trash2, Edit2, 
   BookOpen, Coins, CircleCheck, AlertCircle, Bookmark, Tag, Library, 
-  MapPin, X, Layers, Image as ImageIcon, BookMarked
+  MapPin, X, Layers, Image as ImageIcon, BookMarked, Eye
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { db, SupabaseBook } from '@/src/lib/supabaseDatabase';
+import BookDetailsModal from '@/src/components/admin/BookDetailsModal';
 
 export default function AdminShop() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,6 +32,17 @@ export default function AdminShop() {
   const [shelfNo, setShelfNo] = useState('N/A');
   const [status, setStatus] = useState<'available' | 'pre-order'>('available');
   const [stock, setStock] = useState(1);
+  const [isbn, setIsbn] = useState('');
+  const [totalCopies, setTotalCopies] = useState(1);
+
+  // Advanced Detail Modal
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState<SupabaseBook | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  const handleViewDetailsClick = (book: SupabaseBook) => {
+    setSelectedBookForDetails(book);
+    setIsDetailModalOpen(true);
+  };
 
   const loadBooks = async () => {
     try {
@@ -61,6 +73,8 @@ export default function AdminShop() {
     setShelfNo('N/A');
     setStatus('available');
     setStock(1);
+    setIsbn('');
+    setTotalCopies(1);
     setIsModalOpen(true);
   };
 
@@ -77,6 +91,8 @@ export default function AdminShop() {
     setShelfNo(book.shelfNo || 'N/A');
     setStatus(book.status);
     setStock(book.stock ?? 1);
+    setIsbn(book.isbn || '');
+    setTotalCopies(book.totalCopies ?? book.stock ?? 1);
     setIsModalOpen(true);
   };
 
@@ -132,7 +148,9 @@ export default function AdminShop() {
         bookId,
         shelfNo,
         status,
-        stock
+        stock,
+        isbn,
+        totalCopies
       };
 
       if (editingBook) {
@@ -279,7 +297,7 @@ export default function AdminShop() {
                           </div>
                         )}
                         <div className="min-w-0">
-                          <p className="font-black text-slate-900 leading-tight truncate max-w-xs">{book.title}</p>
+                          <p className="font-black text-slate-900 leading-tight truncate max-w-xs cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleViewDetailsClick(book)}>{book.title}</p>
                           <p className="text-[9px] font-mono font-black text-indigo-500 tracking-wider mt-1 block uppercase">ID: {book.bookId || 'N/A'}</p>
                         </div>
                       </div>
@@ -326,6 +344,13 @@ export default function AdminShop() {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end space-x-2">
+                        <button 
+                          onClick={() => handleViewDetailsClick(book)}
+                          className="p-3 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-xl transition-all"
+                          title="বিস্তারিত ইনভেন্টরি ট্র্যাকিং"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                         <button 
                           onClick={() => handleOpenEditModal(book)}
                           className="p-3 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all"
@@ -458,14 +483,30 @@ export default function AdminShop() {
                     <p className="text-[10px] text-slate-400 font-bold mt-1">💡 "৳০" বা "Free" লিখলে বইটি মেম্বাররা ফ্রি রিড হিসেবে লাইব্রেরি থেকে ধার নেওয়ার অপশন পাবেন। অন্য কোন মূল্য দিলে তা বুক শপের আইটেম হিসেবে গণ্য হবে এবং কার্টে কেনার অপশন দেখাবে।</p>
                   </div>
 
-                  {/* Stock */}
+                  {/* ISBN */}
                   <div>
-                    <label className="block text-xs font-black text-slate-405 uppercase tracking-widest mb-2.5">স্টক পরিমাণ (কপি সংখ্যা)</label>
+                    <label className="block text-xs font-black text-slate-40s uppercase tracking-widest mb-2.5">ISBN কোড</label>
+                    <input 
+                      type="text" 
+                      placeholder="যেমন: 978-3-16-148410-0"
+                      value={isbn}
+                      onChange={(e) => setIsbn(e.target.value)}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-205 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 text-slate-800"
+                    />
+                  </div>
+
+                  {/* Total Copies */}
+                  <div>
+                    <label className="block text-xs font-black text-slate-40s uppercase tracking-widest mb-2.5">মোট কপি সংখ্যা (Total Copies)</label>
                     <input 
                       type="number" 
                       min="0"
-                      value={stock}
-                      onChange={(e) => setStock(parseInt(e.target.value) || 0)}
+                      value={totalCopies}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setTotalCopies(val);
+                        setStock(val);
+                      }}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-205 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 text-slate-800"
                     />
                   </div>
@@ -562,6 +603,21 @@ export default function AdminShop() {
           </div>
         )}
       </AnimatePresence>
+
+      <BookDetailsModal 
+        book={selectedBookForDetails} 
+        isOpen={isDetailModalOpen} 
+        onClose={() => setIsDetailModalOpen(false)} 
+        onUpdate={() => {
+          loadBooks();
+          if (selectedBookForDetails) {
+            db.getBooks().then(updatedCollection => {
+              const matched = updatedCollection.find(b => b.id === selectedBookForDetails.id);
+              if (matched) setSelectedBookForDetails(matched);
+            });
+          }
+        }} 
+      />
     </div>
   );
 }

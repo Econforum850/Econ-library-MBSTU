@@ -25,20 +25,24 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900 relative">
-      <AdminSidebar isOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
+    <div className="flex min-h-screen bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900 relative print:bg-white print:block">
+      <div className="print:hidden shrink-0">
+        <AdminSidebar isOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
+      </div>
       
       {/* Backdrop for mobile drawer */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] z-45 lg:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] z-45 lg:hidden transition-opacity duration-300 print:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <AdminTopBar onMenuClick={() => setIsSidebarOpen(true)} />
-        <main className="flex-1 p-4 md:p-8">
+      <div className="flex-1 flex flex-col min-w-0 print:block">
+        <div className="print:hidden">
+          <AdminTopBar onMenuClick={() => setIsSidebarOpen(true)} />
+        </div>
+        <main className="flex-1 p-4 md:p-8 print:p-0 print:m-0">
           <Outlet />
         </main>
       </div>

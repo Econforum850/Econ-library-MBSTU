@@ -60,26 +60,29 @@
   button,
   form,
   input,
+  select,
   .no-print,
   .print\:hidden {
     display: none !important;
   }
 
-  body, html {
+  body, html, #root, .flex, .min-h-screen, .flex-1, .space-y-8, main {
     background: white !important;
     background-color: white !important;
     color: black !important;
-    font-size: 11pt !important;
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: relative !important;
+    width: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+    box-shadow: none !important;
   }
 
-  main {
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    background: white !important;
+  .print\:block {
+    display: block !important;
   }
 
   div, section, table, tbody, td, th, tr {

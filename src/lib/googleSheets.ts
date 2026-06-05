@@ -12,6 +12,7 @@ export interface SheetBook {
   price?: string;
   stock?: number;
   ebookUrl?: string;
+  isbn?: string;
 }
 
 export interface SheetMember {

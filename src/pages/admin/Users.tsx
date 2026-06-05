@@ -35,6 +35,19 @@ export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'rejected' | 'renewal-requested' | 'reissue-requested'>('all');
   const [processingServices, setProcessingServices] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const [ledgerQuery, setLedgerQuery] = useState('');
+  const [ledgerStatus, setLedgerStatus] = useState<'all' | 'dues' | 'accepted' | 'pending' | 'rejected'>('all');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [ledgerPage, setLedgerPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    setLedgerPage(1);
+  }, [ledgerQuery, ledgerStatus]);
 
   const handleApproveRenewal = async (member: SupabaseMember) => {
     try {
@@ -383,6 +396,7 @@ export default function AdminUsers() {
   }, []);
 
   const handlePrint = () => {
+    window.focus();
     window.print();
   };
 
@@ -671,15 +685,45 @@ export default function AdminUsers() {
     return true;
   });
 
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
+  const displayedMembers = filteredMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const filteredLedgerMembers = members.filter(m => {
+    const matchesQuery = m.name.toLowerCase().includes(ledgerQuery.toLowerCase()) ||
+      m.id.toLowerCase().includes(ledgerQuery.toLowerCase()) ||
+      m.email.toLowerCase().includes(ledgerQuery.toLowerCase());
+      
+    if (!matchesQuery) return false;
+    
+    if (ledgerStatus === 'all') return true;
+    if (ledgerStatus === 'dues') return (m.dues || 0) > 0;
+    if (ledgerStatus === 'accepted') return m.status === 'accepted' || m.status === 'active';
+    if (ledgerStatus === 'pending') return m.status === 'pending';
+    if (ledgerStatus === 'rejected') return m.status === 'rejected';
+    
+    return true;
+  });
+
+  const ledgerItemsPerPage = 10;
+  const ledgerTotalPages = Math.ceil(filteredLedgerMembers.length / ledgerItemsPerPage);
+  const displayedLedgerMembers = filteredLedgerMembers.slice((ledgerPage - 1) * ledgerItemsPerPage, ledgerPage * ledgerItemsPerPage);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 print:p-0">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 md:p-8 rounded-[24px] md:rounded-[40px] shadow-sm border border-slate-100 print:hidden">
         <div>
           <h2 className="text-3xl font-black text-slate-900 leading-tight">সদস্য ব্যবস্থাপনা</h2>
-          <div className="flex items-center space-x-3 mt-1">
-            <p className="text-sm font-bold text-slate-400">মোট {members.length} জন নিবন্ধিত সদস্য</p>
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            <p className="text-sm font-black text-slate-500">
+              মোট নিবন্ধিত: <span className="text-slate-900 font-extrabold">{members.length} জন</span>
+              <span className="mx-2 text-slate-300">|</span>
+              সক্রিয়/অনুমোদিত: <span className="text-emerald-600 font-extrabold">{members.filter(m => m.status === 'accepted' || m.status === 'active').length} জন</span>
+              <span className="mx-2 text-slate-300">|</span>
+              পেন্ডিং: <span className="text-amber-500 font-extrabold">{members.filter(m => m.status === 'pending').length} জন</span>
+            </p>
             {isUsingSheet && (
-              <span className="flex items-center text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+              <span className="ml-2 flex items-center text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
                 <CheckCircle2 className="w-3 h-3 mr-1" />
                 লাইভ শিট
               </span>
@@ -748,7 +792,7 @@ export default function AdminUsers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-sm">
-              {filteredMembers.map((member) => (
+              {displayedMembers.map((member) => (
                 <tr 
                   key={member.id} 
                   onClick={() => setSelectedMember(member)}
@@ -815,7 +859,7 @@ export default function AdminUsers() {
 
         {/* Mobile View: Cards */}
         <div className="block md:hidden divide-y divide-slate-100">
-          {filteredMembers.map((member) => (
+          {displayedMembers.map((member) => (
             <div 
               key={member.id} 
               onClick={() => setSelectedMember(member)}
@@ -864,6 +908,53 @@ export default function AdminUsers() {
             </div>
           )}
         </div>
+
+        {/* Pagination Section */}
+        {totalPages > 1 && (
+          <div className="p-5 md:p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
+            <span className="text-xs font-black text-slate-500">
+              পৃষ্ঠা {currentPage} / {totalPages} (মোট {filteredMembers.length} জনের মধ্যে {(currentPage - 1) * 10 + 1} - {Math.min(currentPage * 10, filteredMembers.length)} দেখানো হচ্ছে)
+            </span>
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.max(prev - 1, 1)); }}
+                className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95 shadow-sm"
+              >
+                পেছনে
+              </button>
+              
+              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pg) => {
+                const isActive = pg === currentPage;
+                return (
+                  <button
+                    key={pg}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setCurrentPage(pg); }}
+                    className={cn(
+                      "w-9 h-9 rounded-xl text-xs font-black transition-all flex items-center justify-center select-none active:scale-95 border",
+                      isActive 
+                        ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100" 
+                        : "bg-white hover:bg-slate-50 border-slate-200 text-slate-755 hover:border-slate-300 text-slate-700"
+                    )}
+                  >
+                    {pg}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.min(prev + 1, totalPages)); }}
+                className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95 shadow-sm"
+              >
+                সামনে
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Member Profile Modal */}
@@ -1644,6 +1735,373 @@ MBSTU Econ Library & Organization`;
           </div>
         )}
       </AnimatePresence>
+
+      {/* DOWNSIDE ACCOUNTS & DUES DASHBOARD */}
+      <div className="mt-12 space-y-8 print:mt-0">
+        
+        {/* Section Heading */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 text-white p-6 md:p-8 rounded-[24px] md:rounded-[40px] shadow-lg print:hidden">
+          <div>
+            <h3 className="text-2xl font-black tracking-tight flex items-center gap-2">
+              <span className="w-2.5 h-6 bg-indigo-500 rounded-full inline-block"></span>
+              সদস্য অ্যাকাউন্ট ও বকেয়া ড্যাশবোর্ড
+            </h3>
+            <p className="text-slate-450 text-slate-400 font-bold text-xs mt-1">
+              সদস্যদের হিসাব বিবরণী, আবেদন স্ট্যাটাস এবং বকেয়া (Dues) ট্র্যাক করার এডমিন কন্ট্রোল সেন্টার
+            </p>
+          </div>
+          
+          {/* Action Buttons for downloading and printing */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handlePrint}
+              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-3 rounded-2xl font-black text-xs transition-all active:scale-95 shadow-md border border-slate-700"
+              title="রিপোর্ট প্রিন্ট করুন"
+            >
+              <Printer className="w-4 h-4" />
+              <span>রিপোর্ট প্রিন্ট</span>
+            </button>
+            <button 
+              onClick={() => {
+                // CSV Export
+                const headers = ["User Name", "Library ID", "Email", "Status", "Personal Dues (BDT)"];
+                const rows = members.map(m => {
+                  const statusText = m.status === 'accepted' || m.status === 'active' ? 'সক্রিয়' : m.status === 'pending' ? 'পেন্ডিং' : m.status === 'rejected' ? 'বাতিল' : m.status;
+                  return [m.name, `ECO-${m.id.padStart(4, '0')}`, m.email, statusText, m.dues || 0];
+                });
+                
+                let csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.setAttribute("download", `Member_Accounts_Report_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl font-black text-xs transition-all active:scale-95 shadow-md"
+              title="CSV ডাটা ডাউনলোড"
+            >
+              <Download className="w-4 h-4" />
+              <span>CSV এক্সপোর্ট</span>
+            </button>
+            <button 
+              onClick={() => {
+                // Excel Export
+                const headers = ["User Name", "Library ID", "Email", "Status", "Personal Dues (BDT)"];
+                const rows = members.map(m => {
+                  const statusText = m.status === 'accepted' || m.status === 'active' ? 'সক্রিয়' : m.status === 'pending' ? 'পেন্ডিং' : m.status === 'rejected' ? 'বাতিল' : m.status;
+                  return [m.name, `ECO-${m.id.padStart(4, '0')}`, m.email, statusText, m.dues || 0];
+                });
+                
+                let xlsContent = headers.join("\t") + "\n";
+                rows.forEach(r => {
+                  xlsContent += r.join("\t") + "\n";
+                });
+                
+                const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), xlsContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.setAttribute("download", `Member_Accounts_Report_${new Date().toISOString().slice(0,10)}.xls`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-750 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl font-black text-xs transition-all active:scale-95 shadow-md"
+              title="Excel ডাটা ডাউনলোড"
+            >
+              <Download className="w-4 h-4" />
+              <span>Excel এক্সপোর্ট</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Dashboard Cards (Stat Counters) */}
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 print:hidden">
+          
+          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block mb-1">সক্রিয় সদস্য (Accepted)</span>
+            <div>
+              <p className="text-2xl font-black text-slate-900">{members.filter(m => m.status === 'accepted' || m.status === 'active').length} জন</p>
+              <p className="text-[10px] font-bold text-emerald-500 mt-1">● এডমিন কর্তৃক অনুমোদিত</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block mb-1">পেন্ডিং সদস্য (Pending)</span>
+            <div>
+              <p className="text-2xl font-black text-slate-900">{members.filter(m => m.status === 'pending').length} জন</p>
+              <p className="text-[10px] font-bold text-amber-500 mt-1">● সিদ্ধান্তের অপেক্ষায়</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block mb-1">বাতিলকৃত সদস্য (Rejected)</span>
+            <div>
+              <p className="text-2xl font-black text-slate-900">{members.filter(m => m.status === 'rejected').length} জন</p>
+              <p className="text-[10px] font-bold text-rose-500 mt-1">● মেম্বারশিপ বাতিল</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-black tracking-wider uppercase text-slate-400 block mb-1">মোট সদস্য (Total Registered)</span>
+            <div>
+              <p className="text-2xl font-black text-slate-900">{members.length} জন</p>
+              <p className="text-[10px] font-bold text-indigo-500 mt-1">● মোট নিবন্ধন সংখ্যা</p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50/40 p-5 rounded-3xl border border-amber-100 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-black tracking-wider uppercase text-amber-600 block mb-1">বকেয়া ব্যক্তি সংখ্যা</span>
+            <div>
+              <p className="text-2xl font-black text-amber-700">{members.filter(m => (m.dues || 0) > 0).length} জন</p>
+              <p className="text-[10px] font-bold text-amber-600 mt-1">● বকেয়া পরিশোধ বাকি</p>
+            </div>
+          </div>
+
+          <div className="bg-rose-50/50 p-5 rounded-3xl border border-rose-100 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-black tracking-wider uppercase text-rose-600 block mb-1">সর্বমোট বকেয়ার পরিমাণ</span>
+            <div>
+              <p className="text-2xl font-black text-rose-700">৳{members.reduce((acc, m) => acc + (m.dues || 0), 0)}</p>
+              <p className="text-[10px] font-bold text-rose-600 mt-1">● সর্বমোট অপরিশোধিত</p>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Ledger table card */}
+        <div className="bg-white rounded-[24px] md:rounded-[40px] shadow-sm border border-slate-100 overflow-hidden print:hidden">
+          
+          {/* Table Control/Filter Head */}
+          <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row gap-4 justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <span className="w-1.5 h-4 bg-indigo-600 rounded-full inline-block"></span>
+              <h4 className="font-black text-slate-800 text-sm">সদস্য অ্যাকাউন্ট ও বকেয়া হিসাব বহি (Ledger Table)</h4>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              {/* Ledger Query search */}
+              <div className="relative flex-1 sm:w-60">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="খুঁজুন (নাম/আইডি/জিমেইল)..." 
+                  value={ledgerQuery}
+                  onChange={(e) => setLedgerQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-[14px] text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all text-slate-800"
+                />
+              </div>
+
+              {/* Ledger Status dropdown filter */}
+              <select
+                value={ledgerStatus}
+                onChange={(e) => setLedgerStatus(e.target.value as any)}
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-[14px] text-xs font-black text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-100/40 transition-all outline-none"
+              >
+                <option value="all">সব সদস্য (All)</option>
+                <option value="dues">শুধুমাত্র বকেয়াগ্রস্ত (With Dues)</option>
+                <option value="accepted">সক্রিয় সদস্য (Accepted)</option>
+                <option value="pending">পেন্ডিং সদস্য (Pending)</option>
+                <option value="rejected">বাতিলকৃত সদস্য (Rejected)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-[0.1em] border-b border-slate-100">
+                  <th className="px-8 py-4 font-black uppercase">সদস্যের নাম (User Name)</th>
+                  <th className="px-8 py-4 font-black uppercase">লাইব্রেরি আইডি (Library ID)</th>
+                  <th className="px-8 py-4 font-black uppercase">জিমেইল (Gmail)</th>
+                  <th className="px-8 py-4 font-black uppercase">স্ট্যাটাস (Status)</th>
+                  <th className="px-8 py-4 font-black uppercase">ব্যক্তিগত বকেয়া (Personal Dues)</th>
+                  <th className="px-8 py-4 text-center font-black uppercase">অ্যাকশন (Actions)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 text-xs">
+                {displayedLedgerMembers.map((member) => (
+                  <tr 
+                    key={member.id} 
+                    className="hover:bg-slate-50/50 transition-colors"
+                  >
+                    <td className="px-8 py-4 font-extrabold text-slate-900">
+                      {member.name}
+                    </td>
+                    <td className="px-8 py-4 font-extrabold">
+                      <span className="font-mono font-black text-indigo-600 bg-indigo-50/55 px-2.5 py-1 rounded-lg">
+                        ECO-{member.id.padStart(4, '0')}
+                      </span>
+                    </td>
+                    <td className="px-8 py-4 text-slate-550 text-slate-650 font-bold">
+                      {member.email}
+                    </td>
+                    <td className="px-8 py-4">
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider",
+                        member.status === 'accepted' || member.status === 'active'
+                          ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
+                          : member.status === 'pending'
+                          ? "bg-amber-50 text-amber-600 border border-amber-100"
+                          : "bg-rose-50 text-rose-600 border border-rose-100"
+                      )}>
+                        {member.status === 'accepted' ? 'সক্রিয়' : member.status === 'pending' ? 'পেন্ডিং' : member.status === 'rejected' ? 'বাতিল' : member.status}
+                      </span>
+                    </td>
+                    <td className="px-8 py-4">
+                      <span className={cn(
+                        "font-black text-sm",
+                        (member.dues || 0) > 0 ? "text-rose-650 text-rose-600 font-extrabold" : "text-emerald-600 font-bold"
+                      )}>
+                        ৳{member.dues || 0}
+                      </span>
+                    </td>
+                    <td className="px-8 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setSelectedMember(member);
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-black transition-all active:scale-95 text-xs text-center"
+                          title="সম্পূর্ণ বিবরণী ও কার্যক্রম"
+                        >
+                          প্রোফাইল
+                        </button>
+                        <button 
+                          onClick={() => {
+                            handlePayDues(member);
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg font-black text-xs transition-all active:scale-95",
+                            (member.dues || 0) > 0 
+                              ? "bg-rose-600 text-white hover:bg-rose-700"
+                              : "bg-emerald-50 text-emerald-600 border border-emerald-250 cursor-default"
+                          )}
+                          disabled={(member.dues || 0) <= 0}
+                        >
+                          {(member.dues || 0) > 0 ? 'বকেয়া মেটান' : 'পরিশোধিত'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                
+                {filteredLedgerMembers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-8 py-10 text-center text-slate-400 font-bold">
+                      কোনো ফলাফল পাওয়া যায়নি
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Ledger Pagination Section */}
+          {ledgerTotalPages > 1 && (
+            <div className="p-4 md:p-5 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
+              <span className="text-xs font-black text-slate-500">
+                পৃষ্ঠা {ledgerPage} / {ledgerTotalPages} (মোট {filteredLedgerMembers.length} জনের মধ্যে {(ledgerPage - 1) * 10 + 1} - {Math.min(ledgerPage * 10, filteredLedgerMembers.length)} দেখানো হচ্ছে)
+              </span>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  disabled={ledgerPage === 1}
+                  onClick={(e) => { e.stopPropagation(); setLedgerPage(prev => Math.max(prev - 1, 1)); }}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-45 disabled:cursor-not-allowed select-none active:scale-95 shadow-sm"
+                >
+                  পেছনে
+                </button>
+                
+                {Array.from({ length: ledgerTotalPages }, (_, idx) => idx + 1).map((pg) => {
+                  const isActive = pg === ledgerPage;
+                  return (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setLedgerPage(pg); }}
+                      className={cn(
+                        "w-8.5 h-8.5 rounded-xl text-xs font-black transition-all flex items-center justify-center select-none active:scale-95 border",
+                        isActive 
+                          ? "bg-[#1e293b] border-[#1e293b] text-white shadow-lg" 
+                          : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300"
+                      )}
+                    >
+                      {pg}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  disabled={ledgerPage === ledgerTotalPages}
+                  onClick={(e) => { e.stopPropagation(); setLedgerPage(prev => Math.min(prev + 1, ledgerTotalPages)); }}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-45 disabled:cursor-not-allowed select-none active:scale-95 shadow-sm"
+                >
+                  سامने
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* DETAILED PRINTABLE ONLY REPORT CARD */}
+      <div className="hidden print:block font-sans text-black p-4">
+        
+        {/* Print Header */}
+        <div className="text-center pb-6 mb-8 border-b-2 border-slate-900">
+          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">MBSTU Econ Library</h2>
+          <p className="text-sm text-slate-500 font-bold mt-1">সদস্য অ্যাকাউন্ট ও বকেয়া হিসাব বহি (Member Accounts & Dues Ledger Statement)</p>
+          <div className="flex items-center justify-between text-xs text-slate-650 text-slate-650 mt-6 px-1 font-bold">
+            <span>প্রিন্ট সময়: {new Date().toLocaleDateString('bn-BD')} {new Date().toLocaleTimeString('bn-BD')}</span>
+            <span>মোট নিবন্ধিত সদস্য: {members.length} জন</span>
+            <span>অ্যাপ্রুভড/সক্রিয়: {members.filter(m => m.status === 'accepted' || m.status === 'active').length} জন</span>
+            <span>সর্বমোট বকেয়া: ৳{members.reduce((acc, m) => acc + (m.dues || 0), 0)}</span>
+          </div>
+        </div>
+
+        {/* Printable Table */}
+        <table className="w-full text-[11px] text-left border-collapse border border-slate-400">
+          <thead>
+            <tr className="bg-slate-100 text-slate-900 font-black uppercase text-[10px] border-b border-slate-400">
+              <th className="border border-slate-400 p-2.5 text-slate-900">সদস্যের নাম (User Name)</th>
+              <th className="border border-slate-400 p-2.5 text-slate-900">লাইব্রেরি আইডি (Library ID)</th>
+              <th className="border border-slate-400 p-2.5 text-slate-900">ইমেইল (Gmail)</th>
+              <th className="border border-slate-400 p-2.5 text-slate-900">স্ট্যাটাস (Status)</th>
+              <th className="border border-slate-400 p-2.5 text-right text-slate-900">ব্যক্তিগত বকেয়া (Personal Dues)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((member, idx) => (
+              <tr key={member.id || idx} className="border-b border-slate-200">
+                <td className="border border-slate-400 p-2.5 font-bold">{member.name}</td>
+                <td className="border border-slate-400 p-2.5 font-mono">ECO-{member.id.padStart(4, '0')}</td>
+                <td className="border border-slate-400 p-2.5 font-bold text-slate-700">{member.email}</td>
+                <td className="border border-slate-400 p-2.5 uppercase font-black">
+                  {member.status === 'accepted' || member.status === 'active' ? 'সক্রিয়' : member.status === 'pending' ? 'পেন্ডিং' : member.status === 'rejected' ? 'বাতিল' : member.status}
+                </td>
+                <td className="border border-slate-400 p-2.5 text-right font-black">৳{member.dues || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Signature Placeholder in print versions */}
+        <div className="mt-20 flex justify-between px-10 text-xs font-bold">
+          <div className="text-center pt-8 border-t border-slate-450 border-slate-400 w-44">
+            কো-অর্ডিনেটর স্বাক্ষর
+          </div>
+          <div className="text-center pt-8 border-t border-slate-450 border-slate-400 w-44">
+            লাইব্রেরি এডমিন স্বাক্ষর
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }
