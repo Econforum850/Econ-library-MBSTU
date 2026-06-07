@@ -36,6 +36,86 @@ export interface SupabaseBook {
   reservedCopies?: number;
   lostCopies?: number;
   damagedCopies?: number;
+  downloadPermission?: 'Read Only' | 'Read + Download' | 'Download Premium Only' | 'Faculty Only';
+}
+
+export interface DigitalAccessRequest {
+  id: string;
+  bookId: string;
+  bookTitle: string;
+  memberId: string;
+  memberName: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestDate: string;
+  approvalDate?: string;
+}
+
+export interface EbookHighlight {
+  id: string;
+  bookId: string;
+  memberId: string;
+  pageNumber: number;
+  color: 'yellow' | 'blue' | 'green' | 'red';
+  text: string;
+  createdAt: string;
+}
+
+export interface EbookNote {
+  id: string;
+  bookId: string;
+  memberId: string;
+  pageNumber: number;
+  text: string;
+  title: string;
+  type: 'sticky' | 'quick' | 'private';
+  createdAt: string;
+}
+
+export interface EbookBookmark {
+  id: string;
+  bookId: string;
+  memberId: string;
+  pageNumber: number;
+  createdAt: string;
+}
+
+export interface EbookProgress {
+  id: string;
+  bookId: string;
+  bookTitle?: string;
+  memberId: string;
+  progress: number;
+  lastPage: number;
+  updatedAt: string;
+}
+
+export interface EbookFavorite {
+  id: string;
+  bookId: string;
+  memberId: string;
+  createdAt: string;
+}
+
+export interface EbookDownload {
+  id: string;
+  bookId: string;
+  bookTitle: string;
+  memberId: string;
+  memberName: string;
+  studentId: string;
+  libraryId: string;
+  date: string;
+  time: string;
+}
+
+export interface EbookDiscussion {
+  id: string;
+  bookId: string;
+  memberId: string;
+  memberName: string;
+  comment: string;
+  parentId?: string;
+  createdAt: string;
 }
 
 export interface SupabaseMember {
@@ -354,6 +434,599 @@ export const db = {
     }
   },
 
+  // --- DIGITAL ACCESS REQUESTS ---
+  async getDigitalAccessRequests(): Promise<DigitalAccessRequest[]> {
+    const colPath = 'digital_access_requests';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: DigitalAccessRequest[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        mapped.push({
+          id: d.id,
+          bookId: data.bookId || '',
+          bookTitle: data.bookTitle || '',
+          memberId: data.memberId || '',
+          memberName: data.memberName || '',
+          status: data.status || 'pending',
+          requestDate: data.requestDate || '',
+          approvalDate: data.approvalDate || ''
+        });
+      });
+      if (mapped.length > 0) {
+        saveLocalData('db_digital_access_requests', mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getDigitalAccessRequests failed, fallback to local:", err);
+    }
+    return getLocalData<DigitalAccessRequest>('db_digital_access_requests', []);
+  },
+
+  async saveDigitalAccessRequest(req: Partial<DigitalAccessRequest>): Promise<DigitalAccessRequest> {
+    const colPath = 'digital_access_requests';
+    const finalId = req.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalized: DigitalAccessRequest = {
+      id: finalId,
+      bookId: req.bookId || '',
+      bookTitle: req.bookTitle || '',
+      memberId: req.memberId || '',
+      memberName: req.memberName || '',
+      status: req.status || 'pending',
+      requestDate: req.requestDate || new Date().toISOString().split('T')[0],
+      approvalDate: req.approvalDate || ''
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    const local = getLocalData<DigitalAccessRequest>('db_digital_access_requests', []);
+    const index = local.findIndex(r => r.id === finalId);
+    if (index > -1) {
+      local[index] = finalized;
+    } else {
+      local.push(finalized);
+    }
+    saveLocalData('db_digital_access_requests', local);
+    return finalized;
+  },
+
+  // --- EBOOK HIGHLIGHTS ---
+  async getEbookHighlights(bookId: string, memberId: string): Promise<EbookHighlight[]> {
+    const colPath = 'ebook_highlights';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: EbookHighlight[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        if (data.bookId === bookId && data.memberId === memberId) {
+          mapped.push({
+            id: d.id,
+            bookId: data.bookId || '',
+            memberId: data.memberId || '',
+            pageNumber: Number(data.pageNumber || 1),
+            color: data.color || 'yellow',
+            text: data.text || '',
+            createdAt: data.createdAt || ''
+          });
+        }
+      });
+      if (mapped.length > 0) {
+        saveLocalData(`hl_${bookId}_${memberId}`, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getEbookHighlights failed:", err);
+    }
+    return getLocalData<EbookHighlight>(`hl_${bookId}_${memberId}`, []);
+  },
+
+  async saveEbookHighlight(hl: Partial<EbookHighlight>): Promise<EbookHighlight> {
+    const colPath = 'ebook_highlights';
+    const finalId = hl.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalized: EbookHighlight = {
+      id: finalId,
+      bookId: hl.bookId || '',
+      memberId: hl.memberId || '',
+      pageNumber: hl.pageNumber || 1,
+      color: hl.color || 'yellow',
+      text: hl.text || '',
+      createdAt: hl.createdAt || new Date().toISOString()
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    const local = getLocalData<EbookHighlight>(`hl_${finalized.bookId}_${finalized.memberId}`, []);
+    const index = local.findIndex(h => h.id === finalId);
+    if (index > -1) {
+      local[index] = finalized;
+    } else {
+      local.push(finalized);
+    }
+    saveLocalData(`hl_${finalized.bookId}_${finalized.memberId}`, local);
+    return finalized;
+  },
+
+  async deleteEbookHighlight(id: string): Promise<void> {
+    const colPath = 'ebook_highlights';
+    try {
+      await deleteDoc(doc(firestoreDb, colPath, id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
+    }
+    // Also remove from any local storages
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('hl_')) {
+        const items = getLocalData<EbookHighlight>(key, []);
+        const clean = items.filter(h => h.id !== id);
+        saveLocalData(key, clean);
+      }
+    }
+  },
+
+  // --- EBOOK NOTES ---
+  async getEbookNotes(bookId: string, memberId: string): Promise<EbookNote[]> {
+    const colPath = 'ebook_notes';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: EbookNote[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        if (data.bookId === bookId && data.memberId === memberId) {
+          mapped.push({
+            id: d.id,
+            bookId: data.bookId || '',
+            memberId: data.memberId || '',
+            pageNumber: Number(data.pageNumber || 1),
+            text: data.text || '',
+            title: data.title || '',
+            type: data.type || 'sticky',
+            createdAt: data.createdAt || ''
+          });
+        }
+      });
+      if (mapped.length > 0) {
+        saveLocalData(`notes_${bookId}_${memberId}`, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getEbookNotes failed:", err);
+    }
+    return getLocalData<EbookNote>(`notes_${bookId}_${memberId}`, []);
+  },
+
+  async saveEbookNote(note: Partial<EbookNote>): Promise<EbookNote> {
+    const colPath = 'ebook_notes';
+    const finalId = note.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalized: EbookNote = {
+      id: finalId,
+      bookId: note.bookId || '',
+      memberId: note.memberId || '',
+      pageNumber: note.pageNumber || 1,
+      text: note.text || '',
+      title: note.title || '',
+      type: note.type || 'sticky',
+      createdAt: note.createdAt || new Date().toISOString()
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    const local = getLocalData<EbookNote>(`notes_${finalized.bookId}_${finalized.memberId}`, []);
+    const index = local.findIndex(n => n.id === finalId);
+    if (index > -1) {
+      local[index] = finalized;
+    } else {
+      local.push(finalized);
+    }
+    saveLocalData(`notes_${finalized.bookId}_${finalized.memberId}`, local);
+    return finalized;
+  },
+
+  async deleteEbookNote(id: string): Promise<void> {
+    const colPath = 'ebook_notes';
+    try {
+      await deleteDoc(doc(firestoreDb, colPath, id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('notes_')) {
+        const items = getLocalData<EbookNote>(key, []);
+        const clean = items.filter(n => n.id !== id);
+        saveLocalData(key, clean);
+      }
+    }
+  },
+
+  // --- EBOOK BOOKMARKS ---
+  async getEbookBookmarks(bookId: string, memberId: string): Promise<EbookBookmark[]> {
+    const colPath = 'ebook_bookmarks';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: EbookBookmark[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        if (data.bookId === bookId && data.memberId === memberId) {
+          mapped.push({
+            id: d.id,
+            bookId: data.bookId || '',
+            memberId: data.memberId || '',
+            pageNumber: Number(data.pageNumber || 1),
+            createdAt: data.createdAt || ''
+          });
+        }
+      });
+      if (mapped.length > 0) {
+        saveLocalData(`bm_${bookId}_${memberId}`, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getEbookBookmarks failed:", err);
+    }
+    return getLocalData<EbookBookmark>(`bm_${bookId}_${memberId}`, []);
+  },
+
+  async saveEbookBookmark(bm: Partial<EbookBookmark>): Promise<EbookBookmark> {
+    const colPath = 'ebook_bookmarks';
+    const finalId = bm.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalized: EbookBookmark = {
+      id: finalId,
+      bookId: bm.bookId || '',
+      memberId: bm.memberId || '',
+      pageNumber: bm.pageNumber || 1,
+      createdAt: bm.createdAt || new Date().toISOString()
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    const local = getLocalData<EbookBookmark>(`bm_${finalized.bookId}_${finalized.memberId}`, []);
+    const index = local.findIndex(b => b.id === finalId);
+    if (index > -1) {
+      local[index] = finalized;
+    } else {
+      local.push(finalized);
+    }
+    saveLocalData(`bm_${finalized.bookId}_${finalized.memberId}`, local);
+    return finalized;
+  },
+
+  async deleteEbookBookmark(id: string): Promise<void> {
+    const colPath = 'ebook_bookmarks';
+    try {
+      await deleteDoc(doc(firestoreDb, colPath, id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${colPath}/${id}`);
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('bm_')) {
+        const items = getLocalData<EbookBookmark>(key, []);
+        const clean = items.filter(b => b.id !== id);
+        saveLocalData(key, clean);
+      }
+    }
+  },
+
+  // --- EBOOK PROGRESS ---
+  async getEbookProgress(bookId: string, memberId: string): Promise<EbookProgress | null> {
+    const colPath = 'ebook_progress';
+    const docId = `${memberId}_${bookId}`;
+    try {
+      const snapshot = await getDoc(doc(firestoreDb, colPath, docId));
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        return {
+          id: snapshot.id,
+          bookId: data.bookId || '',
+          bookTitle: data.bookTitle || '',
+          memberId: data.memberId || '',
+          progress: Number(data.progress || 0),
+          lastPage: Number(data.lastPage || 1),
+          updatedAt: data.updatedAt || ''
+        };
+      }
+    } catch (err) {
+      console.warn("Firestore getEbookProgress failed:", err);
+    }
+    const local = getLocalData<EbookProgress>('db_ebook_progress', []);
+    return local.find(p => p.bookId === bookId && p.memberId === memberId) || null;
+  },
+
+  async saveEbookProgress(progress: Partial<EbookProgress>): Promise<EbookProgress> {
+    const colPath = 'ebook_progress';
+    const finalId = `${progress.memberId}_${progress.bookId}`;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const finalized: EbookProgress = {
+      id: finalId,
+      bookId: progress.bookId || '',
+      bookTitle: progress.bookTitle || '',
+      memberId: progress.memberId || '',
+      progress: progress.progress || 0,
+      lastPage: progress.lastPage || 1,
+      updatedAt: new Date().toISOString()
+    };
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    const local = getLocalData<EbookProgress>('db_ebook_progress', []);
+    const index = local.findIndex(p => p.id === finalId);
+    if (index > -1) {
+      local[index] = finalized;
+    } else {
+      local.push(finalized);
+    }
+    saveLocalData('db_ebook_progress', local);
+    return finalized;
+  },
+
+  async getAllEbookProgressForMember(memberId: string): Promise<EbookProgress[]> {
+    const colPath = 'ebook_progress';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: EbookProgress[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        if (data.memberId === memberId) {
+          mapped.push({
+            id: d.id,
+            bookId: data.bookId || '',
+            bookTitle: data.bookTitle || '',
+            memberId: data.memberId || '',
+            progress: Number(data.progress || 0),
+            lastPage: Number(data.lastPage || 1),
+            updatedAt: data.updatedAt || ''
+          });
+        }
+      });
+      // Sort recently updated first
+      mapped.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      if (mapped.length > 0) {
+        saveLocalData(`progress_m_${memberId}`, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getAllEbookProgressForMember failed:", err);
+    }
+    const local = getLocalData<EbookProgress>('db_ebook_progress', []);
+    const filtered = local.filter(p => p.memberId === memberId);
+    filtered.sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return filtered;
+  },
+
+  // --- EBOOK FAVORITES ---
+  async getEbookFavorites(memberId: string): Promise<EbookFavorite[]> {
+    const colPath = 'ebook_favorites';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: EbookFavorite[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        if (data.memberId === memberId) {
+          mapped.push({
+            id: d.id,
+            bookId: data.bookId || '',
+            memberId: data.memberId || '',
+            createdAt: data.createdAt || ''
+          });
+        }
+      });
+      if (mapped.length > 0) {
+        saveLocalData(`fav_${memberId}`, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getEbookFavorites failed:", err);
+    }
+    const local = getLocalData<EbookFavorite>('db_ebook_favorites', []);
+    return local.filter(f => f.memberId === memberId);
+  },
+
+  async toggleEbookFavorite(bookId: string, memberId: string): Promise<boolean> {
+    const colPath = 'ebook_favorites';
+    const finalId = `${memberId}_${bookId}`;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const local = getLocalData<EbookFavorite>('db_ebook_favorites', []);
+    const index = local.findIndex(f => f.id === finalId);
+    
+    let isFavorite = false;
+    let existsInDb = false;
+    try {
+      const snapshot = await getDoc(docRef);
+      existsInDb = snapshot.exists();
+    } catch (err) {
+      console.warn("Firestore toggleEbookFavorite check failed:", err);
+    }
+
+    if (existsInDb || index > -1) {
+      // Remove it
+      try {
+        await deleteDoc(docRef);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `${colPath}/${finalId}`);
+      }
+      if (index > -1) {
+        local.splice(index, 1);
+        saveLocalData('db_ebook_favorites', local);
+      }
+      isFavorite = false;
+    } else {
+      // Add it
+      const finalized: EbookFavorite = {
+        id: finalId,
+        bookId,
+        memberId,
+        createdAt: new Date().toISOString()
+      };
+      try {
+        await setDoc(docRef, finalized, { merge: true });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+      }
+      local.push(finalized);
+      saveLocalData('db_ebook_favorites', local);
+      isFavorite = true;
+    }
+    return isFavorite;
+  },
+
+  async isEbookFavorite(bookId: string, memberId: string): Promise<boolean> {
+    const colPath = 'ebook_favorites';
+    const finalId = `${memberId}_${bookId}`;
+    try {
+      const snapshot = await getDoc(doc(firestoreDb, colPath, finalId));
+      if (snapshot.exists()) return true;
+    } catch {
+      // ignore
+    }
+    const local = getLocalData<EbookFavorite>('db_ebook_favorites', []);
+    return local.some(f => f.bookId === bookId && f.memberId === memberId);
+  },
+
+  // --- EBOOK DOWNLOADS ---
+  async getEbookDownloads(): Promise<EbookDownload[]> {
+    const colPath = 'ebook_downloads';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: EbookDownload[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        mapped.push({
+          id: d.id,
+          bookId: data.bookId || '',
+          bookTitle: data.bookTitle || '',
+          memberId: data.memberId || '',
+          memberName: data.memberName || '',
+          studentId: data.studentId || '',
+          libraryId: data.libraryId || '',
+          date: data.date || '',
+          time: data.time || ''
+        });
+      });
+      if (mapped.length > 0) {
+        saveLocalData('db_ebook_downloads', mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getEbookDownloads failed:", err);
+    }
+    return getLocalData<EbookDownload>('db_ebook_downloads', []);
+  },
+
+  async trackEbookDownload(dl: Partial<EbookDownload>): Promise<EbookDownload> {
+    const colPath = 'ebook_downloads';
+    const finalId = dl.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const finalized: EbookDownload = {
+      id: finalId,
+      bookId: dl.bookId || '',
+      bookTitle: dl.bookTitle || '',
+      memberId: dl.memberId || '',
+      memberName: dl.memberName || '',
+      studentId: dl.studentId || '',
+      libraryId: dl.libraryId || '',
+      date: dl.date || dateStr,
+      time: dl.time || timeStr
+    };
+
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    const local = getLocalData<EbookDownload>('db_ebook_downloads', []);
+    local.push(finalized);
+    saveLocalData('db_ebook_downloads', local);
+    return finalized;
+  },
+
+  // --- EBOOK DISCUSSIONS ---
+  async getEbookDiscussions(bookId: string): Promise<EbookDiscussion[]> {
+    const colPath = 'ebook_discussions';
+    try {
+      const q = query(collection(firestoreDb, colPath));
+      const querySnapshot = await getDocs(q);
+      const mapped: EbookDiscussion[] = [];
+      querySnapshot.forEach((d) => {
+        const data = d.data();
+        if (data.bookId === bookId) {
+          mapped.push({
+            id: d.id,
+            bookId: data.bookId || '',
+            memberId: data.memberId || '',
+            memberName: data.memberName || '',
+            comment: data.comment || '',
+            parentId: data.parentId || '',
+            createdAt: data.createdAt || ''
+          });
+        }
+      });
+      // Sort oldest first for natural chat flow
+      mapped.sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      if (mapped.length > 0) {
+        saveLocalData(`disc_${bookId}`, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Firestore getEbookDiscussions failed:", err);
+    }
+    const local = getLocalData<EbookDiscussion>('db_ebook_discussions', []);
+    const filtered = local.filter(d => d.bookId === bookId);
+    filtered.sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return filtered;
+  },
+
+  async addEbookDiscussion(comment: Partial<EbookDiscussion>): Promise<EbookDiscussion> {
+    const colPath = 'ebook_discussions';
+    const finalId = comment.id || doc(collection(firestoreDb, colPath)).id;
+    const docRef = doc(firestoreDb, colPath, finalId);
+    
+    const finalized: EbookDiscussion = {
+      id: finalId,
+      bookId: comment.bookId || '',
+      memberId: comment.memberId || '',
+      memberName: comment.memberName || '',
+      comment: comment.comment || '',
+      parentId: comment.parentId || '',
+      createdAt: comment.createdAt || new Date().toISOString()
+    };
+
+    try {
+      await setDoc(docRef, finalized, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${colPath}/${finalId}`);
+    }
+    const local = getLocalData<EbookDiscussion>('db_ebook_discussions', []);
+    local.push(finalized);
+    saveLocalData('db_ebook_discussions', local);
+    return finalized;
+  },
+
   // --- BOOKS SERVICES ---
   async getBooks(): Promise<SupabaseBook[]> {
     const colPath = 'books';
@@ -384,6 +1057,7 @@ export const db = {
           isEBook: b.isEBook ?? false,
           ebookUrl: b.ebookUrl || '',
           isbn: b.isbn || '',
+          downloadPermission: b.downloadPermission || 'Read + Download',
           totalCopies: total,
           issuedCopies: issued,
           reservedCopies: reserved,
@@ -475,6 +1149,7 @@ export const db = {
       isEBook: book.isEBook ?? false,
       ebookUrl: book.ebookUrl || '',
       isbn: book.isbn || '',
+      downloadPermission: book.downloadPermission || 'Read + Download',
       totalCopies: total,
       issuedCopies: issued,
       reservedCopies: reserved,
@@ -496,6 +1171,7 @@ export const db = {
         isEBook: finalizedBook.isEBook,
         ebookUrl: finalizedBook.ebookUrl,
         isbn: finalizedBook.isbn,
+        downloadPermission: finalizedBook.downloadPermission,
         totalCopies: finalizedBook.totalCopies,
         issuedCopies: finalizedBook.issuedCopies,
         reservedCopies: finalizedBook.reservedCopies,

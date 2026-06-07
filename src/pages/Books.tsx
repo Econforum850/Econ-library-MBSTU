@@ -1,10 +1,11 @@
-import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft, Printer, Settings, Sparkles } from 'lucide-react';
+import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft, Printer, Settings, Sparkles, Heart, Activity, Check, RotateCcw, Volume2, Moon, Sun, MessageSquare, Pin, ChevronRight, Trash2, Play, Square, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/src/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { db } from '@/src/lib/supabaseDatabase';
 import { defaultEconBooks } from '@/src/lib/defaultEconBooks';
+import PDFViewer from '../components/PDFViewer';
 
 interface Book {
   id: string;
@@ -19,6 +20,7 @@ interface Book {
   stock?: number;
   isEBook?: boolean;
   ebookUrl?: string;
+  downloadPermission?: string;
 }
 
 const LOCAL_CATEGORIES = [
@@ -34,7 +36,7 @@ const LOCAL_CATEGORIES = [
 
 export default function Books() {
   const [lang, setLang] = useState<'BN' | 'EN'>('BN');
-  const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'ebooks'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'categories' | 'ebooks' | 'favorites' | 'reading-hub'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
@@ -122,13 +124,59 @@ export default function Books() {
     return loggedInUser?.role === 'Admin' || localStorage.getItem('isAdmin') === 'true';
   }, [loggedInUser]);
 
+  // Advanced Digital Reader states
+  const [isReadingBook, setIsReadingBook] = useState<Book | null>(null);
+  const [currentReadingPage, setCurrentReadingPage] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [isReaderDarkMode, setIsReaderDarkMode] = useState(false);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [highlights, setHighlights] = useState<any[]>([]);
+  const [bookmarks, setBookmarks] = useState<any[]>([]);
+  const [progressList, setProgressList] = useState<any[]>([]);
+  const [favoritesList, setFavoritesList] = useState<any[]>([]);
+  const [digitalRequests, setDigitalRequests] = useState<any[]>([]);
+  const [discussions, setDiscussions] = useState<any[]>([]);
+  
+  // AI assistant states
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiInput, setAiInput] = useState('');
+  const [aiMessages, setAiMessages] = useState<{role: 'user' | 'assistant', text: string}[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  
+  // Reading session goals timer
+  const [readingTimer, setReadingTimer] = useState(0); // in seconds
+  const [readingGoalSeconds, setReadingGoalSeconds] = useState(15 * 60); // 15 mins default
+  const [timerActive, setTimerActive] = useState(false);
+  const [goalAchieved, setGoalAchieved] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  
+  // Selection translation helper popup position
+  const [selectionPopup, setSelectionPopup] = useState<{x: number, y: number, text: string} | null>(null);
+
   const canAccessEBook = useMemo(() => {
+    if (isAdmin) return true;
     if (!loggedInUser?.email) return false;
+    
+    // Pattern check
     const email = loggedInUser.email.toLowerCase();
-    // Pattern: eco(20|21|22|23|24|25)\d{3}@mbstu.ac.bd
     const pattern = /^eco(20|21|22|23|24|25)\d{3}@mbstu\.ac\.bd$/;
-    return pattern.test(email);
-  }, [loggedInUser]);
+    const matchesPattern = pattern.test(email);
+    
+    // Or approved request
+    const isApproved = digitalRequests.some(r => r.bookId === selectedBook?.id && r.memberId === loggedInUser.id && r.status === 'approved');
+    
+    return matchesPattern || isApproved;
+  }, [loggedInUser, selectedBook, digitalRequests, isAdmin]);
+
+  const canDownloadEBook = useMemo(() => {
+    if (isAdmin) return true;
+    if (!selectedBook) return false;
+    const perm = selectedBook.downloadPermission || 'Read + Download';
+    if (perm === 'Read Only') return false;
+    if (perm === 'Download Premium Only') return loggedInUser?.role === 'Premium';
+    if (perm === 'Faculty Only') return loggedInUser?.role === 'Faculty' || loggedInUser?.role === 'Teacher';
+    return true; 
+  }, [selectedBook, loggedInUser, isAdmin]);
 
   // Form state for adding book
   const [newBook, setNewBook] = useState({
@@ -179,6 +227,451 @@ export default function Books() {
     loadGraphics();
   }, []);
 
+  const loadEbookUserStates = async () => {
+    if (!loggedInUser) return;
+    try {
+      const [reqs, favs, progress] = await Promise.all([
+        db.getDigitalAccessRequests().catch(() => []),
+        db.getEbookFavorites(loggedInUser.id).catch(() => []),
+        db.getAllEbookProgressForMember(loggedInUser.id).catch(() => [])
+      ]);
+      setDigitalRequests(reqs || []);
+      setFavoritesList(favs || []);
+      setProgressList(progress || []);
+    } catch (err) {
+      console.error("Error loading ebook user states:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadEbookUserStates();
+  }, [loggedInUser]);
+
+  useEffect(() => {
+    const loadReaderData = async () => {
+      if (!isReadingBook || !loggedInUser) return;
+      try {
+        const [hls, nts, bms, disc, prog] = await Promise.all([
+          db.getEbookHighlights(isReadingBook.id, loggedInUser.id).catch(() => []),
+          db.getEbookNotes(isReadingBook.id, loggedInUser.id).catch(() => []),
+          db.getEbookBookmarks(isReadingBook.id, loggedInUser.id).catch(() => []),
+          db.getEbookDiscussions(isReadingBook.id).catch(() => []),
+          db.getEbookProgress(isReadingBook.id, loggedInUser.id).catch(() => null)
+        ]);
+        setHighlights(hls || []);
+        setNotes(nts || []);
+        setBookmarks(bms || []);
+        setDiscussions(disc || []);
+        
+        if (prog) {
+          setCurrentReadingPage(Number(prog.lastPage || 1));
+        } else {
+          setCurrentReadingPage(1);
+        }
+        
+        // Reset timer
+        setReadingTimer(0);
+        setTimerActive(true);
+        setGoalAchieved(false);
+        setShowCelebration(false);
+      } catch (err) {
+        console.error("Error loading reader data:", err);
+      }
+    };
+    loadReaderData();
+  }, [isReadingBook, loggedInUser]);
+
+  useEffect(() => {
+    const updateProgress = async () => {
+      if (!isReadingBook || !loggedInUser) return;
+      const progressPercent = Math.min(100, Math.round((currentReadingPage / 10) * 100)); // total pages: 10
+      try {
+        await db.saveEbookProgress({
+          bookId: isReadingBook.id,
+          bookTitle: isReadingBook.title,
+          memberId: loggedInUser.id,
+          progress: progressPercent,
+          lastPage: currentReadingPage
+        });
+        // Reload progress list to keep UI synchronized
+        const p = await db.getAllEbookProgressForMember(loggedInUser.id).catch(() => []);
+        setProgressList(p || []);
+      } catch (err) {
+        console.error("Failed to save progress:", err);
+      }
+    };
+    updateProgress();
+  }, [currentReadingPage, isReadingBook, loggedInUser]);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (timerActive && !goalAchieved) {
+      interval = setInterval(() => {
+        setReadingTimer(prev => {
+          const next = prev + 1;
+          if (next >= readingGoalSeconds) {
+            setGoalAchieved(true);
+            setTimerActive(false);
+            setShowCelebration(true);
+            try {
+              const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const notesSeq = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 arpeggio!
+              notesSeq.forEach((freq, idx) => {
+                const osc = context.createOscillator();
+                const gain = context.createGain();
+                osc.connect(gain);
+                gain.connect(context.destination);
+                osc.frequency.setValueAtTime(freq, context.currentTime + idx * 0.15);
+                gain.gain.setValueAtTime(0.04, context.currentTime + idx * 0.15);
+                osc.start(context.currentTime + idx * 0.15);
+                osc.stop(context.currentTime + idx * 0.15 + 0.3);
+              });
+            } catch (_) {}
+          }
+          return next;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive, goalAchieved, readingGoalSeconds]);
+
+  const handleRequestAccess = async () => {
+    if (!loggedInUser || !selectedBook) return;
+    try {
+      const payload = {
+        bookId: selectedBook.id,
+        bookTitle: selectedBook.title,
+        memberId: loggedInUser.id,
+        memberName: loggedInUser.name || 'Anonymous student',
+        status: 'pending' as const,
+        requestDate: new Date().toISOString().split('T')[0]
+      };
+      await db.saveDigitalAccessRequest(payload);
+      // Reload requests
+      const reqs = await db.getDigitalAccessRequests().catch(() => []);
+      setDigitalRequests(reqs || []);
+      alert(lang === 'BN' ? 'অনুরোধ সফলভাবে পাঠানো হয়েছে! এডমিনের অনুমোদনের জন্য অপেক্ষা করুন।' : 'Request submitted successfully! Kindly wait for admin review.');
+    } catch (err) {
+      console.error("Failed to request access:", err);
+    }
+  };
+
+  const handleDownloadEBook = async (book: Book) => {
+    if (!loggedInUser) return;
+    try {
+      await db.trackEbookDownload({
+        bookId: book.id,
+        bookTitle: book.title,
+        memberId: loggedInUser.id,
+        memberName: loggedInUser.name || 'Student',
+        studentId: loggedInUser.studentRoll || 'N/A',
+        libraryId: `LIB-${loggedInUser.id.substring(0, 5).toUpperCase()}`
+      });
+      window.open(book.ebookUrl || '#', '_blank');
+    } catch (err) {
+      console.error("Download logging failed:", err);
+      window.open(book.ebookUrl || '#', '_blank');
+    }
+  };
+
+  const handleToggleEbookFavorite = async (bookId: string) => {
+    if (!loggedInUser) return;
+    try {
+      await db.toggleEbookFavorite(bookId, loggedInUser.id);
+      const favs = await db.getEbookFavorites(loggedInUser.id).catch(() => []);
+      setFavoritesList(favs || []);
+    } catch (err) {
+      console.error("Toggle favorite failed:", err);
+    }
+  };
+
+  const handleSaveEbookHighlight = async (highlightText: string, color: 'yellow' | 'blue' | 'green' | 'red') => {
+    if (!isReadingBook || !loggedInUser || !highlightText) return;
+    try {
+      await db.saveEbookHighlight({
+        bookId: isReadingBook.id,
+        memberId: loggedInUser.id,
+        pageNumber: currentReadingPage,
+        text: highlightText,
+        color: color
+      });
+      const hls = await db.getEbookHighlights(isReadingBook.id, loggedInUser.id).catch(() => []);
+      setHighlights(hls || []);
+      setSelectionPopup(null);
+    } catch (err) {
+      console.error("Failed to save highlight:", err);
+    }
+  };
+
+  const handleDeleteEbookHighlight = async (id: string) => {
+    try {
+      await db.deleteEbookHighlight(id);
+      if (isReadingBook && loggedInUser) {
+        const hls = await db.getEbookHighlights(isReadingBook.id, loggedInUser.id).catch(() => []);
+        setHighlights(hls || []);
+      }
+    } catch (e) {
+      console.error("Delete highlight failed:", e);
+    }
+  };
+
+  const handleSaveEbookNote = async (text: string, noteType: string) => {
+    if (!isReadingBook || !loggedInUser || !text) return;
+    try {
+      await db.saveEbookNote({
+        bookId: isReadingBook.id,
+        memberId: loggedInUser.id,
+        pageNumber: currentReadingPage,
+        text: text,
+        type: noteType as any, // sticky | quick | private
+        title: `Note - Page ${currentReadingPage}`
+      });
+      const nts = await db.getEbookNotes(isReadingBook.id, loggedInUser.id).catch(() => []);
+      setNotes(nts || []);
+    } catch (err) {
+      console.error("Failed to save note:", err);
+    }
+  };
+
+  const handleDeleteEbookNote = async (id: string) => {
+    try {
+      await db.deleteEbookNote(id);
+      if (isReadingBook && loggedInUser) {
+        const nts = await db.getEbookNotes(isReadingBook.id, loggedInUser.id).catch(() => []);
+        setNotes(nts || []);
+      }
+    } catch (e) {
+      console.error("Delete note failed:", e);
+    }
+  };
+
+  const handleAddEbookBookmark = async () => {
+    if (!isReadingBook || !loggedInUser) return;
+    try {
+      await db.saveEbookBookmark({
+        bookId: isReadingBook.id,
+        memberId: loggedInUser.id,
+        pageNumber: currentReadingPage
+      });
+      const bms = await db.getEbookBookmarks(isReadingBook.id, loggedInUser.id).catch(() => []);
+      setBookmarks(bms || []);
+      alert(`Page ${currentReadingPage} bookmarked!`);
+    } catch (err) {
+      console.error("Failed to save bookmark:", err);
+    }
+  };
+
+  const handleDeleteEbookBookmark = async (id: string) => {
+    try {
+      await db.deleteEbookBookmark(id);
+      if (isReadingBook && loggedInUser) {
+        const bms = await db.getEbookBookmarks(isReadingBook.id, loggedInUser.id).catch(() => []);
+        setBookmarks(bms || []);
+      }
+    } catch (e) {
+      console.error("Delete bookmark failed:", e);
+    }
+  };
+
+  const handleSaveEbookDiscussion = async (text: string, parentId?: string) => {
+    if (!isReadingBook || !loggedInUser || !text) return;
+    try {
+      await db.addEbookDiscussion({
+        bookId: isReadingBook.id,
+        memberId: loggedInUser.id,
+        memberName: loggedInUser.name || 'Anonymous student',
+        comment: text,
+        parentId: parentId || ''
+      });
+      const disc = await db.getEbookDiscussions(isReadingBook.id).catch(() => []);
+      setDiscussions(disc || []);
+    } catch (err) {
+      console.error("Failed to save discussion comment:", err);
+    }
+  };
+
+  // Selection mouseup listeners for PDF Selection Assistant
+  const handleTextSelection = (e: any) => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      setSelectionPopup(null);
+      return;
+    }
+    const text = sel.toString().trim();
+    if (text.length > 0) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      setSelectionPopup({
+        x: rect.left + window.scrollX,
+        y: rect.top + window.scrollY - 60,
+        text: text
+      });
+    }
+  };
+
+  const getSimulatedPages = (book: Book) => {
+    const title = book.title;
+    return [
+      {
+        pageNum: 1,
+        title: "Chapter 1: Foundations and Definitions",
+        content: `Welcome to the digital study of "${title}". This introductory chapter sets up the foundational methodologies. In university-level economics, models of behavior focus on optimization and steady states. Economists use stylized systems to trace cause and effect variables. 
+        
+        Key Definition: Economic optimization refers to maximizing utility or profit metrics under resources constraints.
+        
+        The structural formula representing standard Cobb-Douglas production is:
+        Y = A * K^α * L^(1-α)
+        where Y is output, K is capital, L is labor, and A is total factor productivity.
+        
+        Let's inspect the correlation variables layout in the table below to analyze model output trends carefully.`
+      },
+      {
+        pageNum: 2,
+        title: "Chapter 2: Optimization Theory and Constraints",
+        content: `When analyzing optimization models, the Lagrange multiplier (λ) plays a vital role. In this chapter, we evaluate profit-maximizing functions across key sectors and batches. 
+        
+        Suppose a consumer seeks to maximize utility U(x, y) subject to the budget constraint p_x * x + p_y * y = I.
+        We form the Lagrangian expression:
+        L = U(x, y) + λ(I - p_x * x - p_y * y)
+        
+        Taking first-order conditions yields the crucial result that the Marginal Rate of Substitution (MRS) must equal the price ratio:
+        MU_x / MU_y = p_x / p_y.
+        
+        This equality governs consumer choice in general equilibrium models. Review the exam notes sidebar to memorize derivation steps.`
+      },
+      {
+        pageNum: 3,
+        title: "Chapter 3: General Equilibrium Models",
+        content: `We now transition to general equilibrium analysis where multiple markets clear simultaneously. Arrow-Debreu's framework proves that under competitive parameters, a Pareto-efficient allocation always exists.
+        
+        In the context of macroeconomics, goods markets are modeled recursively. The IS (Investment-Saving) equation represents goods market clearance, while the LM (Liquidity preference-Money supply) represents money market equilibrium.
+        
+        Key Formula: 
+        IS: Y = C(Y - T) + I(r) + G
+        LM: M/P = L(Y, r)
+        
+        Where 'r' represents the real interest rate, and 'Y' represents real GDP. A positive demand shock shifts the IS curve rightward, raising both output and interest rates.`
+      },
+      {
+        pageNum: 4,
+        title: "Chapter 4: Statistical Distributions and Econometric Fit",
+        content: `Empirical research requires mapping model curves to observed metrics. Econometric models specify stochastic equations to incorporate random errors and white noise terms.
+        
+        The standard multiple linear regression is:
+        Y_i = β_0 + β_1 * X_{1i} + β_2 * X_{2i} + u_i
+        
+        Where u_i represents the disturbance term containing unobserved influences. Gauss-Markov assumptions guarantee that Ordinary Least Squares (OLS) estimators are Blue (Best Linear Unbiased Estimators).
+        
+        If homoscedasticity is violated, standard errors are biased, requiring heteroscedasticity-robust covariance matrix estimators (White standard errors) to ensure safe confidence intervals.`
+      },
+      {
+        pageNum: 5,
+        title: "Chapter 5: Exam Insights and Practice Review",
+        content: `This section consolidates high-yield study notes specifically calibrated for the upcoming Semester Exams of MBSTU Economics Department. Historically, questions from production frontiers and money multipliers yield 30% of total exams marks.
+        
+        Review Questions:
+        1. Derive the Euler Theorem for constant returns to scale functions.
+        2. Differentiate between Walrasian stability and Marshallian stability dynamics.
+        
+        Pro Tip: When presenting models, always draw clear labels for equilibrium points. The intercept of the LM curve represents the liquidity trap boundary.`
+      },
+      {
+        pageNum: 6,
+        title: "Chapter 6: Fiscal Policy Frameworks",
+        content: `Fiscal policy is a cornerstone of macroeconomic stabilization. Government expenditures (G) and net taxes (T) influence aggregate demand directly in the IS-LM framework.
+        
+        The balanced-budget multiplier equals 1, indicating that equal increases in government spending and taxation raise output by the exact amount of the spending increase.
+        
+        Formula: ΔY = [1 / (1 - c)] * ΔG - [c / (1 - c)] * ΔT
+        If ΔG = ΔT, then ΔY = ΔG.
+        
+        This result is highly robust across standard neo-Keynesian paradigms. Review this formula for potential exam MCQ and calculations.`
+      },
+      {
+        pageNum: 7,
+        title: "Chapter 7: Monetary Transmission Mechanisms",
+        content: `Monetary transmissions operate through various channels: the interest rate channel, exchange rate channel, and asset price channels. Central Banks control high-powered money to stabilize consumer price indices.
+        
+        The Taylor Rule provides a normative guide for setting short-term nominal money rates:
+        i_t = r_t + π_t + 0.5 * (π_t - π*) + 0.5 * (y_t - y*)
+        
+        Where π* is target inflation, and y* is potential output. Central bank policy deviations often generate business cycle fluctuations.`
+      },
+      {
+        pageNum: 8,
+        title: "Chapter 8: Open Economy Macroeconomics",
+        content: `In an open economy, we incorporate net exports (NX) and capital flows. The Mundell-Fleming model adapts IS-LM for open systems under floating vs. fixed exchange rate systems.
+        
+        Under perfect capital mobility:
+        - Monetary policy is highly effective under floating rates but completely powerless under fixed exchange rates.
+        - Fiscal policy is highly effective under fixed rates but completely powerless under floating exchange rates, due to 100% crowding out via exchange rate appreciation.`
+      },
+      {
+        pageNum: 9,
+        title: "Chapter 9: Endogenous Growth Theory",
+        content: `Modern growth models go beyond Solow's exogenous technological shocks to endogenize innovation. Romer's model models innovation as a non-rivalrous product of research networks.
+        
+        Formula: Y_t = K_t^α * (A_t * L_Y)^ (1-α)
+        Where growth of knowledge depends on research intensity:
+        ΔA_t = δ * A_t^φ * L_A
+        
+        Under positive returns, growth can persist indefinitely without hitting diminishing returns. This forms the heart of sustained modern economic development trends.`
+      },
+      {
+        pageNum: 10,
+        title: "Chapter 10: Final Course Summary & Notes",
+        content: `Congratulations on completing all chapters of the digital study material for "${title}". We have integrated core optimization axioms, macroeconomic aggregate curves, econometric proofs, and stabilization models.
+        
+        Ensure you review your highlights in Green (Exam Prep) and Red (Very Important) before entering the examination hall. Use the AI Assistant to generate unique MCQs on these terms to test your retention and gain a competitive edge.`
+      }
+    ];
+  };
+
+  const runAiAssist = async (action: 'summarize' | 'explain' | 'mcq' | 'points' | 'chat', userQuery?: string) => {
+    if (!isReadingBook) return;
+    setAiLoading(true);
+    setIsAiOpen(true);
+    
+    const pages = getSimulatedPages(isReadingBook);
+    const currentPageContent = pages.find(p => p.pageNum === currentReadingPage)?.content || '';
+    
+    let queryText = '';
+    if (action === 'summarize') {
+      queryText = `Please summarize this chapter/page text for: "${isReadingBook.title}" by ${isReadingBook.author}.\nText:\n${currentPageContent}`;
+      setAiMessages(prev => [...prev, {role: 'user', text: `Generate summary for Chapter of Page ${currentReadingPage}`}]);
+    } else if (action === 'explain') {
+      queryText = `Please explain the key scientific or economic concept mentioned in this paragraph:\n"${userQuery || currentPageContent}"`;
+      setAiMessages(prev => [...prev, {role: 'user', text: `Explain the concepts on page ${currentReadingPage}`}]);
+    } else if (action === 'mcq') {
+      queryText = `Please generate 3 Multiple Choice Questions (with correct options and answers) based on this text:\n${currentPageContent}`;
+      setAiMessages(prev => [...prev, {role: 'user', text: `Generate practice quizzes for Page ${currentReadingPage}`}]);
+    } else if (action === 'points') {
+      queryText = `Please extract high-yield bullet points for exam preparation from this text:\n${currentPageContent}`;
+      setAiMessages(prev => [...prev, {role: 'user', text: `Extract high-yield exam points`}]);
+    } else {
+      queryText = `Context book "${isReadingBook.title}" (Page ${currentReadingPage} content:\n"${currentPageContent}").\nUser asked: "${userQuery}"`;
+      setAiMessages(prev => [...prev, {role: 'user', text: userQuery || ''}]);
+    }
+    
+    try {
+      const response = await fetch('/api/gemini/assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: queryText })
+      });
+      const data = await response.json();
+      if (data && data.success) {
+        setAiMessages(prev => [...prev, {role: 'assistant', text: data.result}]);
+      } else {
+        setAiMessages(prev => [...prev, {role: 'assistant', text: "Error: " + (data.error || "Failed to process AI request. Check console.")}]);
+      }
+    } catch (e: any) {
+      console.error(e);
+      setAiMessages(prev => [...prev, {role: 'assistant', text: "Service error. Please verify server logs."}]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const filteredBooks = useMemo(() => {
     let result = books.filter(book => 
       (book.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -188,6 +681,10 @@ export default function Books() {
 
     if (activeTab === 'ebooks') {
       result = result.filter(b => b.isEBook);
+    } else if (activeTab === 'favorites') {
+      result = result.filter(b => favoritesList.includes(b.id));
+    } else if (activeTab === 'reading-hub') {
+      result = result.filter(b => progressList.some(p => p.bookId === b.id));
     } else if (activeTab === 'categories' && selectedCategory !== 'all') {
       result = result.filter(b => b.category === selectedCategory);
     }
@@ -197,7 +694,7 @@ export default function Books() {
     }
 
     return result;
-  }, [books, searchTerm, activeTab, selectedCategory, statusFilter]);
+  }, [books, searchTerm, activeTab, selectedCategory, statusFilter, favoritesList, progressList]);
 
   const categoryGroups = useMemo(() => {
     const groups: { [key: string]: Book[] } = {};
@@ -331,6 +828,17 @@ export default function Books() {
           <p className="text-slate-600 font-bold">{lang === 'BN' ? 'বইয়ের তালিকা লোড হচ্ছে...' : 'Loading Books Directory...'}</p>
         </div>
       </div>
+    );
+  }
+
+  if (isReadingBook) {
+    return (
+      <PDFViewer 
+        book={isReadingBook}
+        loggedInUser={loggedInUser}
+        onClose={() => setIsReadingBook(null)}
+        lang={lang}
+      />
     );
   }
 
@@ -476,6 +984,8 @@ export default function Books() {
           { id: 'all', label: lang === 'BN' ? 'সকল সংগ্রহ' : 'All Collections', icon: BookOpen },
           { id: 'categories', label: lang === 'BN' ? 'বিভাগ অনুযায়ী' : 'By Categories', icon: Filter },
           { id: 'ebooks', label: lang === 'BN' ? 'ই-বুক আর্কাইভ' : 'E-Book Archive', icon: FileText },
+          { id: 'favorites', label: lang === 'BN' ? 'আমার প্রিয় বই' : 'My Favorites', icon: Heart },
+          { id: 'reading-hub', label: lang === 'BN' ? 'পড়ার প্রগ্রেস' : 'Reading Hub', icon: Activity },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1209,15 +1719,13 @@ export default function Books() {
                   <div className="mb-10 p-2 bg-purple-50 rounded-[40px] border border-purple-100">
                     {canAccessEBook ? (
                       <div className="grid grid-cols-2 gap-2">
-                        <a 
-                          href={selectedBook.ebookUrl || '#'} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-3 py-6 bg-purple-600 text-white rounded-[32px] font-black hover:bg-slate-900 transition-all shadow-xl shadow-purple-100"
+                        <button 
+                          onClick={() => setIsReadingBook(selectedBook)}
+                          className="flex items-center justify-center gap-3 py-6 bg-purple-600 text-white rounded-[32px] font-black hover:bg-slate-900 transition-all shadow-xl shadow-purple-100 cursor-pointer"
                         >
                           <Eye className="w-5 h-5" />
                           <span>{lang === 'BN' ? 'অনলাইনে পড়ুন' : 'Read Online'}</span>
-                        </a>
+                        </button>
                         <a 
                           href={selectedBook.ebookUrl || '#'} 
                           download

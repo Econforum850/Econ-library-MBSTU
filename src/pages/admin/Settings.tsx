@@ -26,6 +26,11 @@ export default function AdminSettings() {
     registrationScript: localStorage.getItem('registration_script_url') || 'https://script.google.com/macros/s/AKfycbx8JvVk5nvS7XO6jXPwHb9BhCbaNUBgTxycqI1NguV_LoixqY4xYfVbZF6hTvpbo4Dfug/exec',
     donorMediaLink: localStorage.getItem('donor_media_link') || '',
   });
+  const [borrowSettings, setBorrowSettings] = useState({
+    borrowDays: localStorage.getItem('lib_borrow_days') || '15',
+    borrowLimit: localStorage.getItem('lib_borrow_limit') || '3',
+    penaltyRate: localStorage.getItem('lib_penalty_rate') || '5',
+  });
   const [isSaved, setIsSaved] = useState(false);
 
   const handleSaveUrls = () => {
@@ -35,9 +40,14 @@ export default function AdminSettings() {
     localStorage.setItem('custom_sheet_url', urls.inventory);
     localStorage.setItem('donor_media_link', urls.donorMediaLink);
     
+    // Save library rules configuration
+    localStorage.setItem('lib_borrow_days', borrowSettings.borrowDays);
+    localStorage.setItem('lib_borrow_limit', borrowSettings.borrowLimit);
+    localStorage.setItem('lib_penalty_rate', borrowSettings.penaltyRate);
+    
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
-    alert('প্রয়োজনীয় গুগল শিট ও স্ক্রিপ্ট লিঙ্ক সেভ হয়েছে! পরিবর্তন দেখতে পেজ রিফ্রেশ করুন।');
+    alert('প্রয়োজনীয় সকল লাইব্রেরি সেটিংস ও লিঙ্ক সফলভাবে সংরক্ষণ করা হয়েছে! পরিবর্তন দেখতে পেজ রিফ্রেশ করুন।');
   };
 
   return (
@@ -124,6 +134,95 @@ export default function AdminSettings() {
                </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Library Borrowing and Penalty Fine Rules Config */}
+      <div className="bg-white p-10 rounded-[48px] border border-violet-100 shadow-lg shadow-violet-50/20 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-violet-50/50 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
+        
+        <div className="flex items-center space-x-6 mb-10 relative z-10">
+          <div className="w-16 h-16 bg-violet-600 text-white rounded-[24px] flex items-center justify-center shadow-lg shadow-violet-200">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 leading-none mb-2">বই ধার ও বিলম্ব জরিমানা সেটিংস (Library & Fine Rules)</h3>
+            <p className="text-sm font-bold text-slate-400">বই ধারের সময়সীমা, সর্বোচ্চ ধারের সংখ্যা এবং বিলম্ব पेनাল্টি রেট নির্ধারণ করুন।</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10 mb-8">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-violet-600 uppercase tracking-widest ml-6">সাধারণ ধার পিরিয়ড (Days) ⏳</label>
+            <input 
+              type="number" 
+              min={1}
+              value={borrowSettings.borrowDays}
+              onChange={(e) => setBorrowSettings({...borrowSettings, borrowDays: e.target.value})}
+              placeholder="15..."
+              className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-violet-100"
+            />
+            <p className="text-[10px] text-slate-400 font-bold ml-6">ডিফল্ট ১৫ দিন (প্রয়োজনে পরিবর্তন করা যাবে)</p>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-violet-600 uppercase tracking-widest ml-6">সর্বোচ্চ ধারের বই লিমিট (Books Limit) 📚</label>
+            <input 
+              type="number" 
+              min={1}
+              value={borrowSettings.borrowLimit}
+              onChange={(e) => setBorrowSettings({...borrowSettings, borrowLimit: e.target.value})}
+              placeholder="3..."
+              className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-violet-100"
+            />
+            <p className="text-[10px] text-slate-400 font-bold ml-6">ডিফল্ট ৩ টি বই (একজন সদস্য একসাথে যতটি নিতে পারবেন)</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-violet-600 uppercase tracking-widest ml-6">প্রতিদিন বিলম্ব জরিমানা ট্যাক্স (Penalty Taka) ৳</label>
+            <input 
+              type="number" 
+              min={0}
+              value={borrowSettings.penaltyRate}
+              onChange={(e) => setBorrowSettings({...borrowSettings, penaltyRate: e.target.value})}
+              placeholder="5..."
+              className="w-full px-8 py-4 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-violet-100"
+            />
+            <p className="text-[10px] text-slate-400 font-bold ml-6">ডিফল্ট ৫ টাকা (প্রতিদিন ওভারডিউ হওয়ার পর যুক্ত হবে)</p>
+          </div>
+        </div>
+
+        <div className="p-6 bg-violet-50 rounded-[32px] border border-violet-100 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+             <div className="w-10 h-10 bg-white text-violet-600 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
+                <Bell className="w-5 h-5 animate-bounce" />
+             </div>
+             <div className="text-left">
+                <h4 className="text-[11px] font-black text-violet-950 mb-0.5 uppercase tracking-wide">জিমেইল জিপিএস নোটিফিকেশন সিস্টেম কন্ডিশন</h4>
+                <p className="text-[10px] font-bold text-violet-700 leading-relaxed">
+                  ধারের দিন শেষ হওয়ার ৩ দিন, ২ দিন ও ১ দিন পূর্বে এবং শেষ দিনে স্বয়ংক্রিয়/ম্যানুয়াল রিমাইন্ডার এবং জরিমানা নোটিশ শিক্ষার্থীর জিমেইল এড্রেসে প্রেরিত হবে।
+                </p>
+             </div>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const response = await fetch('/api/test-email');
+                const testResult = await response.json();
+                if (testResult.success) {
+                  alert(`✅ SMTP কানেকশন সফল!\nইমেইল ডিসপ্যাচ করতে জিমেইল প্রস্তুত।\nপ্রেরক: ${testResult.user}`);
+                } else {
+                  alert(`❌ SMTP কানেকশন ব্যর্থ হয়েছে!\nত্রুটি বিবরণী: ${testResult.error || 'Unknown Error'}\n\nপরামর্শ: জিমেইল সিকিউরিটি সেটিংস থেকে ২-স্টেপ ভেরিফিকেশন অন করে একটি "App Password" জেনারেট করে AI Studio Credentials এ বসান।`);
+                }
+              } catch (e: any) {
+                alert('কানেকশন টেস্টে ত্রুটি দেখা দিয়েছে: ' + e.message);
+              }
+            }}
+            className="px-6 py-3 bg-white text-violet-700 font-black text-[10px] uppercase tracking-wider rounded-2xl shadow-sm border border-violet-100 hover:bg-violet-600 hover:text-white transition-all whitespace-nowrap"
+          >
+            জিমেইল কানেকশন টেস্ট করুন 🔌
+          </button>
         </div>
       </div>
 

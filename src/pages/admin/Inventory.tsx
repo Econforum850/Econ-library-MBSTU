@@ -168,6 +168,7 @@ export default function AdminInventory() {
     cover: '',
     isEBook: false,
     ebookUrl: '',
+    downloadPermission: 'Read + Download',
     bookId: '',
     shelfNo: 'N/A',
     isbn: '',
@@ -227,6 +228,7 @@ export default function AdminInventory() {
       cover: book.cover || '',
       isEBook: !!book.isEBook,
       ebookUrl: book.ebookUrl || '',
+      downloadPermission: book.downloadPermission || 'Read + Download',
       bookId: book.bookId || '',
       shelfNo: book.shelfNo || 'N/A',
       isbn: book.isbn || '',
@@ -278,6 +280,7 @@ export default function AdminInventory() {
         cover: newBook.cover || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
         isEBook: newBook.isEBook,
         ebookUrl: newBook.isEBook ? newBook.ebookUrl : '',
+        downloadPermission: newBook.isEBook ? (newBook.downloadPermission || 'Read + Download') : '',
         bookId: newBook.bookId || `ID-${Math.floor(Math.random() * 1000)}`,
         shelfNo: newBook.shelfNo || 'N/A',
         status: 'available',
@@ -308,7 +311,7 @@ export default function AdminInventory() {
       setEditingBookId(null);
       setNewBook({
         title: '', author: '', category: 'সাধারণ', stock: 1, price: '',
-        cover: '', isEBook: false, ebookUrl: '', bookId: '', shelfNo: 'N/A',
+        cover: '', isEBook: false, ebookUrl: '', downloadPermission: 'Read + Download', bookId: '', shelfNo: 'N/A',
         isbn: '', totalCopies: 1, issuedCopies: 0, reservedCopies: 0, lostCopies: 0, damagedCopies: 0
       });
       loadBooks();
@@ -1278,17 +1281,32 @@ export default function AdminInventory() {
                     <motion.div 
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
-                      className="space-y-3 pt-6 border-t border-slate-200 mt-4"
+                      className="space-y-4 pt-6 border-t border-slate-200 mt-4 text-left"
                     >
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">ই-বুক ডাউনলোড লিংক</label>
-                      <input 
-                        type="url" 
-                        required={newBook.isEBook}
-                        placeholder="Google Drive, Mega, Dropbox etc URL"
-                        value={newBook.ebookUrl}
-                        onChange={(e) => setNewBook({...newBook, ebookUrl: e.target.value})}
-                        className="w-full px-8 py-5 bg-white border border-slate-200 rounded-[30px] font-bold focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all text-sm"
-                      />
+                      <div>
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">ই-বুক ডাউনলোড লিংক</label>
+                        <input 
+                          type="url" 
+                          required={newBook.isEBook}
+                          placeholder="Google Drive, Mega, Dropbox etc URL"
+                          value={newBook.ebookUrl}
+                          onChange={(e) => setNewBook({...newBook, ebookUrl: e.target.value})}
+                          className="w-full px-8 py-5 bg-white border border-slate-200 rounded-[30px] font-bold focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all text-sm mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-4">ডাউনলোড পারমিশন সিস্টেম (Download Permission)</label>
+                        <select
+                          value={newBook.downloadPermission || 'Read + Download'}
+                          onChange={(e: any) => setNewBook({...newBook, downloadPermission: e.target.value})}
+                          className="w-full px-8 py-5 bg-white border border-slate-200 rounded-[30px] font-bold focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all text-sm mt-1 hover:border-purple-300"
+                        >
+                          <option value="Read Only">Read Only (কেউ ডাউনলোড করতে পারবে না, শুধু লাইভ পড়বে)</option>
+                          <option value="Read + Download">Read + Download (সকল ভেরিফাইড ইউজার ডাউনলোড ও পড়তে পারবে)</option>
+                          <option value="Download Premium Only">Download Premium Only (শুধু প্রিমিয়াম মেম্বাররা ডাউনলোড পাবে)</option>
+                          <option value="Faculty Only">Faculty Only (শুধু সম্মানিত শিক্ষকমণ্ডলী ডাউনলোড পাবে)</option>
+                        </select>
+                      </div>
                     </motion.div>
                   )}
                 </div>

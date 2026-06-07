@@ -94,6 +94,58 @@ app.get('/api/test-email', async (req, res) => {
   }
 });
 
+// Secure API endpoint for AI Reading Assistant proxying the Gemini API
+app.post('/api/gemini/assist', async (req: express.Request, res: express.Response) => {
+  const { action, text, bookTitle, chapter } = req.body;
+  if (!action || !text) {
+    res.status(400).json({ error: 'Missing action or text parameter' });
+    return;
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ 
+      error: 'GEMINI_API_KEY environment variable is not configured on the server. Please add GEMINI_API_KEY to AI Studio Settings.', 
+    });
+    return;
+  }
+
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
+    let prompt = '';
+    if (action === 'summarize') {
+      prompt = `Summarize this text in detail, focusing on key takeaways for university economics students. Book: "${bookTitle || 'Unknown'}", Chapter/Section: "${chapter || 'Current'}". Text to summarize:\n\n${text}`;
+    } else if (action === 'explain') {
+      prompt = `Provide a clear, simple, and detailed explanation of this paragraph for college students. Explain any complex library, economics vocabulary, or theories mentioned. Text:\n\n${text}`;
+    } else if (action === 'mcq') {
+      prompt = `Generate 4 educational multiple-choice questions (MCQs) with 4 options (A, B, C, D) each, plus the correct answers and brief explanations based on this text. Keep the format clean and highly readable. Text:\n\n${text}`;
+    } else if (action === 'points') {
+      prompt = `Extract the most important points, lists, or core concepts from this text as key bullet points. Text to inspect:\n\n${text}`;
+    } else {
+      prompt = `Assist with this reading material. Text:\n\n${text}`;
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    res.json({ result: response.text });
+  } catch (error: any) {
+    console.error('Gemini API Error:', error);
+    res.status(500).json({ error: 'Failed to generate response', details: error.message });
+  }
+});
+
 // Secure API endpoint to dispatch membership and ID Card confirmations
 app.post('/api/send-email', async (req: express.Request, res: express.Response) => {
   const { to, subject, html } = req.body;
