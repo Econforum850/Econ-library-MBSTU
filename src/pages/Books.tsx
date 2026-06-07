@@ -1424,7 +1424,7 @@ export default function Books() {
               initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="relative bg-white w-full max-w-xl rounded-[36px] shadow-2xl overflow-hidden p-8 z-10"
+              className="relative bg-white w-full max-w-xl rounded-[32px] md:rounded-[36px] shadow-2xl overflow-y-auto max-h-[90vh] p-6 md:p-8 z-10 scrollbar-thin"
             >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -1513,7 +1513,7 @@ export default function Books() {
               initial={{ opacity: 0, scale: 0.9, y: 50 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 50 }}
-              className="relative bg-white w-full max-w-3xl rounded-[50px] shadow-2xl overflow-hidden p-12"
+              className="relative bg-white w-full max-w-3xl rounded-[32px] md:rounded-[50px] shadow-2xl overflow-y-auto max-h-[90vh] p-6 md:p-12 scrollbar-thin z-10"
             >
               <div className="flex justify-between items-center mb-10">
                 <h2 className="text-3xl font-black text-slate-900 flex items-center gap-4">
@@ -1655,29 +1655,29 @@ export default function Books() {
             />
             <motion.div
               layoutId={`book-details-${selectedBook.id}`}
-              className="relative bg-white w-full max-w-5xl rounded-[60px] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-white/20"
+              className="relative bg-white w-full max-w-5xl rounded-[32px] md:rounded-[60px] shadow-2xl overflow-y-auto md:overflow-hidden flex flex-col md:flex-row border border-white/20 max-h-[90vh]"
             >
               <button 
                 onClick={() => setSelectedBook(null)}
-                className="absolute top-8 right-8 z-50 p-4 bg-slate-50 text-slate-400 rounded-full hover:text-slate-900 transition-all hover:rotate-90"
+                className="absolute top-4 right-4 md:top-8 md:right-8 z-50 p-3 md:p-4 bg-white/85 md:bg-slate-50 text-slate-400 rounded-full hover:text-slate-900 transition-all hover:rotate-90 shadow-md md:shadow-none"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 md:w-6 md:h-6" />
               </button>
 
-              <div className="w-full md:w-[40%] p-12 bg-slate-50 flex items-center justify-center relative overflow-hidden">
+              <div className="w-full md:w-[40%] p-6 md:p-12 bg-slate-50 flex items-center justify-center relative overflow-hidden shrink-0">
                 <div className="absolute inset-0 opacity-[0.05] grayscale rotate-12 -translate-x-12">
                    <BarChart3 className="w-[400px] h-[400px]" />
                 </div>
                 {selectedBook.cover ? (
-                  <img src={selectedBook.cover} className="w-full max-w-[300px] shadow-2xl rounded-2xl relative z-10" alt="Cover" />
+                  <img src={selectedBook.cover} className="w-full max-w-[200px] md:max-w-[300px] shadow-2xl rounded-2xl relative z-10" alt="Cover" />
                 ) : (
-                  <div className="w-48 h-72 bg-white rounded-2xl flex items-center justify-center shadow-lg relative z-10">
-                    <BookOpen className="w-20 h-20 text-indigo-100" />
+                  <div className="w-40 h-60 md:w-48 md:h-72 bg-white rounded-2xl flex items-center justify-center shadow-lg relative z-10">
+                    <BookOpen className="w-16 h-16 md:w-20 md:h-20 text-indigo-100" />
                   </div>
                 )}
               </div>
 
-              <div className="flex-1 p-12 md:p-20 overflow-y-auto max-h-[90vh]">
+              <div className="flex-1 p-6 md:p-20 md:overflow-y-auto md:max-h-[90vh]">
                 <div className="flex items-center gap-4 mb-8">
                   <span className="px-5 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-xl uppercase tracking-widest">{selectedBook.category}</span>
                   {selectedBook.isEBook && (
@@ -1791,7 +1791,7 @@ export default function Books() {
               initial={{ scale: 0.95, opacity: 0, y: 30 }} 
               animate={{ scale: 1, opacity: 1, y: 0 }} 
               exit={{ scale: 0.95, opacity: 0, y: 30 }}
-              className="relative bg-white p-8 md:p-10 rounded-[40px] shadow-2xl text-left max-w-lg w-full overflow-hidden border border-slate-100"
+              className="relative bg-white p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-2xl text-left max-w-lg w-full overflow-y-auto max-h-[90vh] border border-slate-100 scrollbar-thin scrollbar-indigo-100"
             >
               <h3 className="text-2xl font-black text-slate-900 mb-2 flex items-center gap-3">
                 <BookOpen className="w-6 h-6 text-indigo-600" />

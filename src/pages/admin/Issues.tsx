@@ -3,7 +3,7 @@ import {
   Clock, CheckCircle2, AlertCircle, 
   Search, Filter, RefreshCw, Loader2,
   BookOpen, User as UserIcon, ArrowRight,
-  Plus, X, Calendar, CheckSquare, Bookmark, Minus, Mail, Send
+  Plus, X, Calendar, CheckSquare, Bookmark, Minus, Mail, Send, Edit
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/src/lib/utils';
@@ -77,6 +77,23 @@ export default function AdminIssues() {
     } catch (e) {}
     return dateStr;
   };
+
+  const convertSlashToDashDate = (slashDateStr: string): string => {
+    if (!slashDateStr) return '';
+    const parts = slashDateStr.split('/');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    const dashes = slashDateStr.split('-');
+    if (dashes.length === 3) {
+      if (dashes[0].length === 4) {
+        return slashDateStr;
+      }
+      return `${dashes[2]}-${dashes[1].padStart(2, '0')}-${dashes[0].padStart(2, '0')}`;
+    }
+    return slashDateStr;
+  };
+
   const [isSavingIssue, setIsSavingIssue] = useState(false);
 
   // Borrow Approval States
@@ -84,6 +101,20 @@ export default function AdminIssues() {
   const [approvingIssue, setApprovingIssue] = useState<SheetIssue | null>(null);
   const [approvePickupDate, setApprovePickupDate] = useState('');
   const [approveDueDate, setApproveDueDate] = useState('');
+
+  // Edit Issue States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<SheetIssue | null>(null);
+  const [editBookTitle, setEditBookTitle] = useState('');
+  const [editMemberName, setEditMemberName] = useState('');
+  const [editIssueDate, setEditIssueDate] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editPickupDate, setEditPickupDate] = useState('');
+  const [editStatus, setEditStatus] = useState<SheetIssue['status']>('Active');
+  const [editNotes, setEditNotes] = useState('');
+  const [editMemberDuesAdjust, setEditMemberDuesAdjust] = useState<number>(0);
+  const [associatedMemberCurrentDues, setAssociatedMemberCurrentDues] = useState<number>(0);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const loadData = async () => {
     try {
@@ -390,6 +421,113 @@ export default function AdminIssues() {
       alert('বই ফেরত সংরক্ষণে ত্রুটি দেখা দিয়েছে।');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenEditModal = (issue: SheetIssue) => {
+    setEditingIssue(issue);
+    setEditBookTitle(issue.bookTitle);
+    setEditMemberName(issue.memberName);
+    setEditIssueDate(convertSlashToDashDate(issue.issueDate));
+    setEditDueDate(convertSlashToDashDate(issue.dueDate));
+    setEditPickupDate(issue.pickupDate || '');
+    setEditStatus(issue.status);
+    setEditNotes(issue.notes || '');
+
+    // Find member to check if we can adjust dues
+    const resolvedMember = members.find(m => m.id === issue.memberId || m.name.includes(issue.memberName.split(' (#')[0]));
+    if (resolvedMember) {
+      setAssociatedMemberCurrentDues(resolvedMember.dues || 0);
+      setEditMemberDuesAdjust(resolvedMember.baseDues ?? 0);
+    } else {
+      setAssociatedMemberCurrentDues(0);
+      setEditMemberDuesAdjust(0);
+    }
+
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditIssueSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingIssue) return;
+
+    try {
+      setIsSavingEdit(true);
+
+      const oldStatus = editingIssue.status;
+      const newStatus = editStatus;
+
+      // Prepare updated issue
+      const updatedIssue: SheetIssue = {
+        ...editingIssue,
+        bookTitle: editBookTitle,
+        memberName: editMemberName,
+        issueDate: formatDateToSlash(editIssueDate) || editingIssue.issueDate,
+        dueDate: formatDateToSlash(editDueDate) || editingIssue.dueDate,
+        status: newStatus,
+        pickupDate: editPickupDate,
+        notes: editNotes,
+      };
+
+      await db.saveIssue(updatedIssue);
+
+      // Stock adjustment if status changed
+      const matchedBook = books.find(b => b.id === editingIssue.bookId || b.title.toLowerCase() === editingIssue.bookTitle.toLowerCase());
+      if (matchedBook) {
+        let issuedChange = 0;
+        
+        const wasActive = oldStatus === 'Active' || oldStatus === 'Overdue';
+        const isNowActive = newStatus === 'Active' || newStatus === 'Overdue';
+
+        if (wasActive && !isNowActive) {
+          // Changed from active to inactive (e.g. Returned, Rejected)
+          issuedChange = -1;
+        } else if (!wasActive && isNowActive) {
+          // Changed from inactive to active
+          issuedChange = 1;
+        }
+
+        if (issuedChange !== 0) {
+          const currentIssued = matchedBook.issuedCopies !== undefined ? Number(matchedBook.issuedCopies) : 0;
+          const updatedBook = {
+            ...matchedBook,
+            issuedCopies: Math.max(0, currentIssued + issuedChange)
+          };
+          await db.saveBook(updatedBook);
+        }
+      }
+
+      // Member base dues adjustment if specified and changed
+      let resolvedMember = members.find(m => m.id === editingIssue.memberId || m.name.includes(editingIssue.memberName.split(' (#')[0]));
+      if (resolvedMember) {
+        const oldBaseDues = resolvedMember.baseDues ?? 0;
+        if (oldBaseDues !== editMemberDuesAdjust) {
+          const updatedMember = {
+            ...resolvedMember,
+            baseDues: editMemberDuesAdjust,
+            dues: (resolvedMember.dues || 0) + (editMemberDuesAdjust - oldBaseDues)
+          };
+          await db.saveMember(updatedMember);
+          
+          try {
+            await db.addAuditLog('MEMBER_DUES_ADJUST', `সদস্য জরিমানা বা বকেয়া সমন্বয়: ৳${editMemberDuesAdjust} (পূর্বতন: ৳${oldBaseDues}) -> সদস্য: ${updatedMember.name}`);
+          } catch (_) {}
+        }
+      }
+
+      try {
+        await db.addAuditLog('EDIT_BOOK_ISSUE', `বই লোন বিবরণী সংশোধন করা হয়েছে: ${editBookTitle} -> সদস্য: ${editMemberName}`);
+      } catch (_) {}
+
+      alert('বই লোন বিবরণী সফলভাবে সংশোধন এবং আপডেট করা হয়েছে!');
+      setIsEditModalOpen(false);
+      setEditingIssue(null);
+      await loadData();
+    } catch (err) {
+      console.error('Error editing issue:', err);
+      alert('সংশোধন সংরক্ষণে সমস্যা দেখা দিয়েছে!');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -1186,38 +1324,48 @@ export default function AdminIssues() {
                         )}
                       </td>
                       <td className="px-8 py-6 text-right">
-                        {issue.status === 'Pending' ? (
-                          <div className="flex items-center justify-end space-x-2">
+                        <div className="flex items-center justify-end gap-3 font-sans">
+                          {issue.status === 'Pending' ? (
+                            <>
+                              <button 
+                                onClick={() => handleOpenApproveModal(issue)}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-95 duration-150 cursor-pointer"
+                              >
+                                অনুমোদন ও শিডিউল
+                              </button>
+                              <button 
+                                onClick={() => handleRejectBorrowRequest(issue)}
+                                className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                              >
+                                বাতিল
+                              </button>
+                            </>
+                          ) : isOverdue ? (
                             <button 
-                              onClick={() => handleOpenApproveModal(issue)}
-                              className="px-4 py-2 bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-95 duration-150"
+                              onClick={() => handleOfflineFineCollectionAndReturn(issue, currentPenaltyFine, expiredCount)}
+                              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
                             >
-                              অনুমোদন ও শিডিউল
+                              জরিমানা গ্রহণ (৳{currentPenaltyFine}) ও ফেরত
                             </button>
+                          ) : issue.status === 'Active' ? (
                             <button 
-                              onClick={() => handleRejectBorrowRequest(issue)}
-                              className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white font-bold text-xs rounded-xl transition-all"
+                              onClick={() => handleReturnIssue(issue)}
+                              className="px-5 py-2 bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
                             >
-                              বাতিল
+                              ফেরত নিন
                             </button>
-                          </div>
-                        ) : isOverdue ? (
+                          ) : (
+                            <span className="text-xs text-slate-400 font-bold">নিষ্পত্তি সম্পূর্ণ</span>
+                          )}
+
                           <button 
-                            onClick={() => handleOfflineFineCollectionAndReturn(issue, currentPenaltyFine, expiredCount)}
-                            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-95"
+                            onClick={() => handleOpenEditModal(issue)}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                            title="লোন বিবরণী সংশোধন ও সময় বর্ধন"
                           >
-                            জরিমানা গ্রহণ (৳{currentPenaltyFine}) ও ফেরত
+                            <Edit className="w-4 h-4" />
                           </button>
-                        ) : issue.status === 'Active' ? (
-                          <button 
-                            onClick={() => handleReturnIssue(issue)}
-                            className="px-5 py-2 bg-slate-800 hover:bg-indigo-600 text-white font-black text-xs rounded-xl shadow-sm transition-all active:scale-95"
-                          >
-                            ফেরত নিন
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400 font-bold">নিষ্পত্তি সম্পূর্ণ</span>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1384,7 +1532,7 @@ export default function AdminIssues() {
       {/* Approve and Schedule Borrow Request Modal */}
       {isApproveModalOpen && approvingIssue && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-[45px] border border-slate-100 p-8 md:p-10 shadow-2xl max-w-lg w-full text-left">
+          <div className="bg-white rounded-[32px] md:rounded-[45px] border border-slate-100 p-6 md:p-10 shadow-2xl max-w-lg w-full text-left max-h-[90vh] overflow-y-auto scrollbar-thin">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
               <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2">
                 <CheckSquare className="w-6 h-6 text-indigo-600" />
@@ -1444,6 +1592,204 @@ export default function AdminIssues() {
                   অনুমোদন দিন ও স্টক কমান
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Issue Details and Extension Modal */}
+      {isEditModalOpen && editingIssue && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] border border-slate-100 p-8 md:p-10 shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto text-left scrollbar-thin">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+              <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                <Edit className="w-5 h-5 text-indigo-600" />
+                <span>লোন সংশোধন ও সময় বর্ধন প্যানেল</span>
+              </h3>
+              <button 
+                onClick={() => { setIsEditModalOpen(false); setEditingIssue(null); }}
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-900 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditIssueSubmit} className="space-y-6">
+              
+              {/* Read only info or editable names */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">বইয়ের শিরোনাম (সংশোধনযোগ্য)</label>
+                  <input 
+                    type="text"
+                    required
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold font-sans focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                    value={editBookTitle}
+                    onChange={(e) => setEditBookTitle(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">সদস্যের বিবরণ (সংশোধনযোগ্য)</label>
+                  <input 
+                    type="text"
+                    required
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold font-sans focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                    value={editMemberName}
+                    onChange={(e) => setEditMemberName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Status control */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">লোন স্ট্যাটাস (Status Override)</label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {(['Pending', 'Active', 'Overdue', 'Returned', 'Rejected'] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setEditStatus(st)}
+                      className={cn(
+                        "py-2.5 px-3 text-[10px] font-black rounded-xl border transition-all text-center cursor-pointer",
+                        editStatus === st 
+                          ? st === 'Active' ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-100" :
+                            st === 'Overdue' ? "bg-red-500 text-white border-red-500 shadow-sm shadow-red-100" :
+                            st === 'Returned' ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-100" :
+                            st === 'Rejected' ? "bg-rose-500 text-white border-rose-500 shadow-sm shadow-rose-100" :
+                            "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                          : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                      )}
+                    >
+                      {st === 'Pending' ? 'Пেন্ডিং' :
+                       st === 'Active' ? 'সচল লোন' :
+                       st === 'Overdue' ? 'ওভারডিউ' :
+                       st === 'Returned' ? 'ফেরতপ্রাপ্ত' : 'বাতিল'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date variables */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">বই ইস্যু তারিখ (Issue Date)</label>
+                  <input 
+                    type="date"
+                    required
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
+                    value={editIssueDate}
+                    onChange={(e) => setEditIssueDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">ফেরত শেষ সময় (Due/Extend Date)</label>
+                  <input 
+                    type="date"
+                    required
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
+                    value={editDueDate}
+                    onChange={(e) => setEditDueDate(e.target.value)}
+                  />
+                  <p className="text-[9px] text-slate-400 font-semibold mt-1">💡 মেয়াদ বাড়াতে বা পরিবর্তন করতে এই তারিখটি পরিবর্তন করুন।</p>
+                </div>
+              </div>
+
+              {/* Pickup location time details */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">সংগ্রহ বা ফেরতের সময় বিবরণী (Pickup Info)</label>
+                <input 
+                  type="text"
+                  placeholder="যেমন: বিকাল ৩:০০ টা"
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
+                  value={editPickupDate}
+                  onChange={(e) => setEditPickupDate(e.target.value)}
+                />
+              </div>
+
+              {/* Adjust associated member's base dues penalty */}
+              <div className="p-5 bg-indigo-50/40 border border-indigo-150/50 rounded-[28px] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">সদস্যের জরিমানা ও বকেয়া (Dues & Fine adjustment)</h4>
+                    <p className="text-[10px] text-slate-400 leading-normal font-medium max-w-sm font-sans">
+                      সংশ্লিষ্ট শিক্ষার্থীর জরিমানা বিবরণী কাস্টমাইজ করুন। এটি সরাসরি ডাটাবেজ থেকে শিক্ষার্থীর প্রোফাইলে বকেয়া সমন্বয় করবে।
+                    </p>
+                  </div>
+                  <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl font-mono text-center">
+                    <span className="text-[9px] text-slate-400 font-black uppercase block leading-none">বর্তমান মোট বকেয়া</span>
+                    <span className="text-sm font-black text-indigo-600">৳{toBengaliNumber(associatedMemberCurrentDues)}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">কাস্টম জরিমানা ভিত্তিক বকেয়া (৳)</label>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditMemberDuesAdjust(Math.max(0, editMemberDuesAdjust - 5))}
+                        className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all cursor-pointer text-slate-600"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input 
+                        type="number"
+                        min={0}
+                        className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-xl text-center text-xs font-black font-sans focus:outline-none"
+                        value={editMemberDuesAdjust}
+                        onChange={(e) => setEditMemberDuesAdjust(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditMemberDuesAdjust(editMemberDuesAdjust + 5)}
+                        className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all cursor-pointer text-slate-600"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col justify-end text-right">
+                    <span className="text-[9px] font-bold text-slate-400">জরিমানা ওয়েভ করতে চাইলে ০ সেট করতে পারেন।</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loan Notes */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">লোন সংক্রান্ত নোট / বিবরণী</label>
+                <textarea 
+                  rows={2}
+                  placeholder="যেমন: শিক্ষার্থীর অনুরোধে ৫ দিন বাড়ানো হল..."
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+                <button 
+                  type="button" 
+                  onClick={() => { setIsEditModalOpen(false); setEditingIssue(null); }}
+                  className="px-6 py-3.5 bg-slate-50 text-slate-500 font-bold rounded-xl active:scale-95 transition-all text-xs cursor-pointer"
+                  disabled={isSavingEdit}
+                >
+                  বাতিল
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-8 py-3.5 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-100 hover:bg-slate-900 active:scale-95 transition-all text-xs cursor-pointer flex items-center justify-center gap-2"
+                  disabled={isSavingEdit}
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>সংরক্ষণ হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <span>তথ্য আপডেট করুন</span>
+                  )}
+                </button>
+              </div>
+
             </form>
           </div>
         </div>
