@@ -79,5 +79,40 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read, write: if true;
     }
+
+    // eBook student progress tracking
+    match /ebook_progress/{progressId} {
+      allow read, write: if true;
+    }
+
+    // eBook highlighted content
+    match /ebook_highlights/{highlightId} {
+      allow read, write, delete: if true;
+    }
+
+    // eBook notes/canvas details
+    match /ebook_notes/{noteId} {
+      allow read, write, delete: if true;
+    }
+
+    // eBook bookmarks
+    match /ebook_bookmarks/{bookmarkId} {
+      allow read, write, delete: if true;
+    }
+
+    // eBook favorites
+    match /ebook_favorites/{favoriteId} {
+      allow read, write, delete: if true;
+    }
+
+    // eBook downloads tracking log
+    match /ebook_downloads/{downloadId} {
+      allow read, write: if true;
+    }
+
+    // eBook general discussions log
+    match /ebook_discussions/{discussionId} {
+      allow read, write: if true;
+    }
   }
 }

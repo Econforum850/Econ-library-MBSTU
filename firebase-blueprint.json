@@ -190,6 +190,34 @@
     "settings/{settingId}": {
       "schema": "SmtpSettings",
       "description": "Saved system configuration profiles."
+    },
+    "ebook_progress/{progressId}": {
+      "schema": "EbookProgress",
+      "description": "eBook student reading progress."
+    },
+    "ebook_highlights/{highlightId}": {
+      "schema": "EbookHighlight",
+      "description": "eBook highlighed parts."
+    },
+    "ebook_notes/{noteId}": {
+      "schema": "EbookNote",
+      "description": "eBook private sticky notes."
+    },
+    "ebook_bookmarks/{bookmarkId}": {
+      "schema": "EbookBookmark",
+      "description": "eBook bookmarks."
+    },
+    "ebook_favorites/{favoriteId}": {
+      "schema": "EbookFavorite",
+      "description": "eBook favorites mapping."
+    },
+    "ebook_downloads/{downloadId}": {
+      "schema": "EbookDownload",
+      "description": "eBook downloads logs."
+    },
+    "ebook_discussions/{discussionId}": {
+      "schema": "EbookDiscussion",
+      "description": "eBook community discussions forum."
     }
   }
 }
