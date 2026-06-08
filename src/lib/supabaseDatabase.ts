@@ -515,10 +515,8 @@ export const db = {
           });
         }
       });
-      if (mapped.length > 0) {
-        saveLocalData(`hl_${bookId}_${memberId}`, mapped);
-        return mapped;
-      }
+      saveLocalData(`hl_${bookId}_${memberId}`, mapped);
+      return mapped;
     } catch (err) {
       console.warn("Firestore getEbookHighlights failed:", err);
     }
@@ -594,10 +592,8 @@ export const db = {
           });
         }
       });
-      if (mapped.length > 0) {
-        saveLocalData(`notes_${bookId}_${memberId}`, mapped);
-        return mapped;
-      }
+      saveLocalData(`notes_${bookId}_${memberId}`, mapped);
+      return mapped;
     } catch (err) {
       console.warn("Firestore getEbookNotes failed:", err);
     }
@@ -670,10 +666,8 @@ export const db = {
           });
         }
       });
-      if (mapped.length > 0) {
-        saveLocalData(`bm_${bookId}_${memberId}`, mapped);
-        return mapped;
-      }
+      saveLocalData(`bm_${bookId}_${memberId}`, mapped);
+      return mapped;
     } catch (err) {
       console.warn("Firestore getEbookBookmarks failed:", err);
     }

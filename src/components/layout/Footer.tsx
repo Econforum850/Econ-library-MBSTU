@@ -1,10 +1,32 @@
 import { Link } from 'react-router-dom';
 import { BookOpen, MapPin, Phone, Mail, MessageSquare } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import logoGold from '@/src/assets/images/logo_gold.png';
 
 export default function Footer() {
+  const [lang, setLang] = useState<'BN' | 'EN'>(() => {
+    try {
+      return (localStorage.getItem('preferred_lang') as 'BN' | 'EN') || 'BN';
+    } catch (_) {
+      return 'BN';
+    }
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const preferred = localStorage.getItem('preferred_lang') as 'BN' | 'EN';
+        if (preferred === 'BN' || preferred === 'EN') {
+          setLang(preferred);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   return (
-    <footer className="bg-transparent py-16 mt-20 relative overflow-hidden select-none">
+    <footer className="bg-transparent py-12 mt-12 relative overflow-hidden select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Elegant Floating White Card matching the user's brand structure exactly */}
@@ -18,18 +40,24 @@ export default function Footer() {
                   <img src={logoGold} alt="Econ Library Logo" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xl font-black text-slate-900 leading-tight">ইকোলাইব্রেরি</span>
+                  <span className="text-xl font-black text-slate-900 leading-tight">
+                    {lang === 'BN' ? 'ইকোলাইব্রেরি' : 'EconLibrary'}
+                  </span>
                   <span className="text-[10px] text-slate-500 font-extrabold tracking-widest uppercase">ECONOMICS MBSTU</span>
                 </div>
               </Link>
               <p className="text-sm text-slate-600 leading-relaxed font-semibold max-w-xs">
-                ব্যতিক্রমী ডিজিটাল পাঠাগার যা সবার জন্য উন্মুক্ত। আপনাদের সহযোগিতা আমাদের শক্তি। 
+                {lang === 'BN' 
+                  ? 'ব্যতিক্রমী ডিজিটাল পাঠাগার যা সবার জন্য উন্মুক্ত। আপনাদের সহযোগিতা আমাদের শক্তি।' 
+                  : 'An exceptional digital library open to all. Your cooperation is our strength.'} 
               </p>
             </div>
 
             {/* Links section with crimson highlight catalog trigger */}
             <div className="text-left">
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.15em] mb-6 border-b border-slate-100 pb-3">দ্রুত সংযোগ</h3>
+              <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.15em] mb-6 border-b border-slate-100 pb-3">
+                {lang === 'BN' ? 'দ্রুত সংযোগ' : 'Quick Links'}
+              </h3>
               <ul className="space-y-4">
                 <li>
                   <Link 
@@ -37,27 +65,27 @@ export default function Footer() {
                     className="inline-flex items-center px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-lg hover:scale-103 transition-all border border-red-500/20"
                   >
                     <BookOpen className="w-4 h-4 mr-2" />
-                    বইয়ের ক্যাটালগ
+                    {lang === 'BN' ? 'বইয়ের ক্যাটালগ' : 'Book Catalog'}
                   </Link>
                 </li>
                 <li>
                   <Link to="/donors" className="text-sm font-bold text-slate-600 hover:text-[#352df2] transition-colors inline-block">
-                    दाता सदस्य सूची / দাতা সদস্য তালিকা
+                    {lang === 'BN' ? 'দাতা সদস্য তালিকা' : 'Donor Members'}
                   </Link>
                 </li>
                 <li>
                   <Link to="/events" className="text-sm font-bold text-slate-600 hover:text-[#352df2] transition-colors inline-block">
-                    ইভেন্ট ও নোটিশ
+                    {lang === 'BN' ? 'ইভেন্ট ও নোটিশ' : 'Events & Notices'}
                   </Link>
                 </li>
                 <li>
                   <Link to="/membership" className="text-sm font-bold text-slate-600 hover:text-[#352df2] transition-colors inline-block">
-                    মেম্বারশিপ গাইডলাইন ও নিয়ম
+                    {lang === 'BN' ? 'মেম্বারশিপ গাইডলাইন ও নিয়ম' : 'Membership Guide & Rules'}
                   </Link>
                 </li>
                 <li>
                   <Link to="/contact" className="text-sm font-bold text-slate-600 hover:text-[#352df2] transition-colors inline-block">
-                    যোগাযোগ এবং ফিডব্যাক
+                    {lang === 'BN' ? 'যোগাযোগ এবং ফিডব্যাক' : 'Contact & Feedback'}
                   </Link>
                 </li>
                 <li className="pt-2 border-t border-dashed border-slate-100">
@@ -65,7 +93,7 @@ export default function Footer() {
                     to="/admin/login" 
                     className="text-xs font-black text-slate-500 hover:text-[#352df2] tracking-wider transition-colors inline-flex items-center gap-1.5 bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200/80 hover:bg-slate-100"
                   >
-                    🛡️ মডারেটর ও অ্যাডমিন পোর্টাল
+                    🛡️ {lang === 'BN' ? 'মডারেটর ও অ্যাডমিন পোর্টাল' : 'Moderator & Admin Portal'}
                   </Link>
                 </li>
               </ul>
@@ -73,10 +101,12 @@ export default function Footer() {
 
             {/* Contact section with custom icon badges */}
             <div className="text-left">
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">Contact Information</h3>
+              <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">
+                {lang === 'BN' ? 'যোগাযোগের তথ্য' : 'Contact Information'}
+              </h3>
               <ul className="space-y-4">
                 <li className="text-sm text-slate-600 leading-relaxed">
-                  <span className="block font-black text-slate-900 mb-0.5">ঠিকানা:</span>
+                  <span className="block font-black text-slate-900 mb-0.5">{lang === 'BN' ? 'ঠিকানা:' : 'Address:'}</span>
                   6th Floor, 3rd academic building, MBSTU<br />
                   Santosh, Tangail, 1902
                 </li>
@@ -104,7 +134,9 @@ export default function Footer() {
 
             {/* Map section */}
             <div className="space-y-4 text-left">
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.15em] mb-6 border-b border-slate-100 pb-3">লোকেশন ম্যাপ</h3>
+              <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.15em] mb-6 border-b border-slate-100 pb-3">
+                {lang === 'BN' ? 'লোকেশন ম্যাপ' : 'Location Map'}
+              </h3>
               <div className="w-full h-36 rounded-2xl overflow-hidden border border-slate-200 shadow-xs group">
                 <iframe 
                   src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3639.2434543788!2d89.89069531500003!3d24.232356584353457!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39fdfbdd6c703b37%3A0x6739b60da423cf44!2sDepartment%20of%2520Economics%252C%2520MBSTU!5e0!3m2!1sen!2sbd!4v1652550000000!5m2!1sen!2sbd" 
@@ -123,7 +155,7 @@ export default function Footer() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-[10px] font-black text-slate-500 hover:text-[#352df2] transition-colors uppercase tracking-widest mt-1"
               >
-                <span>গুগল ম্যাপে দেখুন</span>
+                <span>{lang === 'BN' ? 'গুগল ম্যাপে দেখুন' : 'View on Google Maps'}</span>
                 <BookOpen className="w-3 h-3 ml-1.5" />
               </a>
             </div>
@@ -132,9 +164,11 @@ export default function Footer() {
 
         {/* Gray Copyright Section Sitting Directly count bottom */}
         <div className="mt-12 flex flex-col md:flex-row justify-between items-center text-xs text-slate-500 font-extrabold px-4">
-          <p>© 2026 Econ-library-MBSTU সর্বস্বত্ব সংরক্ষিত।</p>
+          <p>© 2026 Econ-library-MBSTU {lang === 'BN' ? 'সর্বস্বত্ব সংরক্ষিত।' : 'All Rights Reserved.'}</p>
           <div className="flex space-x-6 mt-4 md:mt-0">
-            <Link to="/admin/login" className="hover:text-[#352df2] text-slate-500 transition-colors">অ্যাডমিন প্রবেশদ্বার</Link>
+            <Link to="/admin/login" className="hover:text-[#352df2] text-slate-500 transition-colors">
+              {lang === 'BN' ? 'অ্যাডমিন প্রবেশদ্বার' : 'Admin Portal'}
+            </Link>
             <a href="#" className="hover:text-[#352df2] text-slate-500 transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-[#352df2] text-slate-500 transition-colors">Terms of Service</a>
           </div>

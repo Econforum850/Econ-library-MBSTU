@@ -224,7 +224,7 @@ export default function Navbar() {
       </header>
  
       {/* 3. Mobile Fixed Bottom App Navigation Bar (Premium Material Design Frame) */}
-      <nav className="lg:hidden fixed bottom-3 left-3 right-3 h-16 bg-[#060b18]/95 backdrop-blur-md border border-[#425585]/15 rounded-2xl flex items-center justify-around px-2 z-50 shadow-2xl shadow-black/45 select-none transition-all duration-300">
+      <nav className="lg:hidden fixed bottom-5 left-5 right-5 h-16 bg-[#080d22]/95 backdrop-blur-xl border border-white/10 rounded-[22px] flex items-center justify-around px-2 z-50 shadow-[0_10px_35px_rgba(0,0,0,0.55)] select-none transition-all duration-300">
         {[
           {
             name: lang === 'BN' ? 'হোম' : 'Home',
@@ -258,21 +258,24 @@ export default function Navbar() {
               className="flex flex-col items-center justify-center flex-1 py-1 relative group"
             >
               <div className={cn(
-                "w-10 h-10 rounded-xl transition-all duration-300 flex items-center justify-center relative",
-                isActive ? "text-white scale-105" : "text-slate-400 group-hover:text-slate-200"
+                "w-10 h-10 rounded-xl transition-all duration-350 flex items-center justify-center relative",
+                isActive ? "text-white scale-105 animate-none" : "text-slate-400 group-hover:text-slate-200"
               )}>
-                <TabIcon className={cn("w-5 h-5", isActive ? "text-indigo-400" : "text-slate-400")} />
+                <TabIcon className={cn("w-5 h-5 transition-all duration-300", isActive ? "text-indigo-400 scale-110 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "text-slate-400 group-hover:text-slate-300 group-hover:scale-105")} />
                 
                 {isActive && (
-                  <motion.div
-                    layoutId="bottomTabIndicator"
-                    className="absolute inset-0 bg-indigo-500/10 border border-indigo-500/20 rounded-xl -z-10"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
+                  <>
+                    <motion.div
+                      layoutId="bottomTabIndicator"
+                      className="absolute inset-0 bg-indigo-500/10 border border-indigo-500/20 rounded-xl -z-10"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                    <span className="absolute -top-0.5 w-[5px] h-[5px] bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.9)]" />
+                  </>
                 )}
               </div>
               <span className={cn(
-                "text-[9px] mt-0.5 font-sans transition-all text-center leading-none",
+                "text-[9px] mt-0.5 font-sans transition-all text-center leading-none tracking-tight",
                 isActive ? "text-[#ede4d3] font-black" : "text-slate-500 font-bold"
               )}>
                 {tab.name}

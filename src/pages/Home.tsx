@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowRight, Users, BookOpen, Calendar, HelpCircle, GraduationCap, ChevronRight, Settings, X, Image,
@@ -7,6 +7,7 @@ import {
 import { Link } from 'react-router-dom';
 import { db } from '@/src/lib/supabaseDatabase';
 import { isAdminAuthenticated } from '@/src/lib/adminAuth';
+import { cn } from '@/src/lib/utils';
 
 const PRESET_BGS = [
   { name: 'ঐতিহ্যবাহী লাইব্রেরি (Default)', url: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=1600' },
@@ -32,6 +33,56 @@ export default function Home() {
     issuesCount: 52,
     eventsCount: 8
   });
+  const [recentBooks, setRecentBooks] = useState<any[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || recentBooks.length === 0) return;
+
+    let intervalId: any;
+    const startScroll = () => {
+      intervalId = setInterval(() => {
+        const { scrollLeft, scrollWidth, clientWidth } = el;
+        const maxScroll = scrollWidth - clientWidth;
+        if (maxScroll <= 0) return;
+
+        // Card size is around 155-165px on mobile, gap is 16px
+        const itemWidth = window.innerWidth < 768 ? 165 + 16 : 240;
+        let nextScroll = scrollLeft + itemWidth;
+
+        if (nextScroll >= maxScroll + 10) {
+          nextScroll = 0;
+        }
+
+        el.scrollTo({
+          left: nextScroll,
+          behavior: 'smooth'
+        });
+      }, 3500);
+    };
+
+    startScroll();
+
+    const pauseScroll = () => clearInterval(intervalId);
+    const resumeScroll = () => {
+      clearInterval(intervalId);
+      startScroll();
+    };
+
+    el.addEventListener('mouseenter', pauseScroll);
+    el.addEventListener('mouseleave', resumeScroll);
+    el.addEventListener('touchstart', pauseScroll);
+    el.addEventListener('touchend', resumeScroll);
+
+    return () => {
+      clearInterval(intervalId);
+      el.removeEventListener('mouseenter', pauseScroll);
+      el.removeEventListener('mouseleave', resumeScroll);
+      el.removeEventListener('touchstart', pauseScroll);
+      el.removeEventListener('touchend', resumeScroll);
+    };
+  }, [recentBooks]);
 
   useEffect(() => {
     setIsAdmin(isAdminAuthenticated());
@@ -74,6 +125,15 @@ export default function Home() {
           issuesCount: issues.length > 0 ? issues.filter(i => i.status === 'Active').length : 42,
           eventsCount: events.length > 0 ? events.length : 6
         });
+
+        if (books && books.length > 0) {
+          const processed = books.map(b => ({
+            ...b,
+            isEBook: b.category.toLowerCase().includes('e-book') || b.category.toLowerCase().includes('ই-বুক') || b.price === 'Free' || b.isEBook
+          }));
+          const sorted = [...processed].reverse().slice(0, 5); // display 5 latest additions
+          setRecentBooks(sorted);
+        }
       } catch (err) {
         console.error('Error loading homepage config or stats:', err);
       }
@@ -362,6 +422,82 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Recently Added Books Section with consistent beautiful light theme cards */}
+      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-10 md:mt-14 relative z-10 select-none">
+        <div className="text-center mb-6 flex flex-col items-center">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] uppercase font-black tracking-widest text-[#352df2] bg-[#352df2]/5 px-3.5 py-1.5 rounded-full border border-[#352df2]/10 font-sans">
+              {lang === 'BN' ? 'নতুন সংগ্রহ' : 'NEW ARRIVALS'}
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-rose-600 bg-rose-500/5 px-2.5 py-1 rounded-full border border-rose-500/10">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+              </span>
+              <span>{lang === 'BN' ? 'লাইভ' : 'LIVE'}</span>
+            </span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-sans">
+            {lang === 'BN' ? 'সদ্য যুক্তকৃত বইসমূহ' : 'Recently Added Books'}
+          </h2>
+          <div className="w-12 h-1 bg-[#352df2] rounded-full mt-3" />
+        </div>
+
+        {recentBooks.length > 0 ? (
+          <div ref={scrollRef} className="flex overflow-x-auto whitespace-normal gap-4 pb-4 px-4 -mx-4 select-none no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-5 md:gap-4 md:px-1 md:-mx-0 md:pb-0">
+            {recentBooks.map((book) => (
+              <Link
+                key={book.id}
+                to={`/books?bookId=${book.id}`}
+                className="group/card bg-white rounded-xl overflow-hidden border border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_24px_rgba(53,45,242,0.12)] hover:scale-[1.03] hover:-translate-y-1 transition-all duration-500 p-1.5 flex flex-col cursor-pointer text-left shrink-0 w-[145px] xs:w-[165px] md:w-full md:shrink snap-center"
+              >
+                <div className="aspect-[3/4] relative overflow-hidden bg-slate-100/80 rounded-lg mb-1.5 shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)]">
+                  {/* Realistic Book 3D spine and bind highlighting */}
+                  <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-r from-black/20 via-black/5 to-transparent z-10 rounded-l-lg pointer-events-none" />
+                  <div className="absolute top-0 left-2 w-[1px] h-full bg-white/10 z-10 pointer-events-none" />
+
+                  <img 
+                    src={book.cover || 'https://placehold.co/400x600/eee/999?text=Cover+Not+Found'}        
+                    alt={book.title}
+                    className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-700 ease-out"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1.5 z-20">
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded text-[6.5px] md:text-[7px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border flex items-center gap-1",
+                      book.isEBook 
+                        ? "bg-indigo-950/80 text-indigo-300 border-indigo-500/20" 
+                        : "bg-teal-950/80 text-teal-300 border-teal-500/20"
+                    )}>
+                      <span className={cn("w-1 h-1 rounded-full", book.isEBook ? "bg-indigo-400" : "bg-teal-400")} />
+                      {book.isEBook ? (lang === 'BN' ? 'ই-বুক' : 'E-Book') : (lang === 'BN' ? 'হার্ডকপি' : 'Library')}
+                    </span>
+                  </div>
+                </div>
+                <div className="px-1 pb-1 flex flex-col flex-1">
+                  <h3 className="text-[10px] sm:text-[11px] font-black text-slate-800 group-hover/card:text-[#352df2] transition-colors mb-0.5 line-clamp-2 leading-tight min-h-[2.2rem]">{book.title}</h3>
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 mb-1.5 font-bold truncate opacity-85">{book.author}</p>
+                  <div className="mt-auto flex items-center justify-between gap-1 pt-1.5 border-t border-slate-100 w-full">
+                    <span className="text-[7.5px] font-mono font-black text-slate-400 uppercase tracking-wider truncate max-w-[65%]">
+                      {book.category}
+                    </span>
+                    <span className="text-[8px] font-semibold text-[#352df2] flex items-center shrink-0">
+                      {lang === 'BN' ? 'দেখুন' : 'View'} →
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 bg-white rounded-2xl border border-slate-200/50 max-w-4xl mx-auto shadow-sm">
+            <span className="text-xs font-semibold text-slate-400">
+              {lang === 'BN' ? 'কোনো বই পাওয়া যায়নি।' : 'No books found in the library catalog.'}
+            </span>
+          </div>
+        )}
+      </section>
+
       {/* Inject style tag to ensure scrollbar-free native-feeling scrolls on touch/desktop swipe */}
       <style>{`
         .no-scrollbar::-webkit-scrollbar {
@@ -374,12 +510,12 @@ export default function Home() {
       `}</style>
 
       {/* 2. Section "আমাদের বৈশিষ্ট্য" with Gen-Z High-contrast borders */}
-      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-24 relative z-10 overflow-hidden">
-        <div className="text-center mb-14 flex flex-col items-center">
-          <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight font-sans">
+      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-14 relative z-10 overflow-hidden">
+        <div className="text-center mb-8 flex flex-col items-center">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-sans">
             {lang === 'BN' ? 'আমাদের বৈশিষ্ট্য' : 'Our Digital Features'}
           </h2>
-          <div className="w-12 h-1 bg-[#352df2] rounded-full mt-4" />
+          <div className="w-12 h-1 bg-[#352df2] rounded-full mt-3" />
         </div>
 
         {/* Responsive layout: Slide scroll on mobile, nice clear grid on desktop */}
@@ -465,7 +601,7 @@ export default function Home() {
       </section>
 
       {/* 3. Custom Dual Column CTA Banner representing user's loaded Banner 1 */}
-      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-24 relative z-10">
+      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mt-14 relative z-10">
         <div className="bg-gradient-to-br from-[#060b18] via-[#0b1428] to-[#040812] border border-[#352df2]/20 rounded-[36px] p-8 sm:p-12 text-left shadow-2xl relative overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
           
           {/* Glowing spotlights decorations inside CTA panel */}

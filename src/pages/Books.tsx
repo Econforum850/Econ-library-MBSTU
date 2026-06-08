@@ -227,6 +227,21 @@ export default function Books() {
     loadGraphics();
   }, []);
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const bookIdParam = params.get('bookId');
+      if (bookIdParam && books.length > 0) {
+        const found = books.find(b => b.id === bookIdParam || b.bookId === bookIdParam);
+        if (found) {
+          setSelectedBook(found);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not parse query params for auto-select:", e);
+    }
+  }, [books]);
+
   const loadEbookUserStates = async () => {
     if (!loggedInUser) return;
     try {
@@ -978,29 +993,36 @@ export default function Books() {
         </p>
       </div>
 
-      {/* Advanced Navigation & Categories */}
-      <div className="flex flex-wrap items-center justify-center gap-4 mb-10 px-4 no-print">
-        {[
-          { id: 'all', label: lang === 'BN' ? 'সকল সংগ্রহ' : 'All Collections', icon: BookOpen },
-          { id: 'categories', label: lang === 'BN' ? 'বিভাগ অনুযায়ী' : 'By Categories', icon: Filter },
-          { id: 'ebooks', label: lang === 'BN' ? 'ই-বুক আর্কাইভ' : 'E-Book Archive', icon: FileText },
-          { id: 'favorites', label: lang === 'BN' ? 'আমার প্রিয় বই' : 'My Favorites', icon: Heart },
-          { id: 'reading-hub', label: lang === 'BN' ? 'পড়ার প্রগ্রেস' : 'Reading Hub', icon: Activity },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={cn(
-              "flex items-center space-x-3 px-10 py-5 rounded-[28px] font-black transition-all active:scale-95 group",
-              activeTab === tab.id 
-                ? "bg-indigo-600 text-white shadow-2xl shadow-indigo-600/20" 
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-            )}
-          >
-            <tab.icon className={cn("w-5 h-5", activeTab === tab.id ? "text-white" : "text-slate-400")} />
-            <span>{tab.label}</span>
-          </button>
-        ))}
+      {/* Advanced Navigation & Categories Premium Segmented App-Bar */}
+      <div className="max-w-4xl mx-auto mb-8 px-4 no-print">
+        <div className="bg-slate-100/90 p-1.5 rounded-[22px] md:rounded-[28px] border border-slate-200/60 shadow-[0_4px_25px_rgba(0,0,0,0.03)] backdrop-blur-md">
+          <div className="flex overflow-x-auto whitespace-nowrap gap-1 items-center select-none no-scrollbar snap-x snap-mandatory w-full">
+            {[
+              { id: 'all', label: lang === 'BN' ? 'সকল সংগ্রহ' : 'All Collections', icon: BookOpen },
+              { id: 'categories', label: lang === 'BN' ? 'বিভাগ অনুযায়ী' : 'By Categories', icon: Filter },
+              { id: 'ebooks', label: lang === 'BN' ? 'ই-বুক আর্কাইভ' : 'E-Book Archive', icon: FileText },
+              { id: 'favorites', label: lang === 'BN' ? 'আমার প্রিয় বই' : 'My Favorites', icon: Heart },
+              { id: 'reading-hub', label: lang === 'BN' ? 'পড়ার প্রগ্রেস' : 'Reading Hub', icon: Activity },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={cn(
+                    "flex items-center space-x-2 px-4.5 py-3 md:px-7 md:py-3.5 rounded-[16px] md:rounded-[22px] font-black transition-all duration-300 active:scale-95 shrink-0 snap-center text-[11px] md:text-xs uppercase tracking-tight select-none",
+                    isActive 
+                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 scale-[1.01]" 
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-white/50"
+                  )}
+                >
+                  <tab.icon className={cn("w-3.5 h-3.5 md:w-4 md:h-4 transition-transform duration-300", isActive ? "text-white scale-110" : "text-slate-400")} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Inject style tag to ensure scrollbar-free native-feeling scrolls on touch/desktop swipe */}

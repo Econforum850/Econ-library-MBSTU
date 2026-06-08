@@ -8,6 +8,29 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db, EbookHighlight, EbookNote, EbookBookmark } from '@/src/lib/supabaseDatabase';
 import { cn } from '@/src/lib/utils';
 
+// Format and clean iframe URL for robust Google Drive embed rendering
+function getEmbedUrl(url?: string) {
+  if (!url) return "";
+  try {
+    if (url.includes('drive.google.com')) {
+      let cleanUrl = url;
+      if (cleanUrl.includes('/view')) {
+        cleanUrl = cleanUrl.replace('/view', '/preview');
+      } else if (!cleanUrl.includes('/preview') && cleanUrl.includes('/d/')) {
+        const parts = cleanUrl.split('/d/');
+        if (parts[1]) {
+          const idPart = parts[1].split('/')[0];
+          cleanUrl = `https://drive.google.com/file/d/${idPart}/preview`;
+        }
+      }
+      return cleanUrl;
+    }
+  } catch (e) {
+    console.warn("Error cleaning embed URL:", e);
+  }
+  return url;
+}
+
 interface PDFViewerProps {
   book: {
     id: string;
@@ -65,28 +88,36 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Format and clean iframe URL for robust Google Drive embed rendering
-  const getEmbedUrl = (url?: string) => {
-    if (!url) return "";
+  // Track iframe URL
+  const [iframeUrl, setIframeUrl] = useState<string | undefined>(book.ebookUrl ? `${getEmbedUrl(book.ebookUrl)}#page=1` : undefined);
+
+  const currentUser = useMemo(() => {
+    if (loggedInUser) return loggedInUser;
     try {
-      if (url.includes('drive.google.com')) {
-        let cleanUrl = url;
-        if (cleanUrl.includes('/view')) {
-          cleanUrl = cleanUrl.replace('/view', '/preview');
-        } else if (!cleanUrl.includes('/preview') && cleanUrl.includes('/d/')) {
-          const parts = cleanUrl.split('/d/');
-          if (parts[1]) {
-            const idPart = parts[1].split('/')[0];
-            cleanUrl = `https://drive.google.com/file/d/${idPart}/preview`;
-          }
-        }
-        return cleanUrl;
+      const userStr = localStorage.getItem('loggedInUser');
+      if (userStr) {
+        return JSON.parse(userStr);
       }
-    } catch (e) {
-      console.warn("Error cleaning embed URL:", e);
+    } catch (e) {}
+
+    // Fallback to a persistent guest reader profile
+    let guestId = localStorage.getItem('guest_reader_id');
+    if (!guestId) {
+      guestId = 'guest_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('guest_reader_id', guestId);
     }
-    return url;
-  };
+    return {
+      id: guestId,
+      name: lang === 'BN' ? 'অতিথি পাঠক' : 'Guest Reader',
+      email: 'guest@example.com'
+    };
+  }, [loggedInUser, lang]);
+
+  useEffect(() => {
+    if (book.ebookUrl) {
+      setIframeUrl(`${getEmbedUrl(book.ebookUrl)}#page=${currentPage}`);
+    }
+  }, [book.ebookUrl]);
 
   // Helper to show temporary feedback message in the sidebar
   const showFeedback = (msg: string) => {
@@ -100,13 +131,13 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
   useEffect(() => {
     let active = true;
     const loadAssets = async () => {
-      if (!book || !loggedInUser) return;
+      if (!book || !currentUser) return;
       setIsLoading(true);
       try {
         const [hls, nts, bms] = await Promise.all([
-          db.getEbookHighlights(book.id, loggedInUser.id).catch(() => []),
-          db.getEbookNotes(book.id, loggedInUser.id).catch(() => []),
-          db.getEbookBookmarks(book.id, loggedInUser.id).catch(() => [])
+          db.getEbookHighlights(book.id, currentUser.id).catch(() => []),
+          db.getEbookNotes(book.id, currentUser.id).catch(() => []),
+          db.getEbookBookmarks(book.id, currentUser.id).catch(() => [])
         ]);
         if (active) {
           setHighlights(hls);
@@ -114,11 +145,12 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
           setBookmarks(bms);
           
           // Optionally restore last read page from progress
-          const prog = await db.getEbookProgress(book.id, loggedInUser.id).catch(() => null);
+          const prog = await db.getEbookProgress(book.id, currentUser.id).catch(() => null);
           if (active && prog && prog.lastPage) {
             setCurrentPage(prog.lastPage);
             setHlPage(prog.lastPage);
             setNotePage(prog.lastPage);
+            setIframeUrl(`${getEmbedUrl(book.ebookUrl)}#page=${prog.lastPage}`);
           }
         }
       } catch (err) {
@@ -129,27 +161,31 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
     };
     loadAssets();
     return () => { active = false; };
-  }, [book, loggedInUser]);
+  }, [book, currentUser]);
 
   // Handle active study page selection
-  const handlePageSelectChange = (val: number) => {
+  const handlePageSelectChange = (val: number, syncIframe = false) => {
     const pageNum = Math.max(1, isNaN(val) ? 1 : val);
     setCurrentPage(pageNum);
     setHlPage(pageNum);
     setNotePage(pageNum);
     saveProgress(pageNum);
+
+    if (syncIframe && book.ebookUrl) {
+      setIframeUrl(`${getEmbedUrl(book.ebookUrl)}#page=${pageNum}`);
+    }
   };
 
   // Update study progress log in Firestore
   const saveProgress = async (pageNum: number) => {
-    if (!book || !loggedInUser) return;
+    if (!book || !currentUser) return;
     try {
       const estimatedTotalPages = 150; // default estimated size
       const percentage = Math.min(100, Math.round((pageNum / estimatedTotalPages) * 100));
       await db.saveEbookProgress({
         bookId: book.id,
         bookTitle: book.title,
-        memberId: loggedInUser.id,
+        memberId: currentUser.id,
         progress: percentage,
         lastPage: pageNum,
         updatedAt: new Date().toLocaleDateString('bn-BD')
@@ -161,7 +197,7 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
 
   // Hardened toggle bookmark for the current study page
   const handleToggleBookmark = async () => {
-    if (!book || !loggedInUser) return;
+    if (!book || !currentUser) return;
     try {
       const match = bookmarks.find(bm => bm.pageNumber === currentPage);
       if (match) {
@@ -171,7 +207,7 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
       } else {
         const result = await db.saveEbookBookmark({
           bookId: book.id,
-          memberId: loggedInUser.id,
+          memberId: currentUser.id,
           pageNumber: currentPage
         });
         setBookmarks(prev => [...prev, result]);
@@ -211,12 +247,12 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
   // Save new Highlight/Clipping quote to Firestore
   const handleSaveHighlight = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!book || !loggedInUser || !hlText.trim()) return;
+    if (!book || !currentUser || !hlText.trim()) return;
     setHlIsSaving(true);
     try {
       const res = await db.saveEbookHighlight({
         bookId: book.id,
-        memberId: loggedInUser.id,
+        memberId: currentUser.id,
         pageNumber: hlPage,
         color: hlColor,
         text: hlText.trim()
@@ -252,13 +288,13 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
   // Save or Update Study Note to Firestore
   const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!book || !loggedInUser || !noteText.trim()) return;
+    if (!book || !currentUser || !noteText.trim()) return;
     setNoteIsSaving(true);
     try {
       const res = await db.saveEbookNote({
         id: editingNoteId || undefined,
         bookId: book.id,
-        memberId: loggedInUser.id,
+        memberId: currentUser.id,
         pageNumber: notePage,
         text: noteText.trim(),
         title: noteTitle.trim() || (lang === 'BN' ? `নোট - পৃষ্ঠা ${notePage}` : `Page ${notePage} Note`),
@@ -421,7 +457,7 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
             <div className="w-full h-full bg-slate-950 rounded-2xl overflow-hidden shadow-xl relative border border-white/5 flex flex-col">
               <iframe
                 id="pdf-iframe-viewer"
-                src={getEmbedUrl(book.ebookUrl)}
+                src={iframeUrl}
                 className="w-full h-full border-none rounded-2xl"
                 title={book.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -466,8 +502,9 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
                       <button
                         type="button"
                         disabled={currentPage <= 1}
-                        onClick={() => handlePageSelectChange(currentPage - 1)}
+                        onClick={() => handlePageSelectChange(currentPage - 1, true)}
                         className="p-1 disabled:opacity-35 hover:bg-slate-100 transition rounded text-slate-700"
+                        title={lang === 'BN' ? 'আগের পৃষ্ঠা ও পিডিএফ সিংক্রোনাইজ করুন' : 'Prev Page & Sync PDF'}
                       >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
@@ -475,13 +512,21 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
                         type="number"
                         min="1"
                         value={currentPage}
-                        onChange={(e) => handlePageSelectChange(parseInt(e.target.value))}
+                        onChange={(e) => handlePageSelectChange(parseInt(e.target.value) || 1, false)}
+                        onBlur={(e) => handlePageSelectChange(parseInt(e.target.value) || 1, true)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handlePageSelectChange(currentPage, true);
+                          }
+                        }}
                         className="w-10 text-center font-bold font-mono text-slate-800 text-xs focus:outline-none"
+                        title={lang === 'BN' ? 'পৃষ্ঠা নম্বর লিখে এন্টার চাপুন' : 'Enter page number and press Enter'}
                       />
                       <button
                         type="button"
-                        onClick={() => handlePageSelectChange(currentPage + 1)}
+                        onClick={() => handlePageSelectChange(currentPage + 1, true)}
                         className="p-1 hover:bg-slate-100 transition rounded text-slate-700"
+                        title={lang === 'BN' ? 'পরের পৃষ্ঠা ও পিডিএফ সিংক্রোনাইজ করুন' : 'Next Page & Sync PDF'}
                       >
                         <ChevronRight className="w-4 h-4" />
                       </button>
@@ -662,13 +707,13 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
                         {filteredHighlights.map((hl) => (
                           <div 
                             key={hl.id}
-                            onClick={() => handlePageSelectChange(hl.pageNumber)}
+                            onClick={() => handlePageSelectChange(hl.pageNumber, true)}
                             className={cn(
                               "relative p-4 rounded-xl border text-xs text-left group transition duration-150 cursor-pointer hover:shadow-xs",
                               hl.color === 'green' ? "bg-emerald-50/40 border-emerald-100" :
                               hl.color === 'blue' ? "bg-sky-50/40 border-sky-100" :
                               hl.color === 'red' ? "bg-rose-50/40 border-rose-100" :
-                              "bg-yellow-50/40 border-yellow-105"
+                              "bg-yellow-50/40 border-yellow-100"
                             )}
                           >
                             <span className={cn(
@@ -706,7 +751,7 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
                 {activeTab === 'notes' && (
                   <div className="space-y-4">
                     {/* Add/Edit Note Form */}
-                    <form onSubmit={handleSaveNote} className="p-4 bg-[#f8fafc] border border-slate-205 rounded-2xl text-left space-y-3">
+                    <form onSubmit={handleSaveNote} className="p-4 bg-[#f8fafc] border border-slate-200 rounded-2xl text-left space-y-3">
                       <span className="font-black text-[10px] uppercase text-indigo-700 tracking-wider block">
                         📝 {editingNoteId ? (lang === 'BN' ? 'নোট সংশোধন করুন' : 'EDIT E-NOTE') : (lang === 'BN' ? 'নতুন নোট বা চিরকুট যোগ করুন' : 'ADD SPECIAL LESSON NOTE')}
                       </span>
@@ -818,7 +863,7 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
                         {filteredNotes.map((n) => (
                           <div 
                             key={n.id}
-                            onClick={() => handlePageSelectChange(n.pageNumber)}
+                            onClick={() => handlePageSelectChange(n.pageNumber, true)}
                             className="p-4.5 bg-amber-50/25 border border-amber-200/50 rounded-xl relative text-left group hover:bg-amber-50/40 hover:shadow-xs transition duration-150 cursor-pointer"
                           >
                             <div className="flex items-center justify-between gap-1.5 mb-1.5 bg-white/40 px-1 py-0.5 rounded">
@@ -876,7 +921,7 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
                         {bookmarks.map((bm) => (
                           <div 
                             key={bm.id}
-                            onClick={() => handlePageSelectChange(bm.pageNumber)}
+                            onClick={() => handlePageSelectChange(bm.pageNumber, true)}
                             className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between shadow-3xs cursor-pointer hover:border-slate-400 text-xs transition font-black text-slate-800"
                           >
                             <span className="flex items-center gap-1">
@@ -885,7 +930,7 @@ export default function PDFViewer({ book, loggedInUser, onClose, lang }: PDFView
                             </span>
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); handlePageSelectChange(bm.pageNumber); handleToggleBookmark(); }}
+                              onClick={(e) => { e.stopPropagation(); handlePageSelectChange(bm.pageNumber, true); handleToggleBookmark(); }}
                               className="p-1 text-slate-350 hover:text-rose-500 rounded transition shrink-0 cursor-pointer"
                               title="Delete bookmark"
                             >
