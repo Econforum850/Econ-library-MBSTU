@@ -224,7 +224,7 @@ export default function Navbar() {
       </header>
  
       {/* 3. Mobile Fixed Bottom App Navigation Bar (Premium Material Design Frame) */}
-      <nav className="lg:hidden fixed bottom-5 left-5 right-5 h-16 bg-[#080d22]/95 backdrop-blur-xl border border-white/10 rounded-[22px] flex items-center justify-around px-2 z-50 shadow-[0_10px_35px_rgba(0,0,0,0.55)] select-none transition-all duration-300">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#080d22] flex items-center justify-around px-4 z-50 shadow-[0_-8px_30px_rgba(0,0,0,0.6)] select-none transition-all duration-300">
         {[
           {
             name: lang === 'BN' ? 'হোম' : 'Home',
@@ -264,14 +264,11 @@ export default function Navbar() {
                 <TabIcon className={cn("w-5 h-5 transition-all duration-300", isActive ? "text-indigo-400 scale-110 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "text-slate-400 group-hover:text-slate-300 group-hover:scale-105")} />
                 
                 {isActive && (
-                  <>
-                    <motion.div
-                      layoutId="bottomTabIndicator"
-                      className="absolute inset-0 bg-indigo-500/10 border border-indigo-500/20 rounded-xl -z-10"
-                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                    />
-                    <span className="absolute -top-0.5 w-[5px] h-[5px] bg-indigo-400 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.9)]" />
-                  </>
+                  <motion.div
+                    layoutId="bottomTabIndicator"
+                    className="absolute inset-0 bg-indigo-500/10 border border-indigo-500/20 rounded-xl -z-10"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
                 )}
               </div>
               <span className={cn(

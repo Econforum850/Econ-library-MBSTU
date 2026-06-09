@@ -84,7 +84,7 @@ export default function Register() {
     studentRoll: '',
     batchSession: '',
     bloodGroup: '',
-    department: 'Economics'
+    department: 'Department of Economics'
   });
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,6 +109,11 @@ export default function Register() {
       const emailInput = formData.email.trim();
       const phoneInput = formData.phone.trim();
 
+      // 1. Photo is strictly required in account creation
+      if (!photo) {
+        throw new Error('আপনার সদস্য ছবি (Profile Photo) আপলোড করা অত্যন্ত আবশ্যক। / Uploading your profile photo is required.');
+      }
+
       if (!formData.name) throw new Error('আপনার সম্পূর্ণ নাম প্রদান করুন।');
       if (!phoneInput) throw new Error('মোবাইল নম্বর প্রদান করা আবশ্যক।');
       if (!emailInput) throw new Error('ইমেইল এড্রেস প্রদান করা আবশ্যক।');
@@ -120,9 +125,16 @@ export default function Register() {
         throw new Error('লাইব্রেরিতে পেমেন্টের ক্ষেত্রে স্লিপ/রসিদ নম্বর প্রদান করা আবশ্যক।');
       }
 
-      // Validate email format
-      if (!emailInput.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        throw new Error('অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস প্রদান করুন।');
+      // 2. Validate Bangladeshi mobile phone format starting with 01
+      const cleanedPhone = phoneInput.replace(/\s+/g, '');
+      if (!/^(01)[3-9]\d{8}$/.test(cleanedPhone) && !/^\+88(01)[3-9]\d{8}$/.test(cleanedPhone)) {
+        throw new Error('অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর প্রদান করুন (যেমন: 01712345678)। \nPlease enter a valid 11-digit mobile number starting with 01.');
+      }
+
+      // 3. Strictly enforce MBSTU Department of Economics institutional email layout (eco + 5 digits + @mbstu.ac.bd)
+      const mbstuEmailPattern = /^eco\d{5}@mbstu\.ac\.bd$/i;
+      if (!mbstuEmailPattern.test(emailInput)) {
+        throw new Error('শুধুমাত্র অর্থনীতি বিভাগের প্রাতিষ্ঠানিক ইমেইল এড্রেস গ্রহণযোগ্য (যেমন: eco24034@mbstu.ac.bd)। \nOnly Department of Economics emails matching the pattern ecoXXXXX@mbstu.ac.bd are accepted.');
       }
 
       // 1. Core Duplication Safeguard - Fetch members to check duplicates in the database first
@@ -409,8 +421,8 @@ export default function Register() {
                       accept="image/*" 
                       onChange={handlePhotoChange} 
                     />
-                    <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mt-3 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-indigo-500" /> সদস্য ছবি সাবমিট করুন (Optional)
+                    <span className="text-[10px] text-indigo-650 font-extrabold uppercase tracking-widest mt-3 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-indigo-500 animate-bounce" /> সদস্য ছবি সাবমিট করুন (আবশ্যক) <span className="text-rose-500 font-black">*</span>
                     </span>
                   </motion.div>
 
@@ -567,19 +579,15 @@ export default function Register() {
 
                     {/* Department */}
                     <motion.div variants={formItemVariants} className="space-y-1.5">
-                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">বিভাগের নাম (Department) <span className="text-rose-500 font-bold">*</span></label>
+                      <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block ml-1">বিভাগের নাম (Department) <span className="text-indigo-500 font-mono text-[9px]">(Locked)</span></label>
                       <div className="relative">
-                        <Library className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 transition-colors ${activeFocusedField === 'department' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                        <Library className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-indigo-650 shrink-0" />
                         <motion.input 
-                          whileFocus={{ scale: 1.01 }}
+                          readOnly
                           required
                           type="text" 
                           value={formData.department}
-                          onFocus={() => setActiveFocusedField('department')}
-                          onBlur={() => setActiveFocusedField(null)}
-                          onChange={(e) => setFormData(prev => ({...prev, department: e.target.value}))}
-                          placeholder="উদা: অর্থনীতি বিভাগ" 
-                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-100/30 transition-all text-sm font-bold text-slate-800" 
+                          className="w-full pl-10 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-2xl focus:outline-none cursor-not-allowed text-sm font-bold text-slate-500" 
                         />
                       </div>
                     </motion.div>

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Calendar, MapPin, Clock, Facebook, Globe, Loader2, Award } from 'lucide-react';
+import { Calendar, MapPin, Clock, Facebook, Globe, Loader2, Award, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, SupabaseEvent } from '../lib/supabaseDatabase';
 
 export default function Events() {
   const [events, setEvents] = useState<SupabaseEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lang, setLang] = useState<string>('BN');
+  const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -20,7 +22,23 @@ export default function Events() {
       }
     };
     fetchEvents();
+
+    const handleStorage = () => {
+      setLang(localStorage.getItem('lang') || 'BN');
+    };
+    handleStorage();
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
+
+  const toggleExpand = (id: string) => {
+    setExpandedEvents(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-20 min-h-screen bg-transparent">
@@ -31,10 +49,16 @@ export default function Events() {
           className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black tracking-widest uppercase border border-indigo-100"
         >
           <Award className="w-4 h-4" />
-          <span>লাইব্রেরী কার্যক্রম ও ইভেন্ট</span>
+          <span>{lang === 'BN' ? 'লাইব্রেরী কার্যক্রম ও ইভেন্ট' : 'Library Events & Notices'}</span>
         </motion.div>
-        <h1 className="text-4xl md:text-5xl font-black text-slate-850 tracking-tight">ইভেন্ট আপডেট ও নোটিশ বোর্ড</h1>
-        <p className="text-slate-500 font-bold max-w-lg mx-auto text-sm">অর্থনীতি বিভাগ, MBSTU লাইব্রেরির সকল সচল প্রোগ্রাম, বইমেলা ও নোটিশসমূহ এখানে আপডেট করা হয়।</p>
+        <h1 className="text-4xl md:text-5xl font-black text-slate-850 tracking-tight">
+          {lang === 'BN' ? 'ইভেন্ট আপডেট ও নোটিশ বোর্ড' : 'Events & Notice Board'}
+        </h1>
+        <p className="text-slate-500 font-bold max-w-lg mx-auto text-sm">
+          {lang === 'BN' 
+            ? 'অর্থনীতি বিভাগ, MBSTU লাইব্রেরির সকল সচল প্রোগ্রাম, বইমেলা ও নোটিশসমূহ এখানে আপডেট করা হয়।'
+            : 'All educational programs, academic seminars, book fairs, and notice announcements of MBSTU Econ Library.'}
+        </p>
       </div>
 
       {loading ? (
@@ -58,9 +82,13 @@ export default function Events() {
             </div>
           </div>
 
-          <h2 className="text-3xl font-black text-slate-800 mb-6 font-display">আপাতত নতুন কোনো ইভেন্ট নেই</h2>
+          <h2 className="text-3xl font-black text-slate-800 mb-6 font-display">
+            {lang === 'BN' ? 'আপাতত নতুন কোনো ইভেন্ট নেই' : 'No Active Events / Notices'}
+          </h2>
           <p className="text-slate-500 mb-12 text-lg font-semibold leading-relaxed max-w-xl mx-auto">
-            আগামী ইভেন্টের আপডেট পেতে আমাদের অফিশিয়াল ওয়েবসাইট এবং ফেসবুক পেজে চোখ রাখুন।
+            {lang === 'BN' 
+              ? 'আগামী ইভেন্টের আপডেট পেতে আমাদের অফিশিয়াল ওয়েবসাইট এবং ফেসবুক পেজে চোখ রাখুন।'
+              : 'Keep an eye on our official website and Facebook page to get updates on upcoming events and opportunities.'}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -71,7 +99,7 @@ export default function Events() {
               className="flex items-center justify-center gap-3 w-full sm:w-auto px-10 py-5 bg-white border border-slate-200 text-slate-600 rounded-[24px] font-black hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
             >
               <Globe className="w-6 h-6" />
-              <span>অফিশিয়াল ওয়েবসাইট</span>
+              <span>{lang === 'BN' ? 'অফিশিয়াল ওয়েবসাইট' : 'Official Website'}</span>
             </a>
             
             <a 
@@ -81,7 +109,7 @@ export default function Events() {
               className="flex items-center justify-center gap-3 w-full sm:w-auto px-10 py-5 bg-blue-600 text-white rounded-[24px] font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
             >
               <Facebook className="w-6 h-6" />
-              <span>ফেসবুক পেজ</span>
+              <span>{lang === 'BN' ? 'ফেসবুক পেজ' : 'Facebook Page'}</span>
             </a>
           </div>
         </motion.div>
@@ -112,16 +140,46 @@ export default function Events() {
                 {/* Event Description and information */}
                 <div className="p-8 space-y-6">
                   <h3 className="text-2xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors leading-tight">{event.title}</h3>
-                  <p className="text-slate-500 font-bold text-sm leading-relaxed">{event.description}</p>
+                  
+                  {event.description.length > 180 ? (
+                    <div className="space-y-3">
+                      <div className={`relative transition-all duration-300 ease-in-out ${expandedEvents[event.id] ? 'max-h-[1000px]' : 'max-h-24 overflow-hidden'}`}>
+                        <p className="text-slate-500 font-bold text-sm leading-relaxed whitespace-pre-wrap">
+                          {event.description}
+                        </p>
+                        {!expandedEvents[event.id] && (
+                          <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none" />
+                        )}
+                      </div>
+                      <button
+                        onClick={() => toggleExpand(event.id)}
+                        className="text-xs font-black text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer hover:underline pt-1"
+                      >
+                        {expandedEvents[event.id] ? (
+                          <>
+                            <span>{lang === 'BN' ? 'সংক্ষিপ্ত করুন' : 'See Less'}</span>
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </>
+                        ) : (
+                          <>
+                            <span>{lang === 'BN' ? 'বিস্তারিত তথ্য দেখুন' : 'See More...'}</span>
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 font-bold text-sm leading-relaxed whitespace-pre-wrap">{event.description}</p>
+                  )}
                   
                   <div className="space-y-3 pt-4 border-t border-slate-100">
                     <div className="flex items-center space-x-3 text-slate-500 font-bold text-xs">
                       <Clock className="w-4 h-4 text-indigo-600" />
-                      <span>সময়: {event.time}</span>
+                      <span>{lang === 'BN' ? 'সময়:' : 'Time:'} {event.time}</span>
                     </div>
                     <div className="flex items-center space-x-3 text-slate-500 font-bold text-xs">
                       <MapPin className="w-4 h-4 text-indigo-600" />
-                      <span>স্থান: {event.location}</span>
+                      <span>{lang === 'BN' ? 'স্থান:' : 'Venue:'} {event.location}</span>
                     </div>
                   </div>
                 </div>
@@ -136,7 +194,7 @@ export default function Events() {
                     className="flex items-center justify-center gap-2 w-full py-4 bg-slate-50 text-slate-700 rounded-2xl hover:bg-indigo-600 hover:text-white transition-colors border border-slate-200 hover:border-indigo-600 font-black text-sm uppercase shadow-sm cursor-pointer"
                   >
                     <Facebook className="w-4 h-4" />
-                    <span>ইভেন্ট বিস্তারিত দেখুন</span>
+                    <span>{lang === 'BN' ? 'ফেসবুক ইভেন্টে বিস্তারিত দেখুন' : 'View Facebook Event'}</span>
                   </a>
                 </div>
               )}

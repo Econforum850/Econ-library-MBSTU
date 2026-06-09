@@ -169,6 +169,10 @@ export interface SupabaseIssue {
   bookId?: string;
   pickupDate?: string;
   notes?: string;
+  fineWaived?: boolean;
+  customFineAmount?: number;
+  waiverApologyMessage?: string;
+  originalDueDate?: string;
 }
 
 export interface SupabaseTransaction {
@@ -1639,7 +1643,11 @@ export const db = {
           memberId: i.memberId || '',
           bookId: i.bookId || '',
           pickupDate: i.pickupDate || '',
-          notes: i.notes || ''
+          notes: i.notes || '',
+          fineWaived: i.fineWaived !== undefined ? !!i.fineWaived : undefined,
+          customFineAmount: typeof i.customFineAmount === 'number' ? i.customFineAmount : undefined,
+          waiverApologyMessage: i.waiverApologyMessage || '',
+          originalDueDate: i.originalDueDate || ''
         });
       });
 
@@ -1668,7 +1676,11 @@ export const db = {
       memberId: issue.memberId || '',
       bookId: issue.bookId || '',
       pickupDate: issue.pickupDate || '',
-      notes: issue.notes || ''
+      notes: issue.notes || '',
+      fineWaived: issue.fineWaived !== undefined ? issue.fineWaived : undefined,
+      customFineAmount: issue.customFineAmount !== undefined ? issue.customFineAmount : undefined,
+      waiverApologyMessage: issue.waiverApologyMessage || '',
+      originalDueDate: issue.originalDueDate || ''
     };
 
     try {
@@ -1681,7 +1693,11 @@ export const db = {
         memberId: finalizedIssue.memberId || null,
         bookId: finalizedIssue.bookId || null,
         pickupDate: finalizedIssue.pickupDate || null,
-        notes: finalizedIssue.notes || null
+        notes: finalizedIssue.notes || null,
+        fineWaived: finalizedIssue.fineWaived !== undefined ? finalizedIssue.fineWaived : null,
+        customFineAmount: finalizedIssue.customFineAmount !== undefined ? finalizedIssue.customFineAmount : null,
+        waiverApologyMessage: finalizedIssue.waiverApologyMessage || null,
+        originalDueDate: finalizedIssue.originalDueDate || null
       };
 
       await setDoc(docRef, dbPayload, { merge: true });

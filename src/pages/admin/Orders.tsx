@@ -32,6 +32,120 @@ export default function AdminOrders() {
   const [approvePickupDate, setApprovePickupDate] = useState('');
   const [approveDueDate, setApproveDueDate] = useState('');
 
+  const [pickupDateVal, setPickupDateVal] = useState('');
+  const [pickupStartTime, setPickupStartTime] = useState('10:00');
+  const [pickupEndTime, setPickupEndTime] = useState('15:00');
+
+  const [dueDateVal, setDueDateVal] = useState('');
+  const [dueStartTime, setDueStartTime] = useState('10:00');
+  const [dueEndTime, setDueEndTime] = useState('17:00');
+
+  const updateBengaliDueSummary = (dateVal: string, startT: string, endT: string) => {
+    setDueDateVal(dateVal);
+    setDueStartTime(startT);
+    setDueEndTime(endT);
+
+    if (!dateVal) return;
+    const toBengaliDigits = (numStr: string | number): string => {
+      const bDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+      return String(numStr).replace(/[0-9]/g, (digit) => bDigits[parseInt(digit)]);
+    };
+
+    const formatBengaliTime = (timeStr: string) => {
+      if (!timeStr) return '';
+      const [hourStr, minStr] = timeStr.split(':');
+      const hour = parseInt(hourStr);
+      let period = 'সকাল';
+      if (hour === 0) return 'রাত ১২:০০ টা';
+      else if (hour < 5) period = 'ভোর';
+      else if (hour < 12) period = 'সকাল';
+      else if (hour === 12) period = 'দুপুর';
+      else if (hour < 16) period = 'দুপুর';
+      else if (hour < 18) period = 'বিকাল';
+      else if (hour < 20) period = 'সন্ধ্যা';
+      else period = 'রাত';
+
+      let displayHour = hour;
+      if (hour > 12) displayHour = hour - 12;
+
+      const bHour = toBengaliDigits(displayHour);
+      const bMin = toBengaliDigits(minStr);
+      return `${period} ${bHour}:${bMin} টা`;
+    };
+
+    const parts = dateVal.split('-');
+    if (parts.length === 3) {
+      const bDay = toBengaliDigits(parseInt(parts[2]));
+      const bMonth = toBengaliDigits(parseInt(parts[1]));
+      const bYear = toBengaliDigits(parts[0]);
+      const formattedDate = `${bDay}/${bMonth}/${bYear}`;
+      
+      const startStr = formatBengaliTime(startT);
+      const endStr = formatBengaliTime(endT);
+      
+      if (startStr && endStr) {
+        setApproveDueDate(`${formattedDate} ${startStr} - ${endStr}র মধ্যে`);
+      } else if (startStr) {
+        setApproveDueDate(`${formattedDate} ${startStr}র মধ্যে`);
+      } else {
+        setApproveDueDate(formattedDate);
+      }
+    }
+  };
+
+  const updateBengaliPickupSummary = (dateVal: string, startT: string, endT: string) => {
+    setPickupDateVal(dateVal);
+    setPickupStartTime(startT);
+    setPickupEndTime(endT);
+
+    if (!dateVal) return;
+    const toBengaliDigits = (numStr: string | number): string => {
+      const bDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+      return String(numStr).replace(/[0-9]/g, (digit) => bDigits[parseInt(digit)]);
+    };
+
+    const formatBengaliTime = (timeStr: string) => {
+      if (!timeStr) return '';
+      const [hourStr, minStr] = timeStr.split(':');
+      const hour = parseInt(hourStr);
+      let period = 'সকাল';
+      if (hour === 0) return 'রাত ১২:০০ টা';
+      else if (hour < 5) period = 'ভোর';
+      else if (hour < 12) period = 'সকাল';
+      else if (hour === 12) period = 'দুপুর';
+      else if (hour < 16) period = 'দুপুর';
+      else if (hour < 18) period = 'বিকাল';
+      else if (hour < 20) period = 'সন্ধ্যা';
+      else period = 'রাত';
+
+      let displayHour = hour;
+      if (hour > 12) displayHour = hour - 12;
+
+      const bHour = toBengaliDigits(displayHour);
+      const bMin = toBengaliDigits(minStr);
+      return `${period} ${bHour}:${bMin} টা`;
+    };
+
+    const parts = dateVal.split('-');
+    if (parts.length === 3) {
+      const bDay = toBengaliDigits(parseInt(parts[2]));
+      const bMonth = toBengaliDigits(parseInt(parts[1]));
+      const bYear = toBengaliDigits(parts[0]);
+      const formattedDate = `${bDay}/${bMonth}/${bYear}`;
+      
+      const startStr = formatBengaliTime(startT);
+      const endStr = formatBengaliTime(endT);
+      
+      if (startStr && endStr) {
+        setApprovePickupDate(`${formattedDate} ${startStr} - ${endStr}র মধ্যে`);
+      } else if (startStr) {
+        setApprovePickupDate(`${formattedDate} ${startStr}`);
+      } else {
+        setApprovePickupDate(formattedDate);
+      }
+    }
+  };
+
   const formatDateToSlash = (dateStr: string) => {
     if (!dateStr) return '';
     try {
@@ -41,6 +155,44 @@ export default function AdminOrders() {
       }
     } catch (e) {}
     return dateStr;
+  };
+
+  const setDueDateFromToday = (days: number) => {
+    const targetDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    const yyyy = targetDate.getFullYear();
+    const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(targetDate.getDate()).padStart(2, '0');
+    updateBengaliDueSummary(`${yyyy}-${mm}-${dd}`, dueStartTime, dueEndTime);
+  };
+
+  const getBengaliFullDateWithDay = (dateStr: string): string => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '';
+      
+      const toBengaliDigits = (num: number | string): string => {
+        const bDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+        return String(num).replace(/[0-9]/g, (digit) => bDigits[parseInt(digit)]);
+      };
+
+      const bnMonths = [
+        'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+        'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
+      ];
+      const bnDays = [
+        'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'
+      ];
+
+      const day = date.getDate();
+      const monthIdx = date.getMonth();
+      const year = date.getFullYear();
+      const dayOfWeek = date.getDay();
+
+      return `${toBengaliDigits(day)} ${bnMonths[monthIdx]}, ${toBengaliDigits(year)} (${bnDays[dayOfWeek]})`;
+    } catch (_) {
+      return '';
+    }
   };
 
   // Search and filter state for Borrow requests
@@ -137,14 +289,16 @@ export default function AdminOrders() {
   const handleOpenApproveModal = (issue: SupabaseIssue) => {
     setApprovingIssue(issue);
     const futureDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    const dateFormatted = `${futureDate.toLocaleDateString('bn-BD')} সকাল ১০:০০ টা - দুপুর ৩:০০ টার মধ্যে`;
-    setApprovePickupDate(dateFormatted);
+    const yyyyy = futureDate.getFullYear();
+    const mmmm = String(futureDate.getMonth() + 1).padStart(2, '0');
+    const dddd = String(futureDate.getDate()).padStart(2, '0');
+    updateBengaliPickupSummary(`${yyyyy}-${mmmm}-${dddd}`, '10:00', '15:00');
     
-    const dueCalendarDate = new Date(futureDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const dueCalendarDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
     const yyyy = dueCalendarDate.getFullYear();
     const mm = String(dueCalendarDate.getMonth() + 1).padStart(2, '0');
     const dd = String(dueCalendarDate.getDate()).padStart(2, '0');
-    setApproveDueDate(`${yyyy}-${mm}-${dd}`);
+    updateBengaliDueSummary(`${yyyy}-${mm}-${dd}`, '10:00', '17:00');
     setIsApproveModalOpen(true);
   };
 
@@ -658,28 +812,130 @@ export default function AdminOrders() {
                 {approvingIssue.notes && <p className="mt-2 text-[10px] italic text-slate-400">মন্তব্য: {approvingIssue.notes}</p>}
               </div>
 
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">বই সংগ্রহের নির্দিষ্ট তারিখ ও সময়</label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="যেমন: ০৫ জুন, ২০২৬ দুপুর ১২:০০ টা বা আমাদের অফিস সময়ে"
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100"
-                  value={approvePickupDate}
-                  onChange={(e) => setApprovePickupDate(e.target.value)}
-                />
-                <p className="text-[10px] text-slate-400 font-bold mt-1.5">💡 এই সংগ্রহের সময়টি সদস্য তার প্রোফাইলের "আমার বুক অর্ডার শপ" বা "বর্তমানের আবেদন" ট্যাব থেকে সরাসরি দেখতে পাবেন এবং নির্দিষ্ট সময়ে বই সংগ্রহ করতে হাজির হবেন।</p>
+              <div className="space-y-4">
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">বই সংগ্রহের নির্দিষ্ট তারিখ ও সময়</label>
+                
+                {/* 3 Column inputs for Date and times */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-indigo-650 font-extrabold uppercase tracking-widest pl-1 block">তারিখ (Date)</span>
+                    <input 
+                      type="date"
+                      required
+                      value={pickupDateVal}
+                      onChange={(e) => updateBengaliPickupSummary(e.target.value, pickupStartTime, pickupEndTime)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100/50 transition-all font-sans"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-indigo-650 font-extrabold uppercase tracking-widest pl-1 block">শুরুর সময় (Start)</span>
+                    <input 
+                      type="time"
+                      required
+                      value={pickupStartTime}
+                      onChange={(e) => updateBengaliPickupSummary(pickupDateVal, e.target.value, pickupEndTime)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100/50 transition-all font-sans"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-indigo-650 font-extrabold uppercase tracking-widest pl-1 block">শেষের সময় (End)</span>
+                    <input 
+                      type="time"
+                      required
+                      value={pickupEndTime}
+                      onChange={(e) => updateBengaliPickupSummary(pickupDateVal, pickupStartTime, e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100/50 transition-all font-sans"
+                    />
+                  </div>
+                </div>
+
+                {/* Auto Calculated Live Result */}
+                <div className="p-4 bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-between gap-3 transition-all duration-200 animate-none">
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-indigo-600 font-extrabold uppercase tracking-widest block pl-0.5">অটো-ফরমেটেড সময় (Auto Formatted Time)</span>
+                    <p className="text-sm font-black text-indigo-950 font-sans">{approvePickupDate || 'উপরের ফিল্ডগুলো থেকে নির্বাচন করুন'}</p>
+                  </div>
+                  <div className="w-9 h-9 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-650 text-base shrink-0 select-none shadow-sm">
+                    🕒
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 font-bold mt-1">💡 এই সংগ্রহের সময়টি সদস্য তার প্রোফাইলের "আমার বুক অর্ডার শপ" বা "বর্তমানের আবেদন" ট্যাব থেকে সরাসরি দেখতে পাবেন এবং নির্দিষ্ট সময়ে বই সংগ্রহ করতে হাজির হবেন।</p>
               </div>
 
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">ফেরত দেওয়ার শেষ সময় (Due Date)</label>
-                <input 
-                  type="date"
-                  required
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100 font-sans"
-                  value={approveDueDate}
-                  onChange={(e) => setApproveDueDate(e.target.value)}
-                />
+              <div className="space-y-3.5">
+                <label className="block text-xs font-black text-rose-600 uppercase tracking-widest pl-1">ফেরত দেওয়ার শেষ সময় (Due Date) <span className="text-rose-500 font-bold">*</span></label>
+                
+                {/* Visual Pill Presets */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide mr-1 select-none">কুইক সিলেক্ট (Quick Options):</span>
+                  <button
+                    type="button"
+                    onClick={() => setDueDateFromToday(7)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-50 border border-rose-100 hover:bg-rose-100 hover:border-rose-200 text-rose-700 transition-all duration-150 active:scale-95 cursor-pointer"
+                  >
+                    ১ সপ্তাহ (+৭ দিন)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDueDateFromToday(15)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 hover:border-indigo-200 text-indigo-700 transition-all duration-150 active:scale-95 cursor-pointer"
+                  >
+                    ২ সপ্তাহ (+১৫ দিন)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDueDateFromToday(30)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 border border-amber-100 hover:bg-amber-100 hover:border-amber-200 text-amber-700 transition-all duration-150 active:scale-95 cursor-pointer"
+                  >
+                    ১ মাস (+৩০ দিন)
+                  </button>
+                </div>
+
+                {/* 3 Column inputs for Date and times */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-indigo-650 font-extrabold uppercase tracking-widest pl-1 block">তারিখ (Date)</span>
+                    <input 
+                      type="date"
+                      required
+                      value={dueDateVal}
+                      onChange={(e) => updateBengaliDueSummary(e.target.value, dueStartTime, dueEndTime)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100/50 transition-all font-sans cursor-pointer"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-indigo-650 font-extrabold uppercase tracking-widest pl-1 block">শুরুর সময় (Start)</span>
+                    <input 
+                      type="time"
+                      required
+                      value={dueStartTime}
+                      onChange={(e) => updateBengaliDueSummary(dueDateVal, e.target.value, dueEndTime)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100/50 transition-all font-sans cursor-pointer"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-indigo-650 font-extrabold uppercase tracking-widest pl-1 block">শেষের সময় (End)</span>
+                    <input 
+                      type="time"
+                      required
+                      value={dueEndTime}
+                      onChange={(e) => updateBengaliDueSummary(dueDateVal, dueStartTime, e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-indigo-100/50 transition-all font-sans cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Auto Calculated Live Result */}
+                <div className="p-4 bg-rose-50/50 hover:bg-rose-50 border border-rose-100 rounded-2xl flex items-center justify-between gap-3 transition-colors duration-150">
+                  <div className="space-y-0.5">
+                    <span className="text-[9px] text-rose-500 font-extrabold uppercase tracking-widest block pl-0.5">অটো-ফরমেটেড ফেরত সময় (Auto Formatted Due Time)</span>
+                    <p className="text-sm font-black text-rose-950 font-sans">{approveDueDate || 'উপরের ফিল্ডগুলো থেকে নির্বাচন করুন'}</p>
+                  </div>
+                  <div className="w-8 h-8 flex items-center justify-center rounded-full bg-rose-100 text-rose-600 text-sm shrink-0 select-none shadow-sm">
+                    📅
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
