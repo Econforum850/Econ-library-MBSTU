@@ -581,11 +581,14 @@ export default function Account() {
                                 
                                 <div className="space-y-2.5 pt-4 border-t border-slate-100/60 text-xs text-left">
                                   <div className="flex justify-between font-bold">
-                                    <span className="text-slate-400">{issue.status === 'Pending' ? 'আবেদনের তারিখ:' : 'ইস্যু তারিখ:'}</span>
+                                    <span className="text-slate-400">
+                                      {issue.status === 'Pending' ? 'আবেদনের তারিখ:' :
+                                       issue.status === 'Approved' ? 'অনুমোদনের তারিখ:' : 'ইস্যু তারিখ:'}
+                                    </span>
                                     <span className="text-slate-600">{issue.issueDate}</span>
                                   </div>
                                   
-                                  {issue.status !== 'Pending' && (
+                                  {issue.status !== 'Pending' && issue.status !== 'Approved' && (
                                     <div className="flex justify-between font-bold">
                                       <span className="text-slate-400">{lang === 'BN' ? 'ফেরত তারিখ:' : 'Due Date:'}</span>
                                       <span className={`px-2 py-0.5 rounded-lg ${isBookOverdue ? 'bg-rose-50 text-rose-600 font-extrabold animate-pulse' : 'text-slate-600'}`}>
@@ -601,6 +604,12 @@ export default function Account() {
                                         বই সংগ্রহের নির্ধারিত সময়:
                                       </p>
                                       <p className="text-[11px] bg-white px-2.5 py-1 text-indigo-700 font-extrabold rounded-lg border border-indigo-100 mt-1 inline-block">{issue.pickupDate}</p>
+                                    </div>
+                                  )}
+
+                                  {issue.status === 'Approved' && (
+                                    <div className="p-3 bg-indigo-50/70 border border-indigo-150 rounded-2xl text-[10px] font-bold text-indigo-700 leading-relaxed mt-2 animate-pulse font-sans">
+                                      🎉 অভিনন্দন! আপনার আবেদনটি মঞ্জুর হয়েছে। অনুগ্রহ করে নির্ধারিত সময়-সীমায় উপস্থিত হয়ে বইটি সরাসরি সংগ্রহ করুন।
                                     </div>
                                   )}
 
@@ -639,10 +648,12 @@ export default function Account() {
                                 <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
                                   issue.status === 'Returned' ? 'bg-emerald-100 text-emerald-600' : 
                                   issue.status === 'Pending' ? 'bg-yellow-101 text-yellow-700 border border-yellow-200 animate-pulse' :
+                                  issue.status === 'Approved' ? 'bg-indigo-100 text-indigo-600 border border-indigo-200' :
                                   issue.status === 'Rejected' ? 'bg-rose-100 text-rose-600' :
                                   isBookOverdue ? 'bg-rose-101 text-rose-600 border border-red-200' : 'bg-indigo-100 text-indigo-600'
                                 }`}>
                                   {issue.status === 'Pending' ? 'আবেদন পেন্ডিং' :
+                                   issue.status === 'Approved' ? 'অনুমোদিত (পিকআপ)' :
                                    issue.status === 'Rejected' ? 'বাতিল' :
                                    issue.status === 'Returned' ? 'ফেরত সম্পন্ন' : 
                                    isBookOverdue ? 'মেয়াদ উত্তীর্ণ' : 'চলতি লোন'}

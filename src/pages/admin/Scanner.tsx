@@ -3,22 +3,67 @@ import {
   Scan, BookOpen, AlertCircle, RefreshCw, 
   Loader2, CheckCircle2, User, HelpCircle, 
   ArrowRight, ShieldAlert, Library, BookOpenCheck, Bookmark, X,
-  Plus, Minus
+  Plus, Minus, History, Trash2
 } from 'lucide-react';
-import { db, SupabaseBook, SupabaseMember } from '@/src/lib/supabaseDatabase';
+import { db, SupabaseBook, SupabaseMember, SupabaseIssue } from '@/src/lib/supabaseDatabase';
 import { Link } from 'react-router-dom';
 import { cn } from '@/src/lib/utils';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+
+interface ScanHistoryItem {
+  id: string;
+  timestamp: string;
+  code: string;
+  type: 'বই / Book' | 'সদস্য / Member';
+  name: string;
+  details: string;
+}
 
 export default function AdminScanner() {
   const [scannedCode, setScannedCode] = useState<string>('');
   const [manualInput, setManualInput] = useState<string>('');
   const [matchedBook, setMatchedBook] = useState<SupabaseBook | null>(null);
+  const [matchedMember, setMatchedMember] = useState<SupabaseMember | null>(null);
   const [books, setBooks] = useState<SupabaseBook[]>([]);
   const [members, setMembers] = useState<SupabaseMember[]>([]);
+  const [issues, setIssues] = useState<SupabaseIssue[]>([]);
   const [loading, setLoading] = useState(false);
   const [scannedMessage, setScannedMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   
+  // Scan history log state
+  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('mbstu_scan_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+
+  const addScanToHistory = (item: Omit<ScanHistoryItem, 'id' | 'timestamp'>) => {
+    const newItem: ScanHistoryItem = {
+      ...item,
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + new Date().toLocaleDateString('bn-BD')
+    };
+    setScanHistory(prev => {
+      const updated = [newItem, ...prev].slice(0, 10);
+      try {
+        localStorage.setItem('mbstu_scan_history', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+  };
+
+  const clearScanHistory = () => {
+    if (window.confirm('আপনি কি নিশ্চিত যে সমস্ত স্ক্যান ইতিহাস মুছে ফেলতে চান?')) {
+      setScanHistory([]);
+      try {
+        localStorage.removeItem('mbstu_scan_history');
+      } catch (_) {}
+    }
+  };
+
   // Issue quick formulation states
   const [showIssueQuickPanel, setShowIssueQuickPanel] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState('');
@@ -33,6 +78,8 @@ export default function AdminScanner() {
       setBooks(allBooks);
       const allMembers = await db.getMembers();
       setMembers(allMembers.filter(m => m.status === 'accepted' || m.status === 'active'));
+      const allIssues = await db.getIssues();
+      setIssues(allIssues);
     } catch (err) {
       console.error('Loader scanner error:', err);
     } finally {
@@ -81,8 +128,59 @@ export default function AdminScanner() {
     setManualInput('');
     setScannedMessage(null);
     setShowIssueQuickPanel(false);
+    setMatchedBook(null);
+    setMatchedMember(null);
 
-    // Search books in our database by bookId (or fallback standard id)
+    // 1. Try to see if it is a member verification payload / URL
+    let memberIdFound = '';
+    
+    if (cleanCode.includes('verify?payload=')) {
+      try {
+        const url = new URL(cleanCode);
+        const payloadB64 = url.searchParams.get('payload');
+        if (payloadB64) {
+          const normalizedB64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+          const decodedPayloadStr = decodeURIComponent(atob(normalizedB64));
+          const parsed = JSON.parse(decodedPayloadStr);
+          if (parsed && typeof parsed === 'object') {
+            memberIdFound = parsed.cardId ? parsed.cardId.replace('card-', '') : (parsed.id || '');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to decode member QR payload from URL:', err);
+      }
+    } else if (cleanCode.toLowerCase().startsWith('card-')) {
+      memberIdFound = cleanCode.replace(/^card-/i, '');
+    } else {
+      // Try to see if the direct string matches any member's ID or name
+      const exactMem = members.find(m => 
+        m.id.toLowerCase() === cleanCode.toLowerCase() ||
+        m.name.toLowerCase() === cleanCode.toLowerCase()
+      );
+      if (exactMem) {
+        memberIdFound = exactMem.id;
+      }
+    }
+
+    if (memberIdFound) {
+      const member = members.find(m => m.id.toLowerCase() === memberIdFound.toLowerCase());
+      if (member) {
+        setMatchedMember(member);
+        setScannedMessage({ 
+          type: 'success', 
+          text: `সাফল্য! সদস্য "${member.name}" (ID: ${member.id}) এর ডিজিটাল আইডি কার্ড খুঁজে পাওয়া গেছে।` 
+        });
+        addScanToHistory({
+          code: cleanCode,
+          type: 'সদস্য / Member',
+          name: member.name,
+          details: `আইডি: ${member.id} | রোল: ${member.studentRoll || 'N/A'}`
+        });
+        return;
+      }
+    }
+
+    // 2. Search books in our database by bookId (or fallback standard id)
     const book = books.find(b => 
       b.bookId.toLowerCase() === cleanCode.toLowerCase() ||
       b.id.toLowerCase() === cleanCode.toLowerCase()
@@ -91,8 +189,13 @@ export default function AdminScanner() {
     if (book) {
       setMatchedBook(book);
       setScannedMessage({ type: 'success', text: `সাফল্য! "${book.title}" বই আইডি মিল অমিল ক্যাটালগ খুঁজে পাওয়া গেছে।` });
+      addScanToHistory({
+        code: cleanCode,
+        type: 'বই / Book',
+        name: book.title,
+        details: `আইডি: ${book.bookId} | শেলফ: ${book.shelfNo || 'N/A'}`
+      });
     } else {
-      setMatchedBook(null);
       setScannedMessage({ type: 'error', text: `দুঃখিত! "${cleanCode}" কোডটি মেম্বার বা লাইব্রেরি ক্যাটালগে নেই।` });
     }
   };
@@ -292,8 +395,175 @@ export default function AdminScanner() {
             </div>
           )}
 
-          {/* Book found card with direct operations */}
-          {matchedBook ? (
+          {/* Member or Book found card with direct operations */}
+          {matchedMember ? (
+            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-6">
+              <div className="flex gap-6 items-start pb-6 border-b border-slate-100">
+                <div className="w-20 h-20 rounded-2xl bg-indigo-50 overflow-hidden shrink-0 border border-indigo-100 flex items-center justify-center">
+                  {matchedMember.photo ? (
+                    <img src={matchedMember.photo} alt={matchedMember.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <User className="w-10 h-10 text-indigo-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <span className={cn(
+                    "px-3 py-1 text-[9px] font-black uppercase rounded-lg tracking-wider mb-2 inline-block shadow-sm border",
+                    matchedMember.status === 'active' || matchedMember.status === 'accepted'
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200"
+                  )}>
+                    {matchedMember.status === 'active' || matchedMember.status === 'accepted' ? 'সক্রিয় মেম্বার' : 'পেন্ডিং মেম্বার'}
+                  </span>
+                  <h3 className="text-xl font-black text-slate-900 leading-tight mb-1">{matchedMember.name}</h3>
+                  <p className="text-slate-400 font-bold text-sm italic">{matchedMember.email}</p>
+                  
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-4 text-[11px] font-bold text-slate-500">
+                    <p>মেম্বার আইডি: <strong className="text-slate-800 font-mono">{matchedMember.id}</strong></p>
+                    <p>মোবাইল: <strong className="text-slate-800">{matchedMember.phone || 'N/A'}</strong></p>
+                    <p>রোল নম্বর: <strong className="text-emerald-700 font-mono">{matchedMember.studentRoll || 'N/A'}</strong></p>
+                    <p>সেশন: <strong className="text-indigo-650 font-mono">{matchedMember.batchSession || 'N/A'}</strong></p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current issues / borrowed books for this member */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest font-sans text-left">চলতি সচল লোনসমূহ (Active Loans):</h4>
+                {issues.filter(i => 
+                  (i.memberId === matchedMember.id || i.memberName.toLowerCase().includes(matchedMember.name.toLowerCase())) && 
+                  i.status !== 'Returned' && i.status !== 'Rejected'
+                ).length > 0 ? (
+                  <div className="space-y-3">
+                    {issues.filter(i => 
+                      (i.memberId === matchedMember.id || i.memberName.toLowerCase().includes(matchedMember.name.toLowerCase())) && 
+                      i.status !== 'Returned' && i.status !== 'Rejected'
+                    ).map((issue, idx) => {
+                      const isOverdue = issue.status === 'Overdue';
+                      return (
+                        <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                          <div className="text-left">
+                            <p className="font-extrabold text-xs text-slate-800">{issue.bookTitle}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              ইস্যু: {issue.issueDate} | ফেরত: <strong className={isOverdue ? 'text-rose-600 font-extrabold animate-pulse' : 'text-indigo-600'}>{issue.dueDate}</strong>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const confirmRes = window.confirm(`আপনি কি নিশ্চিত যে "${issue.bookTitle}" বইটি ফেরত নিবেন?`);
+                              if (!confirmRes) return;
+                              try {
+                                setLoading(true);
+                                // Update issue status to Returned
+                                await db.saveIssue({
+                                  ...issue,
+                                  status: 'Returned'
+                                });
+
+                                // Find book in books
+                                const bookObj = books.find(b => b.title.toLowerCase() === issue.bookTitle.toLowerCase() || b.id === issue.bookId);
+                                if (bookObj) {
+                                  const updatedBook = {
+                                    ...bookObj,
+                                    stock: (bookObj.stock || 0) + 1,
+                                    status: 'available' as const
+                                  };
+                                  await db.saveBook(updatedBook);
+                                }
+
+                                alert('বইটি ফেরত গ্রহণ করা হয়েছে ও স্টক আপডেট হয়েছে!');
+                                await loadData();
+                              } catch (err) {
+                                console.error(err);
+                                alert('ফেরত গ্রহণে সমস্যা হয়েছে।');
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-600 border border-emerald-200 text-emerald-700 hover:text-white font-black text-[10px] rounded-lg transition-all cursor-pointer whitespace-nowrap"
+                          >
+                            ফেরত নিন
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 font-bold italic p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">সদস্যের এই মুহূর্তে কোনো লোন বা বকেয়া বই নেই।</p>
+                )}
+              </div>
+
+              {/* Borrow new book tool for this member */}
+              <div className="pt-4 border-t border-slate-100 space-y-4">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest font-sans text-left">নতুন বই লোন দিন (Issue Book):</h4>
+                <div className="flex gap-3">
+                  <select
+                    id="member-issue-book-select"
+                    required
+                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:outline-none"
+                  >
+                    <option value="">-- বই নির্বাচন করুন --</option>
+                    {books.filter(b => b.stock > 0).map(b => (
+                      <option key={b.id} value={b.id}>{b.title} (ষ্টক: {b.stock} কপি)</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const selectEl = document.getElementById('member-issue-book-select') as HTMLSelectElement | null;
+                      const bookId = selectEl?.value;
+                      if (!bookId) {
+                        alert('দয়া করে বই নির্বাচন করুন!');
+                        return;
+                      }
+                      const b = books.find(bk => bk.id === bookId);
+                      if (!b) return;
+
+                      try {
+                        setLoading(true);
+                        const todayStr = new Date().toLocaleDateString('bn-BD');
+                        const dueCalendarDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+                        const yyyy = dueCalendarDate.getFullYear();
+                        const mm = String(dueCalendarDate.getMonth() + 1).padStart(2, '0');
+                        const dd = String(dueCalendarDate.getDate()).padStart(2, '0');
+                        const newDueDateStr = `${dd}/${mm}/${yyyy}`;
+
+                        await db.saveIssue({
+                          bookTitle: b.title,
+                          bookId: b.id,
+                          memberId: matchedMember.id,
+                          memberName: matchedMember.name,
+                          issueDate: todayStr,
+                          dueDate: newDueDateStr,
+                          status: 'Active'
+                        });
+
+                        // Decrement stock
+                        const updatedBook = {
+                          ...b,
+                          stock: Math.max(0, b.stock - 1),
+                          status: (b.stock - 1 <= 0) ? 'pre-order' as const : 'available' as const
+                        };
+                        await db.saveBook(updatedBook);
+
+                        alert('বই লোন সফলভাবে বরাদ্দ করা হয়েছে!');
+                        await loadData();
+                      } catch (err) {
+                        console.error(err);
+                        alert('বই লোন দিতে সমস্যা হয়েছে।');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    className="px-5 py-3 bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-95 duration-150 cursor-pointer whitespace-nowrap"
+                  >
+                    ইস্যু করুন
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : matchedBook ? (
             <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-6">
               <div className="flex gap-6 items-start pb-6 border-b border-slate-100">
                 <div className="w-24 h-32 rounded-xl bg-slate-50 overflow-hidden shrink-0 border border-slate-200 shadow-md flex items-center justify-center">
@@ -426,8 +696,8 @@ export default function AdminScanner() {
           ) : (
             <div className="bg-white p-20 rounded-[40px] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-center text-slate-300">
               <Library className="w-16 h-16 mb-4 text-slate-200" />
-              <p className="font-extrabold text-slate-400">কোনো বই এখনো লোড করা হয়নি</p>
-              <p className="text-xs font-bold text-slate-300 mt-2">বারকোড স্ক্যান করুন অথবা উপরে ম্যানুয়ালি কোড লিখে খুঁজুন</p>
+              <p className="font-extrabold text-slate-400">কোনো বই বা মেম্বার আইডি এখনো লোড করা হয়নি</p>
+              <p className="text-xs font-bold text-slate-300 mt-2">বারকোড/QR কোডটি স্ক্যান করুন অথবা উপরে ম্যানুয়ালি কোড/আইডি লিখে খুঁজুন</p>
             </div>
           )}
 
@@ -444,6 +714,74 @@ export default function AdminScanner() {
           </div>
         </div>
 
+      </div>
+
+      {/* Scan History Section */}
+      <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <History className="w-5 h-5 text-indigo-600 animate-pulse" />
+              স্ক্যান ইতিহাস (Scan History Log)
+            </h3>
+            <p className="text-xs font-bold text-slate-400 mt-1">
+              বর্তমানে ধাপে ধাপে যাচাইকৃত সর্বশেষ ১০টি সফল বই অথবা সদস্য স্ক্যানের তথ্য
+            </p>
+          </div>
+          {scanHistory.length > 0 && (
+            <button
+              onClick={clearScanHistory}
+              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-600 hover:text-white border border-rose-200 text-rose-600 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              ইতিহাস মুছুন (Clear Log)
+            </button>
+          )}
+        </div>
+
+        {scanHistory.length > 0 ? (
+          <div className="overflow-x-auto border border-slate-100 rounded-[24px]">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  <th className="py-4 px-6">সময় (Time)</th>
+                  <th className="py-4 px-6">স্ক্যানকৃত কোড (Code)</th>
+                  <th className="py-4 px-6">ধরন (Type)</th>
+                  <th className="py-4 px-6">নাম (Name)</th>
+                  <th className="py-4 px-6">বিবরণ / আইডি (Details)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {scanHistory.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors font-sans">
+                    <td className="py-3.5 px-6 font-mono text-slate-500 whitespace-nowrap">{item.timestamp}</td>
+                    <td className="py-3.5 px-6 font-mono font-bold text-indigo-600 whitespace-nowrap">{item.code}</td>
+                    <td className="py-3.5 px-6">
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border whitespace-nowrap",
+                        item.type.includes('Book') 
+                          ? "bg-amber-50 text-amber-750 border-amber-200" 
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      )}>
+                        {item.type}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-6 font-extrabold text-slate-800">{item.name}</td>
+                    <td className="py-3.5 px-6 text-slate-400 font-bold max-w-[250px] truncate" title={item.details}>
+                      {item.details}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-12 text-center bg-slate-50/40 border border-dashed border-slate-150 rounded-[28px] text-slate-300">
+            <Scan className="w-10 h-10 mx-auto mb-2 opacity-50" />
+            <p className="font-extrabold text-slate-400">ইতিহাসে এখনও কোনো স্ক্যানের তথ্য নেই</p>
+            <p className="text-[10px] text-slate-350 font-bold mt-1">সফলভাবে QR বা বারকোড স্ক্যান করা হলে তা এখানে তালিকাভুক্ত হবে</p>
+          </div>
+        )}
       </div>
     </div>
   );

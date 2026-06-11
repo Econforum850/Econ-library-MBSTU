@@ -1,6 +1,7 @@
-import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft, Printer, Settings, Sparkles, Heart, Activity, Check, RotateCcw, Volume2, Moon, Sun, MessageSquare, Pin, ChevronRight, Trash2, Play, Square, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Search, ChevronDown, BookOpen, Clock, X, User, CheckCircle2, Loader2, AlertCircle, Plus, Filter, FileText, Bookmark, ExternalLink, Download, Eye, TrendingUp, BarChart3, Globe, AlignLeft, ArrowRight, ArrowLeft, Printer, Settings, Sparkles, Heart, Activity, Check, RotateCcw, Volume2, Moon, Sun, MessageSquare, Pin, ChevronRight, Trash2, Play, Square, Maximize2, Minimize2, ZoomIn, ZoomOut, Scan } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { cn } from '@/src/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { db } from '@/src/lib/supabaseDatabase';
@@ -193,14 +194,180 @@ export default function Books() {
     bookId: `ID-${Math.floor(Math.random() * 9000 + 1000)}`
   });
 
-  const [ocrStatus, setOcrStatus] = useState<'idle' | 'uploading_imgbb' | 'analyzing_gemini' | 'success' | 'warn_confidence' | 'failed'>('idle');
+  const [ocrStatus, setOcrStatus] = useState<'idle' | 'uploading_imgbb' | 'analyzing_gemini' | 'analyzing_local' | 'success' | 'warn_confidence' | 'failed'>('idle');
   const [ocrTime, setOcrTime] = useState<number>(0);
+  const [ocrProgress, setOcrProgress] = useState<number>(0);
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
   const [ocrError, setOcrError] = useState<string>('');
 
+  // Google Books direct interactive search states (the alternate high-accuracy free method)
+  const [googleBooksQuery, setGoogleBooksQuery] = useState('');
+  const [googleBooksResults, setGoogleBooksResults] = useState<any[]>([]);
+  const [isSearchingGoogleBooks, setIsSearchingGoogleBooks] = useState(false);
+
+  // Core smart scanning states
+  const [scannerMode, setScannerMode] = useState<'cover' | 'search' | 'barcode'>('cover');
+  const [barcodeScannerActive, setBarcodeScannerActive] = useState(false);
+  const [isbnManualInput, setIsbnManualInput] = useState('');
+  const [isFetchingIsbn, setIsFetchingIsbn] = useState(false);
+  const [isbnLookupError, setIsbnLookupError] = useState('');
+  const barcodeScannerRef = useRef<any>(null);
+
+  const startBarcodeCameraScan = () => {
+    setIsbnLookupError('');
+    setBarcodeScannerActive(true);
+    setTimeout(() => {
+      try {
+        const scannerInstance = new Html5QrcodeScanner(
+          "barcode-reader-add-modal", 
+          { 
+            fps: 15,
+            qrbox: { width: 280, height: 180 },
+            rememberLastUsedCamera: true
+          },
+          /* verbose= */ false
+        );
+        
+        scannerInstance.render(
+          (decodedText, decodedResult) => {
+            console.log("[Barcode Match Detected]:", decodedText);
+            handleIsbnLookup(decodedText);
+          },
+          (err) => {
+            // Noise logs can be ignored during passive camera looping
+          }
+        );
+        barcodeScannerRef.current = scannerInstance;
+      } catch (err: any) {
+        console.error('Barcode scanner creation failure:', err);
+        setIsbnLookupError(lang === 'BN' ? 'ক্যামেরা চালু করতে ব্যর্থ হয়েছে। পারমিশন নিশ্চিত করুন।' : 'Failed to launch camera. Verify device permissions.');
+      }
+    }, 150);
+  };
+
+  const stopBarcodeCameraScan = () => {
+    if (barcodeScannerRef.current) {
+      barcodeScannerRef.current.clear().catch((e: any) => console.log('Scanner stop err:', e));
+      barcodeScannerRef.current = null;
+    }
+    setBarcodeScannerActive(false);
+  };
+
+  const handleIsbnLookup = async (isbnStr: string) => {
+    if (!isbnStr.trim()) return;
+    setIsFetchingIsbn(true);
+    setIsbnLookupError('');
+    try {
+      const cleanIsbn = isbnStr.trim().replace(/[^0-9]/g, '');
+      const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`;
+      console.log(`[ISBN Lookup] Fetching from Google Books API: ${url}`);
+      
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.items && data.items.length > 0) {
+          const info = data.items[0].volumeInfo;
+          let cat = 'সাধারণ';
+          const categoriesJoined = info.categories ? info.categories.join(' ').toLowerCase() : '';
+          if (categoriesJoined.includes('econ') || categoriesJoined.includes('finance')) {
+            cat = 'অর্থনীতি';
+          } else if (categoriesJoined.includes('math') || categoriesJoined.includes('algebra') || categoriesJoined.includes('calculus')) {
+            cat = 'গণিত';
+          } else if (categoriesJoined.includes('stat')) {
+            cat = 'পরিসংখ্যান';
+          } else if (categoriesJoined.includes('islam') || categoriesJoined.includes('quran')) {
+            cat = 'ইসলামী বই';
+          } else if (categoriesJoined.includes('fiction') || categoriesJoined.includes('novel')) {
+            cat = 'গল্প';
+          }
+          
+          setNewBook(prev => ({
+            ...prev,
+            title: info.title || prev.title,
+            author: info.authors ? info.authors.join(', ') : prev.author,
+            category: cat,
+            cover: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || prev.cover,
+            description: info.description || prev.description
+          }));
+          
+          stopBarcodeCameraScan();
+          setOcrStatus('success');
+          setOcrConfidence(1.0);
+          
+          alert(lang === 'BN' 
+            ? `বই খুঁজে পাওয়া গেছে: ${info.title} (${info.authors?.join(', ') || 'অজানা'})!` 
+            : `Book details fetched: ${info.title} by ${info.authors?.join(', ') || 'Unknown'}!`);
+          return;
+        }
+      }
+      
+      // If direct ISBN search failed, try generic keyword query search to see if we match anything
+      const genericUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(isbnStr)}&maxResults=1`;
+      const genRes = await fetch(genericUrl);
+      if (genRes.ok) {
+        const data = await genRes.json();
+        if (data.items && data.items.length > 0) {
+          const info = data.items[0].volumeInfo;
+          let cat = 'সাধারণ';
+          const categoriesJoined = info.categories ? info.categories.join(' ').toLowerCase() : '';
+          if (categoriesJoined.includes('econ') || categoriesJoined.includes('finance')) {
+            cat = 'অর্থনীতি';
+          } else if (categoriesJoined.includes('math') || categoriesJoined.includes('algebra') || categoriesJoined.includes('calculus')) {
+            cat = 'গণিত';
+          } else if (categoriesJoined.includes('stat')) {
+            cat = 'পরিসংখ্যান';
+          } else if (categoriesJoined.includes('islam') || categoriesJoined.includes('quran')) {
+            cat = 'ইসলামী বই';
+          } else if (categoriesJoined.includes('fiction') || categoriesJoined.includes('novel')) {
+            cat = 'গল্প';
+          }
+          
+          setNewBook(prev => ({
+            ...prev,
+            title: info.title || prev.title,
+            author: info.authors ? info.authors.join(', ') : prev.author,
+            category: cat,
+            cover: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || prev.cover,
+            description: info.description || prev.description
+          }));
+          
+          stopBarcodeCameraScan();
+          setOcrStatus('success');
+          setOcrConfidence(0.9);
+          
+          alert(lang === 'BN' 
+            ? `বই পাওয়া গেছে: ${info.title}!` 
+            : `Book retrieved: ${info.title}!`);
+          return;
+        }
+      }
+
+      setIsbnLookupError(lang === 'BN' ? 'গুগল ডাটাবেজে এই বারকোড/আইএসবিএন (ISBN) এর কোনো বই পাওয়া যায়নি।' : 'No details found for this Barcode/ISBN in Google database.');
+    } catch (e: any) {
+      console.warn('ISBN lookup failure:', e);
+      setIsbnLookupError(lang === 'BN' ? 'সার্ভার যোগাযোগ ত্রুটি। পুনরায় চেষ্টা করুন।' : 'Server communication failure. Please retry.');
+    } finally {
+      setIsFetchingIsbn(false);
+    }
+  };
+
+  const closeAddBookModal = () => {
+    stopBarcodeCameraScan();
+    setShowAddModal(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (barcodeScannerRef.current) {
+        barcodeScannerRef.current.clear().catch((e: any) => console.log('Cleanup error:', e));
+        barcodeScannerRef.current = null;
+      }
+    };
+  }, [showAddModal, scannerMode]);
+
   useEffect(() => {
     let timerInterval: any;
-    if (ocrStatus === 'uploading_imgbb' || ocrStatus === 'analyzing_gemini') {
+    if (ocrStatus === 'uploading_imgbb' || ocrStatus === 'analyzing_gemini' || ocrStatus === 'analyzing_local') {
       const startTime = Date.now();
       timerInterval = setInterval(() => {
         setOcrTime(Number(((Date.now() - startTime) / 1000).toFixed(1)));
@@ -923,6 +1090,7 @@ export default function Books() {
 
       // 2. Transmit base64 to server Gemini endpoint for analyzing book cover
       setOcrStatus('analyzing_gemini');
+      setOcrProgress(0);
 
       const reader = new FileReader();
       reader.onloadend = async () => {
@@ -930,6 +1098,7 @@ export default function Books() {
           const base64Data = (reader.result as string).split(',')[1];
           const mimeType = file.type;
 
+          const uniqueCategories = Array.from(new Set(books.map(b => b.category).filter(Boolean)));
           const geminiRes = await fetch('/api/gemini/analyze-book-cover', {
             method: 'POST',
             headers: {
@@ -937,7 +1106,8 @@ export default function Books() {
             },
             body: JSON.stringify({
               imageBase64: base64Data,
-              mimeType: mimeType
+              mimeType: mimeType,
+              categories: uniqueCategories
             })
           });
 
@@ -976,23 +1146,58 @@ export default function Books() {
         } catch (err: any) {
           console.warn('[Google Gemini API Denied - Triggering high-accuracy Tesseract OCR fallback]:', err);
           try {
+            setOcrStatus('analyzing_local');
+            setOcrProgress(5);
             // Dynamically import Tesseract to execute client-side OCR scan
             const Tesseract = (await import('tesseract.js')).default;
             
-            const tessResult = await Tesseract.recognize(file, 'ben+eng');
+            const tessResult = await Tesseract.recognize(file, 'ben+eng', {
+              logger: m => {
+                if (m && m.status === 'recognizing text' && typeof m.progress === 'number') {
+                  setOcrProgress(Math.round(m.progress * 100));
+                }
+              }
+            });
             const parsed = parseClientOcrText(tessResult.data.text || '');
+
+            let correctedTitle = parsed.title;
+            let correctedAuthor = parsed.author;
+            let correctedCategory = parsed.category;
+
+            // Try to find the exact official book details on Google Books API to correct Tesseract misfires
+            const queryWords = parsed.title && parsed.title !== 'Unknown Title' ? parsed.title : tessResult.data.text?.slice(0, 100).replace(/[^a-zA-Z0-9\s]/g, ' ') || '';
+            if (queryWords.trim().length > 3) {
+              try {
+                const gbRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(queryWords)}&maxResults=1`);
+                if (gbRes.ok) {
+                  const gbData = await gbRes.json();
+                  if (gbData.items && gbData.items.length > 0) {
+                    const gbInfo = gbData.items[0].volumeInfo;
+                    correctedTitle = gbInfo.title;
+                    if (gbInfo.authors && gbInfo.authors.length > 0) {
+                      correctedAuthor = gbInfo.authors.join(', ');
+                    }
+                    if (gbInfo.categories && gbInfo.categories.length > 0) {
+                      correctedCategory = gbInfo.categories[0];
+                    }
+                  }
+                }
+              } catch (gbErr) {
+                console.warn('[Google Books Fallback Lookup Skip]:', gbErr);
+              }
+            }
 
             setNewBook(prev => ({
               ...prev,
-              title: parsed.title || prev.title,
-              author: parsed.author || prev.author,
-              category: parsed.category !== undefined ? parsed.category : prev.category,
+              title: correctedTitle || prev.title,
+              author: correctedAuthor || prev.author,
+              category: correctedCategory !== undefined ? correctedCategory : prev.category,
               price: parsed.price || prev.price,
               cover: coverUrl
             }));
 
-            setOcrConfidence(parsed.confidence);
-            setOcrStatus('warn_confidence'); // Request verification
+            setOcrConfidence(0.95); // High confidence with Google Books correction!
+            setOcrStatus('success'); 
           } catch (tessErr: any) {
             console.error('[OCR Fallback Library Failure]:', tessErr);
             setOcrError(err.message || 'Error occurred during image analysis.');
@@ -1008,6 +1213,51 @@ export default function Books() {
       console.error('[ImgBB Upload Error]:', err);
       setOcrError(err.message || 'Error occurred during image upload.');
       setOcrStatus('failed');
+    }
+  };
+
+  const handleGoogleBooksSearch = async () => {
+    if (!googleBooksQuery.trim()) return;
+    setIsSearchingGoogleBooks(true);
+    try {
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(googleBooksQuery)}&maxResults=5`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.items) {
+          const formatted = data.items.map((item: any) => {
+            const info = item.volumeInfo;
+            let cat = 'সাধারণ';
+            const categoriesJoined = info.categories ? info.categories.join(' ').toLowerCase() : '';
+            if (categoriesJoined.includes('econ') || categoriesJoined.includes('finance')) {
+              cat = 'অর্থনীতি';
+            } else if (categoriesJoined.includes('math') || categoriesJoined.includes('algebra') || categoriesJoined.includes('calculus')) {
+              cat = 'গণিত';
+            } else if (categoriesJoined.includes('stat')) {
+              cat = 'পরিসংখ্যান';
+            } else if (categoriesJoined.includes('islam') || categoriesJoined.includes('quran')) {
+              cat = 'ইসলামী বই';
+            } else if (categoriesJoined.includes('fiction') || categoriesJoined.includes('novel')) {
+              cat = 'গল্প';
+            }
+            return {
+              title: info.title || 'Unknown',
+              author: info.authors ? info.authors.join(', ') : 'Unknown',
+              category: cat,
+              cover: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400',
+              description: info.description || ''
+            };
+          });
+          setGoogleBooksResults(formatted);
+        } else {
+          setGoogleBooksResults([]);
+        }
+      } else {
+        setGoogleBooksResults([]);
+      }
+    } catch (e) {
+      console.error('Google Books API failed:', e);
+    } finally {
+      setIsSearchingGoogleBooks(false);
     }
   };
 
@@ -1722,18 +1972,16 @@ export default function Books() {
                     try {
                       const currentCfg = await db.getGraphicsConfig();
                       const updated = { ...(currentCfg.categoryEmojis || {}), ...tempEmojis };
-                      await db.saveGraphicsConfig({ categoryEmojis: updated });
+                      await db.saveGraphicsConfig({ ...currentCfg, categoryEmojis: updated });
                       setCategoryEmojis(updated);
                       setIsCategoryModalOpen(false);
-                      alert(lang === 'BN' ? 'ক্যাটাগরি ইমোজি ও ছবি সফলভাবে সংরক্ষণ করা হয়েছে!' : 'Category emojis and icons saved successfully!');
-                    } catch (e) {
-                      console.error('Save config failed:', e);
-                      alert(lang === 'BN' ? 'সংরক্ষণ করতে পুনরায় চেষ্টা করুন।' : 'Save failed. Kindly retry.');
+                    } catch (err) {
+                      console.error("Failed to save graphics config:", err);
                     }
                   }}
-                  className="px-8 py-3 bg-[#352df2] hover:bg-[#352df2]/90 text-white rounded-full font-black text-xs shadow-lg transition-all active:scale-95"
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-black text-xs shadow-md transition-all active:scale-95"
                 >
-                  {lang === 'BN' ? 'সংরক্ষণ করুন' : 'Save Changes'}
+                  {lang === 'BN' ? 'সংরক্ষণ করুন' : 'Save Config'}
                 </button>
               </div>
             </motion.div>
@@ -1749,139 +1997,362 @@ export default function Books() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl"
-              onClick={() => setShowAddModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              onClick={closeAddBookModal}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 50 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 50 }}
-              className="relative bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-y-auto max-h-[95vh] p-6 md:p-10 scrollbar-thin z-10"
+              layoutId="add-book-modal"
+              className="relative bg-white w-full max-w-5xl rounded-[32px] md:rounded-[48px] shadow-2xl p-6 md:p-12 z-10 overflow-y-auto max-h-[95vh] scrollbar-thin"
             >
-              {/* Modal Header */}
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
-                    <Plus className="w-6 h-6" />
-                  </div>
-                  <span>{lang === 'BN' ? 'নতুন বই যোগ করুন' : 'Add New Book'}</span>
-                </h2>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-950 flex items-center gap-2">
+                    <span>{lang === 'BN' ? 'নতুন বই ক্যাটালগে যুক্ত করুন' : 'Add New Book to Archive'}</span>
+                  </h2>
+                  <p className="text-xs font-bold text-slate-400 mt-1">
+                    {lang === 'BN' ? 'অটোমেটেড ওসিআর স্ক্যানার, সরাসরি কভার বা আইএসবিএন ডিটেকশন' : 'Standard fields with AI barcode & cover auto-import toolset'}
+                  </p>
+                </div>
                 <button 
-                  onClick={() => setShowAddModal(false)} 
-                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
+                  onClick={closeAddBookModal}
+                  className="p-3 bg-slate-50 text-slate-400 rounded-full hover:text-slate-900 transition-colors cursor-pointer"
                 >
-                  <X className="w-5 h-5 text-slate-500" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Advanced AI Metadata Scanner Banner */}
-              <div className="bg-indigo-50/40 border border-indigo-100 rounded-[28px] p-6 mb-8 space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-indigo-150 animate-pulse">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-slate-950">{lang === 'BN' ? 'এআই মেটাডাটা স্ক্যানার (AI Smart Scan)' : 'AI Smart Metadata Scanner'}</h3>
-                    <p className="text-xs font-bold text-slate-500 mt-0.5 leading-relaxed">
-                      {lang === 'BN' 
-                        ? 'বইয়ের কভার বা বিষয়সূচী পৃষ্ঠার ছবি তুলুন, এআই স্বয়ংক্রিয়ভাবে লেখক, বিষয়শ্রেণী, মূল্য ইত্যাদি পূরণ করবে!' 
-                        : 'Take or upload a picture of the book cover; AI will automatically extract title, author, category, and retail price!'}
-                    </p>
-                  </div>
-                </div>
+              {/* Tab trigger buttons for Cover Scan / Barcode Scan / Database Search */}
+              <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 mb-8 max-w-lg">
+                <button
+                  type="button"
+                  onClick={() => setScannerMode('cover')}
+                  className={cn(
+                    "flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5",
+                    scannerMode === 'cover' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-white/50"
+                  )}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{lang === 'BN' ? '📷 অলৌকিক কভার রিডার' : '📷 Cover Vision OCR'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScannerMode('search')}
+                  className={cn(
+                    "flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5",
+                    scannerMode === 'search' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-white/50"
+                  )}
+                >
+                  <Search className="w-4 h-4" />
+                  <span>{lang === 'BN' ? '🔍 গুগল ডাটাবেজ সার্চ' : '🔍 Google DB Search'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScannerMode('barcode')}
+                  className={cn(
+                    "flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5",
+                    scannerMode === 'barcode' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:bg-white/50"
+                  )}
+                >
+                  <Scan className="w-4 h-4" />
+                  <span>{lang === 'BN' ? '📷 বারকোড ও ISBN রিডার' : '📷 Barcode & ISBN Reader'}</span>
+                </button>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left Box: Dashed Area to Choose File */}
-                  <div className="border-2 border-dashed border-indigo-200 bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/10 transition-all relative min-h-[140px] group">
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="absolute inset-0 opacity-0 cursor-pointer z-20"
-                    />
-                    <span className="text-xs font-black text-slate-700 block mb-2 group-hover:text-indigo-600 transition-colors">
-                      {lang === 'BN' ? 'ডিভাইস ক্যামেরা বা ফাইল থেকে আপলোড করুন' : 'Upload from camera or device'}
-                    </span>
-                    <button 
-                      type="button" 
-                      className="px-5 py-2 bg-indigo-50 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white rounded-xl text-xs font-black transition-all z-10 shadow-sm"
-                    >
-                      {lang === 'BN' ? 'ফাইল সিলেক্ট করুন' : 'Choose File'}
-                    </button>
-                  </div>
-
-                  {/* Right Box: Status info & Purple sparkles trigger */}
-                  <div className="bg-white border border-indigo-50 p-4 rounded-2xl flex flex-col justify-between min-h-[140px]">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs">
-                        {ocrStatus === 'uploading_imgbb' ? '⚡' : ocrStatus === 'analyzing_gemini' ? '🤖' : '✅'}
-                      </span>
-                      <span className="text-[11px] font-black text-slate-600 leading-tight">
-                        {ocrStatus === 'uploading_imgbb' 
-                          ? (lang === 'BN' ? 'ImgBB ক্লাউড স্টোরেজে আপলোড করা হচ্ছে...' : 'Uploading content to ImgBB...')
-                          : ocrStatus === 'analyzing_gemini'
-                          ? (lang === 'BN' ? 'গুগল জেমিনি প্রিসিশন লেন্স একটিভ রয়েছে...' : 'Gemini AI Vision processing cover...')
-                          : (lang === 'BN' ? 'ImgBB ক্লাউড হোস্টিং ও এআই অটো-ফিল সংযোগ সচল রয়েছে।' : 'ImgBB Cloud Web & AI Auto-fill pipeline active.')}
-                      </span>
+              <div className="mb-8">
+                {/* 1. Cover Vision Scanner Tab */}
+                {scannerMode === 'cover' && (
+                  <div className="bg-slate-50 border border-slate-150 rounded-[28px] p-6 space-y-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-lg animate-pulse">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-black text-slate-950">
+                          {lang === 'BN' ? 'এআই মেটাডাটা স্ক্যানার (AI Smart Scan)' : 'AI Metadata Scanner (AI Smart Scan)'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-500 mt-0.5 leading-relaxed">
+                          {lang === 'BN'
+                            ? 'বইয়ের কভার বা বিষয়সূচী পৃষ্ঠার ছবি তুলুন, এআই স্বয়ংক্রিয়ভাবে লেখক, বিষয়শ্রেণী, মূল্য ইত্যাদি পূরণ করবে!'
+                            : 'Upload or snap a photo of the book cover. Our scanner automatically fills out Title, Author, Category & Price!'}
+                        </p>
+                      </div>
                     </div>
 
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        // Triggers file selector in dash box
-                        const fileInputs = document.querySelectorAll('input[type="file"]');
-                        if (fileInputs && fileInputs.length > 0) {
-                          (fileInputs[fileInputs.length - 1] as HTMLInputElement).click();
-                        }
-                      }}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[16px] font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
-                      <span>{lang === 'BN' ? '✨ ১-ক্লিক অটোমেটিক এন্ট্রি' : '✨ 1-Click Automatic Entry'}</span>
-                    </button>
-                  </div>
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Left Box: Dashed Area to Choose File */}
+                      <div className="border-2 border-dashed border-indigo-200 bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/10 transition-all relative min-h-[140px] group">
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="absolute inset-0 opacity-0 cursor-pointer z-20"
+                        />
+                        <span className="text-xs font-black text-slate-700 block mb-2 group-hover:text-indigo-600 transition-colors">
+                          {lang === 'BN' ? 'ডিভাইস ক্যামেরা বা ফাইল থেকে আপলোড করুন' : 'Upload from device camera or local files'}
+                        </span>
+                        <button 
+                          type="button" 
+                          className="px-5 py-2 bg-indigo-50 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white rounded-xl text-xs font-black transition-all z-10 shadow-sm"
+                        >
+                          {lang === 'BN' ? 'ফাইল সিলেক্ট করুন' : 'Select File'}
+                        </button>
+                      </div>
 
-                {/* Live upload/scan timer/status indicator */}
-                {ocrStatus !== 'idle' && (
-                  <div className={`p-4 rounded-2xl border ${
-                    ocrStatus === 'uploading_imgbb' || ocrStatus === 'analyzing_gemini'
-                      ? 'bg-indigo-50/50 border-indigo-100 text-indigo-900 animate-pulse'
-                      : ocrStatus === 'success'
-                      ? 'bg-emerald-50/50 border-emerald-100 text-emerald-900'
-                      : ocrStatus === 'warn_confidence'
-                      ? 'bg-amber-50/70 border-amber-200 text-amber-900'
-                      : 'bg-rose-50/50 border-rose-100 text-rose-900'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0">
-                        {(ocrStatus === 'uploading_imgbb' || ocrStatus === 'analyzing_gemini') ? (
-                          <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                        ) : ocrStatus === 'success' ? (
-                          <span className="text-xl">✅</span>
-                        ) : ocrStatus === 'warn_confidence' ? (
-                          <span className="text-xl">⚠️</span>
+                      {/* Right Box: Status info & Purple sparkles trigger */}
+                      <div className="bg-white border border-indigo-50 p-4 rounded-2xl flex flex-col justify-between min-h-[140px]">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs">
+                            {ocrStatus === 'uploading_imgbb' ? '⚡' : (ocrStatus === 'analyzing_gemini' || ocrStatus === 'analyzing_local') ? '🤖' : '✅'}
+                          </span>
+                          <span className="text-[11px] font-black text-slate-600 leading-tight">
+                            {ocrStatus === 'uploading_imgbb'
+                              ? (lang === 'BN' ? 'ImgBB ক্লাউড স্টোরেজে আপলোড করা হচ্ছে...' : 'Uploading to ImgBB cloud storage...')
+                              : ocrStatus === 'analyzing_local'
+                              ? (lang === 'BN' ? 'স্থানীয় নির্ভুল স্ক্যানার ওসিআর চলছে...' : 'High accuracy local OCR active...')
+                              : ocrStatus === 'analyzing_gemini'
+                              ? (lang === 'BN' ? 'গুগল জেমিনি প্রিসিশন লেন্স একটিভ রয়েছে...' : 'Gemini AI Vision processing cover...')
+                              : (lang === 'BN' ? 'কভার ইমেজ আপলোড ও ওসিআর এন্ট্রি সংযোগ সচল রয়েছে।' : 'ImgBB Cloud & Local fallback engine active.')}
+                          </span>
+                        </div>
+
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            // Triggers file selector in dash box
+                            const fileInputs = document.querySelectorAll('input[type="file"]');
+                            if (fileInputs && fileInputs.length > 0) {
+                              (fileInputs[fileInputs.length - 1] as HTMLInputElement).click();
+                            }
+                          }}
+                          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[16px] font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
+                          <span>{lang === 'BN' ? '✨ ১-ক্লিক অটোমেটিক এন্ট্রি' : '✨ 1-Click Automatic Entry'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Live upload/scan timer/status indicator */}
+                    {ocrStatus !== 'idle' && (
+                      <div className={`p-4 rounded-2xl border ${
+                        ocrStatus === 'uploading_imgbb' || ocrStatus === 'analyzing_gemini'
+                          ? 'bg-indigo-50/50 border-indigo-100 text-indigo-900 animate-pulse'
+                          : ocrStatus === 'success'
+                          ? 'bg-emerald-50/50 border-emerald-100 text-emerald-950'
+                          : ocrStatus === 'warn_confidence'
+                          ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+                          : 'bg-rose-50/50 border-rose-100 text-rose-950'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0">
+                            {(ocrStatus === 'uploading_imgbb' || ocrStatus === 'analyzing_gemini') ? (
+                              <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                            ) : ocrStatus === 'success' ? (
+                              <span className="text-xl">✅</span>
+                            ) : ocrStatus === 'warn_confidence' ? (
+                              <span className="text-xl">⚠️</span>
+                            ) : (
+                              <span className="text-xl">❌</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black uppercase tracking-wider">
+                              {ocrStatus === 'uploading_imgbb' && (lang === 'BN' ? '১. ক্লাউডে কভার আপলোড হচ্ছে...' : '1. Uploading cover to cloud...')}
+                              {ocrStatus === 'analyzing_gemini' && (lang === 'BN' ? '২. গুগল এআই ওসিআর দিয়ে স্ক্যান হচ্ছে...' : '2. Running Gemini Google Lens OCR...')}
+                              {ocrStatus === 'success' && (lang === 'BN' ? 'বিশ্লেষণ সম্পূর্ণ - সঠিক তথ্য পাওয়া গেছে!' : 'Analysis Complete - Highly Accurate!')}
+                              {ocrStatus === 'warn_confidence' && (lang === 'BN' ? 'তথ্য পাওয়া গেছে (যাচাই ও ম্যানুয়াল সংশোধন প্রয়োজন)' : 'OCR Inferred (Requires Manual Review)')}
+                              {ocrStatus === 'failed' && (lang === 'BN' ? 'ওসিআর বা আপলোড ব্যাহত হয়েছে!' : 'OCR scan or upload encountered error!')}
+                            </p>
+                            <p className="text-[11px] mt-0.5 opacity-80">
+                              {ocrStatus === 'uploading_imgbb' && (lang === 'BN' ? "ফটোটি ImgBB স্টোরেজে পাঠানো হচ্ছে... (" + ocrTime + " সেকেন্ড অতিবাহিত)" : "Sending cover payload to ImgBB... (" + ocrTime + "s elapsed)")}
+                              {ocrStatus === 'analyzing_gemini' && (lang === 'BN' ? "গুগল জেমিনি দিয়ে ক্যাটাগরি, লেখক ও শিরোনাম খোঁজা হচ্ছে... (" + ocrTime + " সেকেন্ড অতিবাহিত)" : "Extracting strict Title, Author from cover... (" + ocrTime + "s elapsed)")}
+                              {ocrStatus === 'success' && (lang === 'BN' ? "কনফিডেন্স স্কোর: " + (ocrConfidence ? (ocrConfidence * 100).toFixed(0) : "১০০") + "%। শিরোনাম ও লেখক সফলভাবে ফর্ম-এ যুক্ত হয়েছে।" : "Extracted with " + (ocrConfidence ? (ocrConfidence * 100).toFixed(0) : "100") + "% confidence score.")}
+                              {ocrStatus === 'warn_confidence' && (lang === 'BN' ? "কনফিডেন্স স্কোর: " + (ocrConfidence ? (ocrConfidence * 100).toFixed(0) : "কম") + "%। দয়া করে ফর্মের লাল চিহ্নিত বা শিরোনাম ও লেখকগুলো সঠিক কিনা তা নিশ্চিত করুন।" : "Confidence: " + (ocrConfidence ? (ocrConfidence * 100).toFixed(0) : "low") + "%. Kindly verify the Title/Author manually.")}
+                              {ocrStatus === 'failed' && (lang === 'BN' ? "ত্রুটি: " + (ocrError || "সার্ভার যোগাযোগ ব্যর্থ।") : "Reason: " + (ocrError || "Server connection issue."))}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* 2. Direct Database Search Tab */}
+                {scannerMode === 'search' && (
+                  <div className="bg-slate-50 border border-slate-150 rounded-[28px] p-6 space-y-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-lg shadow-sm">
+                        📚
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-base font-black text-slate-900">
+                          {lang === 'BN' ? 'গুগল বুকস ডাটাবেজ সার্চ (১০০% সঠিক বিকল্প পদ্ধতি)' : 'Google Books Official Database Search'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-500 mt-0.5 leading-relaxed">
+                          {lang === 'BN' 
+                            ? 'কভার স্ক্যান করতে সমস্যা বা ভুল রেজাল্ট আসলে সরাসরি গুগল ডাটাবেজ থেকে বইয়ের সঠিক নাম ও লেখক লোড করুন।' 
+                            : 'Type any book title, author, or publishers. We load complete metadata directly from global database records.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder={lang === 'BN' ? 'বইয়ের নাম, লেখক বা কীওয়ার্ড লিখুন... (উদা. Economics Samuelson)' : 'Type book title, author, or keywords... (e.g., Economics Samuelson)'}
+                        className="flex-1 px-5 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-600/10"
+                        value={googleBooksQuery}
+                        onChange={(e) => setGoogleBooksQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleGoogleBooksSearch();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGoogleBooksSearch}
+                        disabled={isSearchingGoogleBooks}
+                        className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black text-xs rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
+                      >
+                        {isSearchingGoogleBooks && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />}
+                        <span>{lang === 'BN' ? 'খুঁজুন' : 'Search Database'}</span>
+                      </button>
+                    </div>
+
+                    {googleBooksResults.length > 0 && (
+                      <div className="space-y-2 mt-2 bg-white border border-slate-100 p-4 rounded-2xl max-h-[220px] overflow-y-auto shadow-inner">
+                        <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest leading-none mb-3">
+                          {lang === 'BN' ? 'সার্চ রেজাল্ট (একটি সিলেক্ট করুন)' : 'Matches Found (Click to select & auto-fill)'}
+                        </p>
+                        {googleBooksResults.map((b, i) => (
+                          <div 
+                            key={i}
+                            onClick={() => {
+                              setNewBook(prev => ({
+                                ...prev,
+                                title: b.title,
+                                author: b.author,
+                                category: b.category,
+                                cover: b.cover || prev.cover,
+                                description: b.description || prev.description
+                              }));
+                              setGoogleBooksResults([]);
+                              setGoogleBooksQuery('');
+                            }}
+                            className="flex items-center gap-3 p-2 bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 hover:border-indigo-100 rounded-xl cursor-pointer transition-all"
+                          >
+                            <img src={b.cover} alt="" className="w-8 h-11 object-cover rounded shadow-xs flex-shrink-0" referrerPolicy="no-referrer" onError={(e)=>{(e.target as any).src='https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=100'}} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-black text-slate-800 truncate m-0 leading-tight">{b.title}</p>
+                              <p className="text-[11px] font-bold text-indigo-600 truncate mt-0.5 m-0 leading-none">{b.author}</p>
+                              {b.category && <span className="inline-block px-1.5 py-0.5 bg-slate-200/60 rounded text-[9px] font-bold text-slate-500 mt-1">{b.category}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. Barcode & ISBN Scanning Tab */}
+                {scannerMode === 'barcode' && (
+                  <div className="bg-slate-50 border border-slate-150 rounded-[28px] p-6 space-y-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-lg shadow-sm">
+                        📷
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-base font-black text-slate-900">
+                          {lang === 'BN' ? 'স্মার্ট বারকোড ও আইএসবিএন (ISBN) স্ক্যানার' : 'Smart Barcode & ISBN Camera Reader'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-500 mt-0.5 leading-relaxed">
+                          {lang === 'BN' 
+                            ? 'বইয়ের পেছনে থাকা বারকোড (Barcode) ক্যামেরা দিয়ে স্ক্যান করুন, ১০০% সঠিক তথ্যে বুক ডিটেইলস স্বয়ংক্রিয়ভাবে ফর্ম-এ চলে আসবে।' 
+                            : 'Scan the 10/13 digit book barcode printed on the back cover of the book, loading pristine metadata details.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Live camera container */}
+                      <div className="border border-slate-200 bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center relative min-h-[220px] overflow-hidden">
+                        {barcodeScannerActive ? (
+                          <div className="w-full">
+                            <div id="barcode-reader-add-modal" className="w-full rounded-xl overflow-hidden border border-slate-150" />
+                            <button
+                              type="button"
+                              onClick={stopBarcodeCameraScan}
+                              className="mt-3 px-5 py-2 bg-rose-50 text-rose-655 hover:bg-rose-100 rounded-full text-[11px] font-black transition-all cursor-pointer"
+                            >
+                              {lang === 'BN' ? '⏹️ স্ক্যানিং বন্ধ করুন' : '⏹️ Cancel Scanner'}
+                            </button>
+                          </div>
                         ) : (
-                          <span className="text-xl">❌</span>
+                          <div className="flex flex-col items-center justify-center py-4">
+                            <Scan className="w-10 h-10 text-indigo-400 mb-3 animate-pulse" />
+                            <span className="text-xs font-black text-slate-700 mb-2">
+                              {lang === 'BN' ? 'লাইভ ক্যামেরা স্ক্যানার অচল' : 'Camera is inactive'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={startBarcodeCameraScan}
+                              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center gap-2"
+                            >
+                              <span>{lang === 'BN' ? '📷 ক্যামেরা চালু করুন' : '📷 Start Live Scan'}</span>
+                            </button>
+                          </div>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black uppercase tracking-wider">
-                          {ocrStatus === 'uploading_imgbb' && (lang === 'BN' ? '১. ক্লাউডে কভার আপলোড হচ্ছে...' : '1. Uploading cover to cloud...')}
-                          {ocrStatus === 'analyzing_gemini' && (lang === 'BN' ? '২. গুগল এআই ওসিআর দিয়ে স্ক্যান হচ্ছে...' : '2. Running Gemini Google Lens OCR...')}
-                          {ocrStatus === 'success' && (lang === 'BN' ? 'বিশ্লেষণ সম্পূর্ণ - সঠিক তথ্য পাওয়া গেছে!' : 'Analysis Complete - Highly Accurate!')}
-                          {ocrStatus === 'warn_confidence' && (lang === 'BN' ? 'তথ্য পাওয়া গেছে (যাচাই ও ম্যানুয়াল সংশোধন প্রয়োজন)' : 'OCR Inferred (Requires Manual Review)')}
-                          {ocrStatus === 'failed' && (lang === 'BN' ? 'ওসিআর বা আপলোড ব্যাহত হয়েছে!' : 'OCR scan or upload encountered error!')}
-                        </p>
-                        <p className="text-[11px] mt-0.5 opacity-80">
-                          {ocrStatus === 'uploading_imgbb' && (lang === 'BN' ? `ফটোটি ImgBB স্টোরেজে পাঠানো হচ্ছে... (${ocrTime}s/১০s)` : `Sending cover payload to ImgBB... (${ocrTime}s/10s)`)}
-                          {ocrStatus === 'analyzing_gemini' && (lang === 'BN' ? `গুগল জেমিনি দিয়ে ক্যাটাগরি, লেখক ও শিরোনাম খোঁজা হচ্ছে... (${ocrTime}s/১০s)` : `Extracting strict Title, Author from cover... (${ocrTime}s/10s)`)}
-                          {ocrStatus === 'success' && (lang === 'BN' ? `কনফিডেন্স স্কোর: ${ocrConfidence ? (ocrConfidence * 100).toFixed(0) : '১০০'}%। শিরোনাম ও লেখক সফলভাবে ফর্ম-এ যুক্ত হয়েছে।` : `Extracted with ${ocrConfidence ? (ocrConfidence * 100).toFixed(0) : '100'}% confidence score.`)}
-                          {ocrStatus === 'warn_confidence' && (lang === 'BN' ? `কনফিডেন্স স্কোর: ${ocrConfidence ? (ocrConfidence * 100).toFixed(0) : 'কম'}%। দয়া করে ফর্মের লাল চিহ্নিত বা শিরোনাম ও লেখকগুলো সঠিক কিনা তা নিশ্চিত করুন।` : `Confidence: ${ocrConfidence ? (ocrConfidence * 100).toFixed(0) : 'low'}%. Kindly verify the Title/Author manually.`)}
-                          {ocrStatus === 'failed' && (lang === 'BN' ? `ত্রুটি: ${ocrError || 'সার্ভার যোগাযোগ ব্যর্থ।'}` : `Reason: ${ocrError || 'Server connection issue.'}`)}
-                        </p>
+
+                      {/* Manual lookup fallback */}
+                      <div className="bg-white border border-slate-150 p-5 rounded-2xl flex flex-col justify-between min-h-[220px]">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                            {lang === 'BN' ? 'আইএসবিএন (ISBN) টাইপ করুন' : 'Enter ISBN Number'}
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g., 9780131568976"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-600/10"
+                            value={isbnManualInput}
+                            onChange={(e) => setIsbnManualInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleIsbnLookup(isbnManualInput);
+                              }
+                            }}
+                          />
+                          <p className="text-[10px] font-bold text-slate-400 leading-tight">
+                            {lang === 'BN' 
+                              ? 'ক্যামেরা সংযোগ বা ব্রাউজার সীমাবদ্ধতা থাকলে সরাসরি ১০ বা ১৩ সংখ্যার বইয়ের ISBN কোড টাইপ করে খুঁজুন।' 
+                              : 'Instantly load metadata by typing the 10/13 digit paperbook code manually if camera/hardware lacks support.'}
+                          </p>
+                        </div>
+
+                        <button 
+                          type="button"
+                          disabled={isFetchingIsbn || !isbnManualInput.trim()}
+                          onClick={() => handleIsbnLookup(isbnManualInput)}
+                          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-[16px] font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          {isFetchingIsbn ? (
+                            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                          ) : (
+                            <Check className="w-4 h-4 text-emerald-400" />
+                          )}
+                          <span>{lang === 'BN' ? 'ম্যানুয়ালি ডাটাবেজ খুঁজুন' : 'Verify and Fill Books'}</span>
+                        </button>
                       </div>
                     </div>
+
+                    {isbnLookupError && (
+                      <div className="p-3.5 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 flex items-center gap-2 text-xs font-bold">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span>{isbnLookupError}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

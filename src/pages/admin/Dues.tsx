@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Wallet, Search, RefreshCw, 
   Loader2, CheckCircle2, AlertCircle,
   FileText, ArrowDownRight, User, X, CheckSquare, Plus, Printer, Calendar,
-  BookOpen, Clock, ShieldAlert
+  BookOpen, Clock, ShieldAlert, Mail, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { 
@@ -12,6 +12,7 @@ import {
   SupabaseIssue, 
   SupabaseBook, 
   calculateYearlyFeesOwedOnly, 
+  calculateDues,
   parseAnyDate, 
   getMonthsBetween 
 } from '@/src/lib/supabaseDatabase';
@@ -55,6 +56,147 @@ export default function AdminDues() {
 
   // Print Report modal states
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // Expanded member breakdown details
+  const [expandedMembers, setExpandedMembers] = useState<{[memberId: string]: boolean}>({});
+  const [sendingEmailMap, setSendingEmailMap] = useState<{[memberId: string]: boolean}>({});
+
+  const toggleMemberExpanded = (memberId: string) => {
+    setExpandedMembers(prev => ({
+      ...prev,
+      [memberId]: !prev[memberId]
+    }));
+  };
+
+  const handleSendEmailStatement = async (member: SheetMember) => {
+    if (!member.email) {
+      alert('⚠️ এই সদস্যের কোনো ইমেইল ঠিকানা পাওয়া যায়নি!');
+      return;
+    }
+
+    try {
+      setSendingEmailMap(prev => ({ ...prev, [member.id]: true }));
+
+      const yearlyFee = calculateYearlyFeesOwedOnly(member);
+      const otherAdjustments = member.baseDues ?? 0;
+
+      // Find active/overdue items for the user
+      const memberIssues = issues.filter(i => 
+        (i.memberId === member.id || i.memberName === member.name)
+      );
+      const activeOverdueIssues = memberIssues.filter(i => 
+        i.status === 'Active' || i.status === 'Overdue'
+      );
+
+      let activeLateFeesSum = 0;
+      const overdueBreakdown = activeOverdueIssues.map(issue => {
+        const daysRem = getDaysRemainingValue(issue.dueDate);
+        const daysOverdue = daysRem < 0 ? Math.abs(daysRem) : 0;
+        let computedFee = daysOverdue * 5;
+        if (issue.fineWaived) {
+          computedFee = 0;
+        } else if (issue.customFineAmount !== undefined && issue.customFineAmount !== null) {
+          computedFee = issue.customFineAmount;
+        }
+        activeLateFeesSum += computedFee;
+        return {
+          bookTitle: issue.bookTitle,
+          dueDate: issue.dueDate,
+          daysOverdue,
+          fee: computedFee
+        };
+      }).filter(item => item.fee > 0 || item.daysOverdue > 0);
+
+      const computedTotal = calculateDues(member);
+
+      const emailSubject = `লাইব্রেরি বকেয়া ও বিলম্ব জরিমানা স্টেটমেন্ট (Library Dues & Fee Statement) - ${member.name}`;
+      
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #ef4444; padding-bottom: 20px;">
+            <h2 style="color: #4f46e5; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+            <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+          </div>
+          <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+            <p style="font-size: 16px; font-weight: bold;">প্রিয় ${member.name},</p>
+            <p>আপনার অ্যাকাউন্ট আইডি <strong>ECO-${member.id.padStart(4, '0')}</strong> এর অধীনে বকেয়া লাইব্রেরি ফি ও বিলম্ব জরিমানার সামগ্রিক বিবরণ নিচে দেওয়া হলো:</p>
+            
+            <div style="background-color: #fffaf0; border: 1px solid #fbd38d; padding: 18px; border-radius: 12px; margin: 25px 0;">
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: #dd6b20; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">বকেয়া হিসাবের সারসংক্ষেপ (Statement Summary):</p>
+              <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 10px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">১. মেম্বারশিপ বাৎসরিক ফি (Membership Fee):</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0; text-align: right;">৳${yearlyFee}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">২. অন্যান্য বকেয়া ও ম্যানুয়াল অ্যাডজাস্টমেন্ট (Other Charges):</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0; text-align: right;">৳${otherAdjustments}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">৩. চলমান বিলম্ব জরিমানা (Estimated Late Fees):</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0; text-align: right;">৳${activeLateFeesSum}</td>
+                </tr>
+                <tr style="background-color: #fef2f2;">
+                  <td style="padding: 12px 6px; color: #991b1b; font-weight: 900; border-top: 2px solid #fecaca;">সর্বমোট বকেয়ার পরিমাণ (Account Balance):</td>
+                  <td style="padding: 12px 6px; color: #b91c1c; font-weight: 900; text-align: right; border-top: 2px solid #fecaca; font-size: 16px;">৳${computedTotal}</td>
+                </tr>
+              </table>
+            </div>
+
+            ${overdueBreakdown.length > 0 ? `
+              <div style="margin-top: 20px;">
+                <p style="font-weight: bold; color: #4f46e5; font-size: 14px; margin-bottom: 10px;">বই ফেরত বিলম্ব বিবরণী (Overdue Books Breakdown):</p>
+                <table style="width: 100%; font-size: 13px; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                  <thead>
+                    <tr style="background-color: #f1f5f9; text-align: left;">
+                      <th style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0;">বইয়ের নাম (Book)</th>
+                      <th style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0;">ফেরতের শেষ তারিখ</th>
+                      <th style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">বিলম্ব দিনসমূহ</th>
+                      <th style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">জরিমানা</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${overdueBreakdown.map(item => `
+                      <tr>
+                        <td style="padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${item.bookTitle}</td>
+                        <td style="padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #64748b;">${item.dueDate}</td>
+                        <td style="padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #ef4444; font-weight: bold;">${item.daysOverdue} দিন</td>
+                        <td style="padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #b91c1c;">৳${item.fee}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            ` : ''}
+
+            <p style="margin-top: 25px;">যেকোনো ধরনের অসামঞ্জস্য মনে হলে বিভাগীয় সেমিনারে উপস্থিত হয়ে হিসাব মিলিয়ে নেওয়ার জন্য অনুরোধ করা হলো। অতি দ্রুত বকেয়া পরিশোধ করে সম্মানিত মেম্বারশিপ সুবিধাসমূহ সচল রাখুন।</p>
+          </div>
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+          <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+            <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+          </div>
+        </div>
+      `;
+
+      await db.sendEmailWithLog({
+        to: member.email,
+        subject: emailSubject,
+        html: emailHtml,
+        type: 'DUE_STATEMENT'
+      });
+
+      try {
+        await db.addAuditLog('SEND_STATEMENT', `বকেয়া বিবরণী ইমেইল করা হয়েছে: সদস্য: ${member.name} (ইমেইল: ${member.email}, মোট বকেয়া: ৳${computedTotal})`);
+      } catch (_) {}
+
+      alert(`✅ '${member.name}' এর ইমেইলে (${member.email}) বকেয়া স্টেটমেন্ট বিবরণী সফলভাবে প্রেরণ করা হয়েছে!`);
+    } catch (err) {
+      console.error('[Mail Error] Failed to send statement notification email:', err);
+      alert('ইমেইল প্রেরণ সম্ভব হয়নি বা জিমেইল সার্ভার ত্রুটি।');
+    } finally {
+      setSendingEmailMap(prev => ({ ...prev, [member.id]: false }));
+    }
+  };
 
   const formatDateToSlash = (dateStr: string) => {
     try {
@@ -185,6 +327,61 @@ export default function AdminDues() {
         await db.addAuditLog('COLLECT_DUES', `বকেয়া ফি সংগ্রহ করা হয়েছে: ৳${amountToDeduct} -> সদস্য: ${selectedMember.name} (ID: ${selectedMember.id})`);
       } catch (_) {}
 
+      // Auto Gmail dispatch for dues collection
+      if (selectedMember.email) {
+        try {
+          const emailSubject = `বকেয়া পরিশোধ রসিদ (Dues Payment Receipt) - MBSTU Econ Library`;
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+              <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #10b981; padding-bottom: 20px;">
+                <h2 style="color: #10b981; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+                <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+              </div>
+              <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+                <p style="font-size: 16px; font-weight: bold;">প্রিয় ${selectedMember.name},</p>
+                <p>আপনার বকেয়া লাইব্রেরি পেমেন্ট সফলভাবে সংগ্রহ করা হয়েছে। নিচে আদায় বিবরণী প্রদান করা হলো:</p>
+                
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 12px; margin: 25px 0;">
+                  <p style="margin: 0 0 10px 0; font-weight: bold; color: #10b981; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">পেমেন্ট রসিদ (Payment Details):</p>
+                  <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">সদস্যের নাম ও আইডি:</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${selectedMember.name} (ID: ${selectedMember.id})</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">পরিশোধিত টাকার পরিমাণ:</td>
+                      <td style="padding: 8px 0; color: #10b981; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">৳${amountToDeduct} (আদায়কৃত)</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">অবशिष्ट মোট বকেয়া (Current Dues):</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">৳${updatedDue}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">আদায়ের তারিখ:</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${formattedDate}</td>
+                    </tr>
+                  </table>
+                </div>
+                <p>পেমেন্ট পরিশোধের মাধ্যমে লাইব্রেরি সচল রাখতে সাহায্য করার জন্য ধন্যবাদ!</p>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+              <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+                <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+              </div>
+            </div>
+          `;
+
+          await db.sendEmailWithLog({
+            to: selectedMember.email,
+            subject: emailSubject,
+            html: emailHtml,
+            type: 'DUES_PAYMENT'
+          });
+        } catch (mailErr) {
+          console.error('[Mail Error] Failed to send payment confirmation email:', mailErr);
+        }
+      }
+
       alert(`৳${amountToDeduct} সফলভাবে আদায় করা হয়েছে এবং হিসাব-নিকাশ মডিউলে জমা হয়েছে!`);
       setIsCollectModalOpen(false);
       setSelectedMember(null);
@@ -204,7 +401,7 @@ export default function AdminDues() {
     const currentDue = parseInt(String(chargeMember.dues).replace(/[^0-9]/g, '')) || 0;
 
     if (amountToCharge <= 0) {
-      alert('সঠিক ও বৈধ বকেয়া চার্জের পরিমাণ প্রদান করুন!');
+      alert('সদরিক ও বৈধ বকেয়া চার্জের পরিমাণ প্রদান করুন!');
       return;
     }
 
@@ -224,6 +421,65 @@ export default function AdminDues() {
       try {
         await db.addAuditLog('CHARGE_DUES', `বকেয়া চার্জ করা হয়েছে: ৳${amountToCharge} -> সদস্য: ${chargeMember.name} (ID: ${chargeMember.id}) - কারণ: ${chargeReason}`);
       } catch (_) {}
+
+      // Auto Gmail dispatch for new charges (damages, penalties, library card, etc.)
+      if (chargeMember.email) {
+        try {
+          const emailSubject = `বকেয়া জরিমানা চার্জ নোটিশ (New Outstanding Charge Notice) - MBSTU Econ Library`;
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+              <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #ef4444; padding-bottom: 20px;">
+                <h2 style="color: #ef4444; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+                <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+              </div>
+              <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+                <p style="font-size: 16px; font-weight: bold;">প্রিয় ${chargeMember.name},</p>
+                <p>আপনার অ্যাকাউন্টে নতুন লাইব্রেরি বকেয়া/জরিমানা চার্জ যুক্ত হয়েছে। বিবরণ নিচে দেওয়া হলো:</p>
+                
+                <div style="background-color: #fffaf0; border: 1px solid #fbd38d; padding: 18px; border-radius: 12px; margin: 25px 0;">
+                  <p style="margin: 0 0 10px 0; font-weight: bold; color: #dd6b20; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">বকেয়া বিবরণী (Charge Details):</p>
+                  <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">সদস্যের নাম ও আইডি:</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${chargeMember.name} (ID: ${chargeMember.id})</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">যুক্ত হওয়া টাকার পরিমাণ:</td>
+                      <td style="padding: 8px 0; color: #ef4444; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">৳${amountToCharge} (চার্জকৃত)</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">বকেয়া যুক্ত করার কারণ (Reason):</td>
+                      <td style="padding: 8px 0; color: #dd6b20; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${chargeReason || 'ড্যামেজ/বিলম্ব নোটিশ'}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">মোট পরিশোধযোগ্য বকেয়া (Total Dues):</td>
+                      <td style="padding: 8px 0; color: #ef4444; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">৳${updatedDue}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">চার্জের তারিখ & সময়:</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${formattedDate}</td>
+                    </tr>
+                  </table>
+                </div>
+                <p>সবচেয়ে দ্রুততম সময়ে এই বকেয়া সরাসরি বিভাগের সেমিনারে উপস্থিত হয়ে পরিশোধ করার জন্য অনুরোধ করা হলো।</p>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+              <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+                <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+              </div>
+            </div>
+          `;
+
+          await db.sendEmailWithLog({
+            to: chargeMember.email,
+            subject: emailSubject,
+            html: emailHtml,
+            type: 'DUES_CHARGE'
+          });
+        } catch (mailErr) {
+          console.error('[Mail Error] Failed to send charge notification email:', mailErr);
+        }
+      }
 
       alert(`৳${amountToCharge} বকেয়া সফলভাবে সদস্য '${chargeMember.name}' এর অ্যাকাউন্টে যোগ করা হয়েছে!`);
       setIsChargeModalOpen(false);
@@ -524,53 +780,174 @@ export default function AdminDues() {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {membersToRender.map((member) => {
                     const mDues = parseInt(String(member.dues || '0').replace(/[^0-9]/g, '')) || 0;
+                    const isExpanded = !!expandedMembers[member.id];
+
+                    const yearlyFee = calculateYearlyFeesOwedOnly(member);
+                    const baseDuesValue = member.baseDues ?? 0;
+
+                    // Gather member issues
+                    const memberIssues = issues.filter(i => 
+                      i.memberId === member.id || i.memberName === member.name
+                    );
+                    const activeOverdueIssues = memberIssues.filter(i => 
+                      i.status === 'Active' || i.status === 'Overdue'
+                    );
+
+                    let activeLateFeesSum = 0;
+                    const overdueBreakdown = activeOverdueIssues.map(issue => {
+                      const daysRem = getDaysRemainingValue(issue.dueDate);
+                      const daysOverdue = daysRem < 0 ? Math.abs(daysRem) : 0;
+                      let computedFee = daysOverdue * 5;
+                      if (issue.fineWaived) {
+                        computedFee = 0;
+                      } else if (issue.customFineAmount !== undefined && issue.customFineAmount !== null) {
+                        computedFee = issue.customFineAmount;
+                      }
+                      activeLateFeesSum += computedFee;
+                      return {
+                        bookTitle: issue.bookTitle,
+                        dueDate: issue.dueDate,
+                        daysOverdue,
+                        fee: computedFee
+                      };
+                    }).filter(item => item.fee > 0 || item.daysOverdue > 0);
+
                     return (
-                      <tr key={member.id} className="hover:bg-slate-50/40 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 font-extrabold rounded-xl flex items-center justify-center border border-indigo-100">
-                              {member.name.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{member.name}</p>
-                              <p className="text-[10px] font-bold text-slate-400">ECO-{member.id.padStart(4, '0')} | {member.role}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-8 py-6 text-slate-600 font-bold font-mono">{member.phone || 'N/A'}</td>
-                        <td className="px-8 py-6">
-                          <span className={cn(
-                            "font-black text-base px-3 py-1 rounded-full",
-                            mDues > 0 ? "text-rose-600 bg-rose-50 border border-rose-100" : "text-emerald-600 bg-emerald-50 border border-emerald-100"
-                          )}>
-                            ৳ {mDues}
-                          </span>
-                        </td>
-                        <td className="px-8 py-6 text-slate-400 font-bold">
-                          {member.joinDate ? member.joinDate.split('|')[0] : 'N/A'}
-                        </td>
-                        <td className="px-8 py-6 text-right print:hidden">
-                          <div className="flex items-center justify-end gap-2.5">
-                            <button 
-                              onClick={() => openChargeModal(member)}
-                              className="px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center space-x-1"
-                              title="বকেয়া চার্জ বা বিলম্ব ফি যোগ করুন"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>ফি চার্জ করুন</span>
-                            </button>
-                            {mDues > 0 && (
+                      <React.Fragment key={member.id}>
+                        <tr className="hover:bg-slate-50/40 transition-colors group">
+                          <td className="px-8 py-6">
+                            <div className="flex items-center space-x-3">
                               <button 
-                                onClick={() => openCollectModal(member)}
-                                className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center space-x-1"
+                                onClick={() => toggleMemberExpanded(member.id)}
+                                className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-700 shrink-0"
+                                title="বিস্তারিত হিসাব ও বকেয়া ব্রেকডাউন দেখুন"
                               >
-                                <ArrowDownRight className="w-4 h-4" />
-                                <span>টাকা আদায়</span>
+                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 font-extrabold rounded-xl flex items-center justify-center border border-indigo-100 shrink-0">
+                                {member.name.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{member.name}</p>
+                                <p className="text-[10px] font-bold text-slate-400">ECO-{member.id.padStart(4, '0')} | {member.role}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-8 py-6 text-slate-600 font-bold font-mono">{member.phone || 'N/A'}</td>
+                          <td className="px-8 py-6">
+                            <span className={cn(
+                              "font-black text-base px-3 py-1 rounded-full",
+                              mDues > 0 ? "text-rose-600 bg-rose-50 border border-rose-100" : "text-emerald-600 bg-emerald-50 border border-emerald-100"
+                            )}>
+                              ৳ {mDues}
+                            </span>
+                          </td>
+                          <td className="px-8 py-6 text-slate-400 font-bold">
+                            {member.joinDate ? member.joinDate.split('|')[0] : 'N/A'}
+                          </td>
+                          <td className="px-8 py-6 text-right print:hidden">
+                            <div className="flex items-center justify-end gap-2.5">
+                              <button 
+                                onClick={() => openChargeModal(member)}
+                                className="px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center space-x-1"
+                                title="বকেয়া চার্জ বা বিলম্ব ফি যোগ করুন"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>ফি চার্জ করুন</span>
+                              </button>
+                              {mDues > 0 && (
+                                <button 
+                                  onClick={() => openCollectModal(member)}
+                                  className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center space-x-1"
+                                >
+                                  <ArrowDownRight className="w-4 h-4" />
+                                  <span>টাকা আদায়</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-slate-50/50">
+                            <td colSpan={5} className="px-8 py-5 border-t border-b border-rose-100">
+                              <div className="bg-white p-5 rounded-3xl border border-rose-100 shadow-sm space-y-4 text-left">
+                                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                                  <div>
+                                    <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                                      <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                                      <span>বকেয়া ও জরিমানা হিসাব বিবরণী (Fee & Fine Breakdown)</span>
+                                    </h4>
+                                    <p className="text-xs font-bold text-slate-400 mt-1">সব বকেয়া ক্যাটাগরির বিস্তারিত বিশ্লেষণ ও হিসাব</p>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-3">
+                                    <button
+                                      onClick={() => handleSendEmailStatement(member)}
+                                      disabled={sendingEmailMap[member.id]}
+                                      className={cn(
+                                        "flex items-center space-x-1.5 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-black transition-all active:scale-95 disabled:opacity-75 disabled:cursor-not-allowed"
+                                      )}
+                                    >
+                                      {sendingEmailMap[member.id] ? (
+                                        <>
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          <span>স্টেটমেন্ট পাঠানো হচ্ছে...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Mail className="w-3.5 h-3.5 text-indigo-600" />
+                                          <span>ইমেইল বিবরণী (Email Statement)</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-bold text-slate-600">
+                                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <span className="text-[10px] text-slate-400 block mb-1">১. সদস্যপদ বাৎসরিক ফি (Membership Fee)</span>
+                                    <p className="text-slate-800 text-sm font-black">৳ {yearlyFee}</p>
+                                    <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">ভ্যালিডেশন কন্ট্রিবিউশন ৫৳ প্রতি মাস এবং বাৎসরিক ৫০৳ রি-অ্যাক্টিভেশন ফি সহ</p>
+                                  </div>
+                                  
+                                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <span className="text-[10px] text-slate-400 block mb-1">২. অ্যাকাউন্ট সমন্বয় ও সাজা (Other Surcharges)</span>
+                                    <p className="text-slate-800 text-sm font-black">৳ {baseDuesValue}</p>
+                                    <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">ম্যানুয়াল বকেয়া চার্জ, নতুন রি-ইস্যু বা লাইব্রেরি ড্যামেজ পেমেন্ট</p>
+                                  </div>
+
+                                  <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100">
+                                    <span className="text-[10px] text-rose-500 block mb-1">৩. রানিং বিলম্ব জরিমানা (Running Late Fees)</span>
+                                    <p className="text-rose-700 text-sm font-black">৳ {activeLateFeesSum}</p>
+                                    <p className="text-[9px] text-rose-400 mt-1 leading-relaxed">আপনার ফেরত না দেওয়া সকল অ্যাক্টিভ লোন বইয়ের ৫৳/দিন বিলম্ব জরিমানা</p>
+                                  </div>
+                                </div>
+
+                                {overdueBreakdown.length > 0 && (
+                                  <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-slate-50/20 text-xs text-left">
+                                    <div className="bg-slate-100/50 px-5 py-3 border-b border-slate-200 font-extrabold text-slate-700">
+                                      বিলম্বিত বইয়ের তালিকা ও লেট ফি বিবরণী
+                                    </div>
+                                    <div className="divide-y divide-slate-150">
+                                      {overdueBreakdown.map((item, idx) => (
+                                        <div key={idx} className="px-5 py-3.5 flex justify-between items-center bg-white">
+                                          <div>
+                                            <p className="font-extrabold text-slate-800">{item.bookTitle}</p>
+                                            <p className="text-[10px] text-slate-400 mt-1">পূর্ণ ফেরত প্রদানের নির্ধারিত তারিখ: {item.dueDate} | {item.daysOverdue} দিন অতিক্রান্ত</p>
+                                          </div>
+                                          <div className="text-right font-black text-rose-600 space-y-0.5">
+                                            <p>+৳{item.fee}</p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                   {membersToRender.length === 0 && (

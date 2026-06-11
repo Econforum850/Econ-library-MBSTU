@@ -164,7 +164,7 @@ export interface SupabaseIssue {
   memberName: string;
   issueDate: string;
   dueDate: string;
-  status: 'Pending' | 'Active' | 'Returned' | 'Overdue' | 'Rejected';
+  status: 'Pending' | 'Approved' | 'Active' | 'Returned' | 'Overdue' | 'Rejected';
   memberId?: string;
   bookId?: string;
   pickupDate?: string;

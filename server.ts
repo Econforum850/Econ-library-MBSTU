@@ -202,19 +202,76 @@ app.post('/api/gemini/assist', async (req: express.Request, res: express.Respons
 
     res.json({ success: true, result: response.text });
   } catch (error: any) {
-    console.warn('[Gemini API - Falling back to local/offline engine]:', error.message || error);
+    const errMsg = typeof error === 'string' ? error : (error.message || JSON.stringify(error) || '');
+    const isPermanent = errMsg.includes('PERMISSION_DENIED') || errMsg.includes('403') || errMsg.includes('denied');
+    
+    if (isPermanent) {
+      console.info('[Gemini API - Project Access Restricted / 403. Smoothly bypassing models to trigger offline backup.]');
+    } else {
+      console.warn('[Gemini API - Falling back to local/offline engine]:', error.message || error);
+    }
+    
     // Return successful local fallback response so student's app NEVER breaks!
     const fallbackText = getOfflineResponse(action || '', text || '', bodyPrompt || req.body.prompt || '');
     res.json({ success: true, result: fallbackText });
   }
 });
 
+// Helper function for multi-model rotation & retry mechanism
+async function generateContentWithRetry(ai: any, baseRequestArgs: any) {
+  const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.5-flash'];
+  let lastError: any = null;
+
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const currentModel = modelsToTry[i];
+    const attempt = i + 1;
+    try {
+      console.log(`[এআই স্ক্যানার] চেষ্টা ${attempt}/${modelsToTry.length} মডেল: "${currentModel}"`);
+      
+      const requestArgs = {
+        ...baseRequestArgs,
+        model: currentModel,
+      };
+
+      const response = await ai.models.generateContent(requestArgs);
+      if (response && (response.text || response.candidates)) {
+        return response;
+      }
+    } catch (err: any) {
+      lastError = err;
+      
+      const errMsg = typeof err === 'string' ? err : (err.message || JSON.stringify(err) || '');
+      const isPermanent = errMsg.includes('PERMISSION_DENIED') || 
+                          errMsg.includes('403') || 
+                          errMsg.includes('QUOTA_EXHAUSTED') || 
+                          errMsg.includes('denied');
+      
+      if (isPermanent) {
+        // Abort rotation immediately on permanent permission denied or quota exhausted issue
+        console.warn(`[এআই স্ক্যানার] স্থায়ী ক্লিয়ারেন্স / পারমিশন সমস্যা সনাক্ত হয়েছে (${currentModel})। রোটেশন এড়ানো হচ্ছে।`);
+        throw err;
+      }
+
+      console.warn(`[এআই স্ক্যানার] ব্যর্থ হয়েছে "${currentModel}":`, err.message || err);
+      
+      if (i < modelsToTry.length - 1) {
+        const jitter = Math.round(Math.random() * 8) * 100;
+        const delay = 500 + jitter; // processing is kept fast with slight delay
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError || new Error('সবগুলো মডেল ট্রাই করার পরেও এআই রেসপন্স দিতে ব্যর্থ হয়েছে।');
+}
+
 // Secure endpoint to process and analyze book covers using advanced multimodal Gemini
 app.post('/api/gemini/analyze-book-cover', async (req: express.Request, res: express.Response) => {
-  const { imageBase64, mimeType } = req.body;
+  const { imageBase64, mimeType: bodyMimeType, image, categories } = req.body;
+  const inputImage = image || imageBase64;
   
-  if (!imageBase64 || !mimeType) {
-    res.status(400).json({ error: 'Missing imageBase64 or mimeType parameter' });
+  if (!inputImage) {
+    res.status(400).json({ error: 'Missing book cover image data (imageBase64 or image parameter)' });
     return;
   }
 
@@ -226,106 +283,202 @@ app.post('/api/gemini/analyze-book-cover', async (req: express.Request, res: exp
     return;
   }
 
-  // Define max retries for reliability if parsing or API fails
-  const MAX_RETRIES = 2;
-  let attempt = 0;
-  let lastError: any = null;
-
-  while (attempt <= MAX_RETRIES) {
-    try {
-      const { GoogleGenAI, Type } = await import("@google/genai");
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
+  try {
+    const { GoogleGenAI, Type } = await import("@google/genai");
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
         }
-      });
-
-      // Prepare visual and textual inputs
-      const imagePart = {
-        inlineData: {
-          mimeType: mimeType,
-          data: imageBase64,
-        },
-      };
-
-      const textPart = {
-        text: `You are an AI-powered library cataloging agent (similar to Google Lens). 
-        Analyze this book cover image. Run OCR to carefully extract the information. 
-        Enforce strict field mapping to avoid hallucinations.
-        
-        Guidelines:
-        1. Extract the 'title' (বইয়ের শিরোনাম) precisely. Keep standard Bengali/English scripts as printed on the book.
-        2. Extract the 'author' (লেখকের নাম) precisely.
-        3. Infer a relevant 'category' based on the book topic (e.g., 'অর্থনীতি', 'পরিসংখ্যান', 'গণিত', 'ইসলামী বই', 'সাধারণ', 'Nobel Literature', 'Research').
-        4. If a 'price' or retail price is readable on cover, extract it (e.g. ৳৩৫০), otherwise leave it blank "".
-        5. Set 'confidence' to a number from 0.0 to 1.0 depending on text legibility and your certainty.
-        6. Set 'needVerification' to true if 'title' or 'author' cannot be reliably deciphered (e.g. text is too small, cut off, blurred, or confidence is under 0.75). Otherwise set to false.`,
-      };
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: [imagePart, textPart],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              author: { type: Type.STRING },
-              category: { type: Type.STRING },
-              price: { type: Type.STRING },
-              confidence: { type: Type.NUMBER },
-              needVerification: { type: Type.BOOLEAN }
-            },
-            required: ["title", "author", "category", "price", "confidence", "needVerification"]
-          }
-        }
-      });
-
-      const extractedText = response.text?.trim() || '{}';
-      const resultObj = JSON.parse(extractedText);
-
-      // Successfully processed and parsed JSON structured response
-      res.json({ success: true, result: resultObj });
-      return;
-
-    } catch (err: any) {
-      const errMsg = err.message || '';
-      console.warn(`[Gemini OCR API Catch Error] ${errMsg}`);
-      
-      const isPermanent = errMsg.includes('PERMISSION_DENIED') || 
-                          errMsg.includes('403') || 
-                          errMsg.includes('QUOTA_EXHAUSTED') || 
-                          errMsg.includes('429') || 
-                          errMsg.includes('denied');
-      
-      if (isPermanent) {
-        console.info(`[Gemini API Permanent Error - Bypassing retries and calling client fallback]: ${errMsg}`);
-        res.json({
-          success: true,
-          useClientOcrFallback: true,
-          message: `GCP Project restriction or quota reached (${errMsg}). Smoothly defaulting to client-side OCR engine...`
-        });
-        return;
       }
+    });
 
-      attempt++;
-      lastError = err;
-      // Wait a short moment before retrying
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // clean base64 payload helper
+    let resolvedMimeType = bodyMimeType || 'image/jpeg';
+    if (inputImage.startsWith('data:')) {
+      const match = inputImage.match(/data:([^;]+);base64,/);
+      if (match) resolvedMimeType = match[1];
     }
-  }
+    
+    let cleanBase64 = inputImage.includes(';base64,') ? inputImage.split(';base64,').pop() : (inputImage.includes(',') ? inputImage.split(',').pop() : inputImage);
+    cleanBase64 = cleanBase64.replace(/\s+/g, '');
 
-  // All attempts failed
-  console.info('[Gemini API - All attempts failed. Defaulting to client OCR fallback]');
-  res.json({ 
-    success: true,
-    useClientOcrFallback: true,
-    message: 'Failed to analyze book cover via Gemini. Smoothly defaulting to client-side OCR engine...'
-  });
+    // Prepare visual and textual inputs
+    const imagePart = {
+      inlineData: {
+        mimeType: resolvedMimeType,
+        data: cleanBase64,
+      },
+    };
+
+    const categoriesPrompt = categories && categories.length > 0 
+      ? `\nChoose the closest matching category from this list: ${JSON.stringify(categories)}. Otherwise suggest best Bengali/English category.`
+      : '';
+
+    const textPart = {
+      text: `You are an advanced high-accuracy visual OCR and book cataloging intelligence system (similar to Google Lens).
+Analyze the book cover/spine image with extreme precision. Since this is for Bangladeshi readers and academic environments, recognize both Bengali (বাংলা) and English text perfectly.
+
+Strict Parsing and Extraction Rules:
+1. raw_text_detected: Transcribe all visible text segments accurately.
+2. reasoning_and_extraction_notes: Deconstruct the detected text. Distinguish the Book Title from publishing houses (like 'প্রথমা', 'অন্যপ্রকাশ', 'ঐতিহ্য', 'অনন্যা', 'কাকলী', 'সময়', 'বাতিঘর', 'নওরোজ', 'তাম্রলিপি', 'আদর্শ', 'কথা প্রকাশ', 'চারুলিপি', 'শোভা', 'অনিন্দ্য' which are publishers, NOT the primary titles or authors).
+3. title: Extract ONLY the book's title precisely. Avoid publishing names, taglines, or series prefixes inside it. Keep standard Bengali/English scripts.
+4. author: Identify the primary author cleanly. Format translated books customly as: "Original Author (অনুবাদ: Translator Name)".
+5. category: Infer the closest matching category based on the topic. Prefers: 'অর্থনীতি' (for Economics/Finance), 'পরিসংখ্যান' (for Statistics), 'গণিত' (for Mathematics), 'ইসলামী বই', 'গল্প', or 'সাধারণ'.${categoriesPrompt}
+6. price: Extract only numbers with currency context (e.g., "৳৩৫০" or "350"). If none is legible, leave as empty "".
+7. stock: Set initial safe baseline stock value (e.g., 1 or 2).
+8. description: Elaborate a short 1-2 sentence Bengali summary/description if legible or known.
+9. overall_confidence_score: Floating point score between 0.0 to 1.0 indicating clarity and correctness of the title/author match.
+10. requires_manual_confirmation: Boolean. Set to true if overall confidence is under 0.75, or the title/author is heavily guessed, blurred, or unknown; otherwise false.`,
+    };
+
+    const requestArgsWithoutModel = {
+      contents: [imagePart, textPart],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            raw_text_detected: { type: Type.STRING },
+            reasoning_and_extraction_notes: { type: Type.STRING },
+            title: { type: Type.STRING },
+            author: { type: Type.STRING },
+            category: { type: Type.STRING },
+            price: { type: Type.STRING },
+            stock: { type: Type.INTEGER },
+            description: { type: Type.STRING },
+            shelfNo: { type: Type.STRING },
+            isbn: { type: Type.STRING },
+            title_confidence: { type: Type.STRING },
+            author_confidence: { type: Type.STRING },
+            overall_confidence_score: { type: Type.NUMBER },
+            requires_manual_confirmation: { type: Type.BOOLEAN }
+          },
+          required: ["title"]
+        }
+      }
+    };
+
+    // First attempt using model rotation/retry mechanism
+    const response = await generateContentWithRetry(ai, requestArgsWithoutModel);
+    let resultObj = JSON.parse(response.text || '{}');
+
+    // Intelligent low-confidence mechanism (Double-check pass)
+    const isConfidenceLow = !resultObj.title || 
+                            resultObj.title.trim() === '' || 
+                            resultObj.title.toLowerCase() === 'unknown' ||
+                            resultObj.title.toLowerCase() === 'untitled' ||
+                            (resultObj.overall_confidence_score < 0.72) ||
+                            resultObj.title_confidence === 'low' ||
+                            resultObj.author_confidence === 'low' ||
+                            !resultObj.author || 
+                            resultObj.author.toLowerCase() === 'unknown';
+
+    if (isConfidenceLow) {
+      console.log(`[এআই স্ক্যানার] প্রথম দফায় কনফিডেন্স কম এসেছে। ২য় ডাবল-চেক পাস শুরু হচ্ছে...`);
+      const doubleCheckArgs = {
+        contents: [
+          imagePart,
+          {
+            text: `You are double-checking OCR results for a book cover.
+            Initial detected data: ${JSON.stringify(resultObj)}
+            Please re-analyze the image carefully and extract accurate Title & Author name. Avoid publisher name duplication.
+            Return ONLY raw JSON conforming exactly to the requested schema.`
+          }
+        ],
+        config: requestArgsWithoutModel.config
+      };
+
+      try {
+        const doubleResponse = await generateContentWithRetry(ai, doubleCheckArgs);
+        const doubleParsed = JSON.parse(doubleResponse.text || '{}');
+        if (doubleParsed && doubleParsed.title && doubleParsed.title.toLowerCase() !== 'unknown') {
+          resultObj = {
+            ...resultObj,
+            ...doubleParsed,
+            overall_confidence_score: Math.max(resultObj.overall_confidence_score || 0, doubleParsed.overall_confidence_score || 0.8),
+            requires_manual_confirmation: doubleParsed.requires_manual_confirmation ?? true
+          };
+          console.log('[Gemini Refinement Success]: Double-checked book metadata refined successfully to:', resultObj.title);
+        }
+      } catch (doubleErr) {
+        console.warn(`[এআই স্ক্যানার] ২য় ডাবল-চেক পাস ব্যর্থ হয়েছে:`, doubleErr);
+        resultObj.requires_manual_confirmation = true;
+      }
+    }
+
+    // Verify and enrich parsed OCR data using Google Books lookup as third safety layer
+    if (resultObj.title && resultObj.title !== 'Unknown Title' && resultObj.title.trim().length > 3) {
+      try {
+        const searchQuery = `${resultObj.title} ${resultObj.author || ''}`.trim();
+        const googleBooksUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(searchQuery)}&maxResults=1`;
+        const gbRes = await fetch(googleBooksUrl);
+        if (gbRes.ok) {
+          const gbData = await gbRes.json();
+          if (gbData && gbData.items && gbData.items.length > 0) {
+            const gbInfo = gbData.items[0].volumeInfo;
+            const gbTitleLower = gbInfo.title.toLowerCase();
+            const extTitleLower = resultObj.title.toLowerCase();
+            
+            // If there's a strong title sub-phrase or author match, substitute with official catalog info
+            const isTitleMatch = gbTitleLower.includes(extTitleLower) || extTitleLower.includes(gbTitleLower);
+            const isAuthorMatch = resultObj.author && gbInfo.authors && gbInfo.authors.some((a: string) => a.toLowerCase().includes(resultObj.author.toLowerCase()));
+            
+            if (isTitleMatch || isAuthorMatch) {
+              console.log(`[Google Books Enrichment Match]: Corrected "${resultObj.title}" -> "${gbInfo.title}"`);
+              resultObj.title = gbInfo.title;
+              if (gbInfo.authors && gbInfo.authors.length > 0) {
+                resultObj.author = gbInfo.authors.join(', ');
+              }
+              if (gbInfo.description) {
+                resultObj.description = gbInfo.description;
+              }
+              resultObj.overall_confidence_score = 1.0;
+              resultObj.requires_manual_confirmation = false;
+            }
+          }
+        }
+      } catch (gbErr) {
+        console.warn('[Google Books Enrichment Skip]:', gbErr);
+      }
+    }
+
+    // Map downward compatibility properties for old/existing client-side configurations
+    resultObj.confidence = resultObj.overall_confidence_score ?? 0.85;
+    resultObj.needVerification = resultObj.requires_manual_confirmation ?? false;
+
+    // Return successful payload with both result and data handles
+    res.json({ success: true, result: resultObj, data: resultObj });
+
+  } catch (error: any) {
+    const errMsg = typeof error === 'string' ? error : (error.message || JSON.stringify(error) || '');
+    console.warn(`[Gemini OCR API] API Catch Error: ${errMsg.slice(0, 150)}...`);
+    
+    const isPermanent = errMsg.includes('PERMISSION_DENIED') || 
+                        errMsg.includes('403') || 
+                        errMsg.includes('QUOTA_EXHAUSTED') || 
+                        errMsg.includes('429') || 
+                        errMsg.includes('denied');
+    
+    if (isPermanent) {
+      console.info(`[Gemini API Permanent Error - Calling client fallback]: Bypassing retry due to restricted access.`);
+      res.json({
+        success: true,
+        useClientOcrFallback: true,
+        message: `GCP Project restriction or quota reached. Smoothly defaulting to client-side OCR engine...`
+      });
+      return;
+    }
+
+    // Defaulting to client OCR fallback
+    console.info('[Gemini API - All attempts failed. Defaulting to client OCR fallback]');
+    res.json({ 
+      success: true,
+      useClientOcrFallback: true,
+      message: 'Failed to analyze book cover via Gemini. Smoothly defaulting to client-side OCR engine...'
+    });
+  }
 });
 
 // Secure API endpoint to dispatch membership and ID Card confirmations

@@ -1467,8 +1467,8 @@ export default function AdminInventory() {
                             {ocrStatus === 'failed' && 'ওসিআর বা আপলোড ব্যাহত হয়েছে!'}
                           </p>
                           <p className="text-[11px] mt-0.5 opacity-80">
-                            {ocrStatus === 'uploading_imgbb' && `ফটোটি ImgBB স্টোরেজে পাঠানো হচ্ছে... (${ocrTime}s/১০s)`}
-                            {ocrStatus === 'analyzing_gemini' && `গুগল জেমিনি দিয়ে ক্যাটাগরি, লেখক ও শিরোনাম খোঁজা হচ্ছে... (${ocrTime}s/১০s)`}
+                            {ocrStatus === 'uploading_imgbb' && `ফটোটি ImgBB স্টোরেজে পাঠানো হচ্ছে... (${ocrTime} সেকেন্ড অতিবাহিত)`}
+                            {ocrStatus === 'analyzing_gemini' && `গুগল জেমিনি দিয়ে ক্যাটাগরি, লেখক ও শিরোনাম খোঁজা হচ্ছে... (${ocrTime} সেকেন্ড অতিবাহিত)`}
                             {ocrStatus === 'success' && `কনফিডেন্স স্কোর: ${ocrConfidence ? (ocrConfidence * 100).toFixed(0) : '১০০'}%। শিরোনাম ও লেখক সফলভাবে ফর্ম-এ যুক্ত হয়েছে।`}
                             {ocrStatus === 'warn_confidence' && `কনফিডেন্স স্কোর: ${ocrConfidence ? (ocrConfidence * 100).toFixed(0) : 'কম'}%। দয়া করে ফর্মের লাল চিহ্নিত বা শিরোনাম ও লেখকগুলো সঠিক কিনা তা নিশ্চিত করুন।`}
                             {ocrStatus === 'failed' && `ত্রুটি: ${ocrError || 'সার্ভার যোগাযোগ ব্যর্থ।'}`}

@@ -676,23 +676,36 @@ export default function AdminIssues() {
       // Stock adjustment if status changed
       const matchedBook = books.find(b => b.id === editingIssue.bookId || b.title.toLowerCase() === editingIssue.bookTitle.toLowerCase());
       if (matchedBook) {
+        let reservedChange = 0;
         let issuedChange = 0;
         
+        const oldStatus = editingIssue.status;
+        const newStatus = editStatus;
+
+        const wasApproved = oldStatus === 'Approved';
         const wasActive = oldStatus === 'Active' || oldStatus === 'Overdue';
+
+        const isNowApproved = newStatus === 'Approved';
         const isNowActive = newStatus === 'Active' || newStatus === 'Overdue';
 
+        if (wasApproved && !isNowApproved) {
+          reservedChange = -1;
+        } else if (!wasApproved && isNowApproved) {
+          reservedChange = 1;
+        }
+
         if (wasActive && !isNowActive) {
-          // Changed from active to inactive (e.g. Returned, Rejected)
           issuedChange = -1;
         } else if (!wasActive && isNowActive) {
-          // Changed from inactive to active
           issuedChange = 1;
         }
 
-        if (issuedChange !== 0) {
+        if (reservedChange !== 0 || issuedChange !== 0) {
+          const currentReserved = matchedBook.reservedCopies !== undefined ? Number(matchedBook.reservedCopies) : 0;
           const currentIssued = matchedBook.issuedCopies !== undefined ? Number(matchedBook.issuedCopies) : 0;
           const updatedBook = {
             ...matchedBook,
+            reservedCopies: Math.max(0, currentReserved + reservedChange),
             issuedCopies: Math.max(0, currentIssued + issuedChange)
           };
           await db.saveBook(updatedBook);
@@ -714,6 +727,88 @@ export default function AdminIssues() {
           try {
             await db.addAuditLog('MEMBER_DUES_ADJUST', `সদস্য জরিমানা বা বকেয়া সমন্বয়: ৳${editMemberDuesAdjust} (পূর্বতন: ৳${oldBaseDues}) -> সদস্য: ${updatedMember.name}`);
           } catch (_) {}
+        }
+      }
+
+      // Auto Gmail dispatch for book submit date extension/decrease, damages, or late fees changes
+      const isDueDateChanged = newDueDateSlash !== editingIssue.dueDate;
+      const isFineWaivedChanged = editFineWaived !== !!editingIssue.fineWaived;
+      const isCustomFineChanged = editCustomFineAmount !== editingIssue.customFineAmount;
+      const isBaseDuesChanged = resolvedMember ? (editMemberDuesAdjust !== (resolvedMember.baseDues ?? 0)) : false;
+
+      if ((isDueDateChanged || isFineWaivedChanged || isCustomFineChanged || isBaseDuesChanged) && resolvedMember?.email) {
+        try {
+          const emailSubject = `বই লোন এডজাস্টমেন্ট নোটিশ (Book Loan Update & Fee Notice) - MBSTU Econ Library`;
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+              <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+                <h2 style="color: #4f46e5; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+                <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+              </div>
+              <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+                <p style="font-size: 16px; font-weight: bold;">প্রিয় ${editMemberName},</p>
+                <p>আপনার নিয়ে যাওয়া বইয়ের রিটার্ন লোন বিবরণী ও বকেয়া জরিমানা এডমিন কর্তৃক সমন্বয় করা হয়েছে। নিচে তার বিবরণ দেওয়া হলো:</p>
+                
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 12px; margin: 25px 0;">
+                  <p style="margin: 0 0 10px 0; font-weight: bold; color: #4f46e5; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">সমন্বয় বিবরণী (Adjustment Details):</p>
+                  <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">বইয়ের নাম (Book Title):</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${editBookTitle}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">ফেরত প্রদানের শেষ তারিখ:</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">
+                        ${isDueDateChanged 
+                          ? `<span style="color: #dc2626; text-decoration: line-through; margin-right: 8px;">${editingIssue.dueDate}</span> <span style="color: #16a34a; font-weight: 800;">${newDueDateSlash} (সংশোধিত)</span>`
+                          : `${editingIssue.dueDate}`
+                        }
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">বিলম্ব জরিমানা স্ট্যাটাস:</td>
+                      <td style="padding: 8px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">
+                        ${editFineWaived 
+                          ? `<span style="color: #16a34a; font-weight: 800;">৳০ (সম্পূর্ণ মওকুফ করা হয়েছে)</span>`
+                          : editCustomFineAmount !== undefined && editCustomFineAmount !== null
+                          ? `<span style="color: #d97706; font-weight: 800;">৳${editCustomFineAmount} (কাস্টম সমন্বয়কৃত)</span>`
+                          : `<span style="color: #64748b;">স্বাভাবিক বিলম্ব জরিমানা নীতি প্রযোজ্য</span>`
+                        }
+                      </td>
+                    </tr>
+                    ${editFineWaived && editWaiverApologyMessage 
+                      ? `<tr>
+                          <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">মওকুফের কারণ / বার্তা:</td>
+                          <td style="padding: 8px 0; color: #4f46e5; font-weight: bold; border-bottom: 1px dashed #e2e8f0; font-style: italic;">${editWaiverApologyMessage}</td>
+                        </tr>`
+                      : ''
+                    }
+                    ${isBaseDuesChanged && resolvedMember
+                      ? `<tr>
+                          <td style="padding: 8px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">অন্যান্য জরিমানা/স্থির বকেয়া:</td>
+                          <td style="padding: 8px 0; color: #dc2626; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">৳${editMemberDuesAdjust} (পূর্বে ছিল: ৳${resolvedMember.baseDues ?? 0})</td>
+                        </tr>`
+                      : ''
+                    }
+                  </table>
+                </div>
+                <p>যেকোনো প্রয়োজনে ইকোনমিক্স বিভাগ লাইব্রেরি কর্তৃপক্ষের সাথে সরাসরি যোগাযোগ করার জন্য অনুরোধ করা হলো।</p>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+              <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+                <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+              </div>
+            </div>
+          `;
+
+          await db.sendEmailWithLog({
+            to: resolvedMember.email,
+            subject: emailSubject,
+            html: emailHtml,
+            type: 'LOAN_ADJUSTMENT'
+          });
+        } catch (mailErr) {
+          console.error('[Mail Error] Failed to send auto adjustment notification email:', mailErr);
         }
       }
 
@@ -759,7 +854,7 @@ export default function AdminIssues() {
       
       const matchedBook = books.find(b => b.title.toLowerCase() === approvingIssue.bookTitle.toLowerCase() || b.id === approvingIssue.bookId);
 
-      // Decrement book stock if available
+      // Reserve book stock if available
       if (matchedBook) {
         if (matchedBook.stock <= 0) {
           alert('দুঃখিত, এই বইয়ের কোন স্টক ফাঁকা নেই!');
@@ -767,16 +862,15 @@ export default function AdminIssues() {
         }
         const updatedBook = {
           ...matchedBook,
-          stock: Math.max(0, matchedBook.stock - 1),
-          status: (matchedBook.stock - 1 <= 0) ? 'pre-order' as const : 'available' as const
+          reservedCopies: (matchedBook.reservedCopies !== undefined ? Number(matchedBook.reservedCopies) : 0) + 1
         };
         await db.saveBook(updatedBook);
       }
 
-      // Update issue loan parameters
+      // Update issue loan parameters to Approved
       const updatedIssue: SheetIssue = {
         ...approvingIssue,
-        status: 'Active',
+        status: 'Approved',
         pickupDate: approvePickupDate,
         dueDate: formatDateToSlash(approveDueDate) || approvingIssue.dueDate,
         issueDate: new Date().toLocaleDateString('bn-BD')
@@ -791,7 +885,7 @@ export default function AdminIssues() {
       const resolvedMember = members.find(m => m.id === approvingIssue.memberId || m.name.includes(approvingIssue.memberName.split(' (#')[0]));
       const recipientEmail = resolvedMember?.email;
       if (recipientEmail) {
-        const emailSubject = `বই ধার অনুমোদন নোটিশ - MBSTU Econ Library`;
+        const emailSubject = `বই ধার অনুমোদন ও সংগ্রহ নোটিশ - MBSTU Econ Library`;
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
             <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
@@ -868,6 +962,19 @@ export default function AdminIssues() {
       };
       await db.saveIssue(updatedIssue);
 
+      // Refund reservedCopies if the issue was in Approved state
+      if (issue.status === 'Approved') {
+        const matchedBook = books.find(b => b.title.toLowerCase() === issue.bookTitle.toLowerCase() || b.id === issue.bookId);
+        if (matchedBook) {
+          const currentReserved = matchedBook.reservedCopies !== undefined ? Number(matchedBook.reservedCopies) : 0;
+          const updatedBook = {
+            ...matchedBook,
+            reservedCopies: Math.max(0, currentReserved - 1)
+          };
+          await db.saveBook(updatedBook);
+        }
+      }
+
       try {
         await db.addAuditLog('REJECT_BORROW_REQUEST', `আবেদন বাতিল করা হয়েছে: ${issue.bookTitle} -> সদস্য: ${issue.memberName}`);
       } catch (_) {}
@@ -911,6 +1018,109 @@ export default function AdminIssues() {
     } catch (err) {
       console.error('Error rejecting borrow request:', err);
       alert('আবেদন বাতিলে সমস্যা দেখা দিয়েছে!');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompletePickup = async (issue: SheetIssue) => {
+    const confirmPickup = window.confirm(`আপনি কি নিশ্চিত যে "${issue.bookTitle}" বইটি সদস্য "${issue.memberName}" এর কাছে হস্তান্তর করেছেন? এটি দ্বারা লাইব্রেরি ধার প্রক্রিয়া সচল স্ট্যাটাসে পরিবর্তিত হবে।`);
+    if (!confirmPickup) return;
+
+    try {
+      setLoading(true);
+
+      const todayStr = new Date().toLocaleDateString('bn-BD');
+      const dueCalendarDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+      const yyyy = dueCalendarDate.getFullYear();
+      const mm = String(dueCalendarDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(dueCalendarDate.getDate()).padStart(2, '0');
+      const newDueDateStr = `${dd}/${mm}/${yyyy}`;
+
+      const updatedIssue: SheetIssue = {
+        ...issue,
+        status: 'Active',
+        issueDate: todayStr,
+        dueDate: newDueDateStr
+      };
+
+      await db.saveIssue(updatedIssue);
+
+      // Transition book from 'reserved' to 'issued'
+      const matchedBook = books.find(b => b.title.toLowerCase() === issue.bookTitle.toLowerCase() || b.id === issue.bookId);
+      if (matchedBook) {
+        const currentReserved = matchedBook.reservedCopies !== undefined ? Number(matchedBook.reservedCopies) : 0;
+        const currentIssued = matchedBook.issuedCopies !== undefined ? Number(matchedBook.issuedCopies) : 0;
+        const updatedBook = {
+          ...matchedBook,
+          reservedCopies: Math.max(0, currentReserved - 1),
+          issuedCopies: currentIssued + 1
+        };
+        await db.saveBook(updatedBook);
+      }
+
+      try {
+        await db.addAuditLog('HANDOVER_BOOK', `বই সংগ্রহ সম্পন্ন করা হয়েছে: ${issue.bookTitle} -> সদস্য: ${issue.memberName} (সচল ধার মেয়াদ: ${newDueDateStr})`);
+      } catch (_) {}
+
+      // Dispatch Email Confirmation using Gmail SMTP
+      const resolvedMember = members.find(m => m.id === issue.memberId || m.name.includes(issue.memberName.split(' (#')[0]));
+      const recipientEmail = resolvedMember?.email;
+      if (recipientEmail) {
+        const emailSubject = `বই সংগ্রহ নিশ্চিতকরণ নোটিশ - MBSTU Econ Library`;
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #10b981; padding-bottom: 20px;">
+              <h2 style="color: #4f46e5; margin: 0; font-size: 24px; font-weight: 800;">MBSTU Econ Library</h2>
+              <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Econ Library & Organization</p>
+            </div>
+            <div style="margin-bottom: 30px; font-size: 15px; color: #334155; line-height: 1.6;">
+              <p style="font-size: 16px; font-weight: bold;">প্রিয় ${resolvedMember.name},</p>
+              <p>আপনি লাইব্রেরি বিভাগে এসে সফলভাবে বইটি সংগ্রহ করেছেন। লোনটি এখন সচল করা হয়েছে। সময়মতো বই পরিশোধ বা নবীন করার অনুরোধ করা যাচ্ছে:</p>
+              
+              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 18px; border-radius: 12px; margin: 25px 0;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #15803d; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">সংগ্রহের তথ্য:</p>
+                <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0; width: 45%;">বইয়ের নাম:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${issue.bookTitle}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">সংগ্রহের তারিখ (Pickup Date):</td>
+                    <td style="padding: 6px 0; color: #16a34a; font-weight: 800; border-bottom: 1px dashed #e2e8f0;">${todayStr}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">ফেরতের শেষ তারিখ (Due Date):</td>
+                    <td style="padding: 6px 0; color: #dc2626; font-weight: bold; border-bottom: 1px dashed #e2e8f0;">${newDueDateStr}</td>
+                  </tr>
+                </table>
+              </div>
+              <p>বই ফেরত বিলম্বের ক্ষেত্রে প্রতিদিন ৫৳ হারে জরিমানা আরোপ করা হবে। ধন্যবাদ!</p>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+            <div style="text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+              <p>&copy; ${new Date().getFullYear()} Department of Economics, MBSTU. All Rights Reserved.</p>
+            </div>
+          </div>
+        `;
+
+        try {
+          await db.sendEmailWithLog({
+            to: recipientEmail,
+            subject: emailSubject,
+            html: emailHtml,
+            type: 'BORROW_PICKUP_COMPLETE'
+          });
+        } catch (err) {
+          console.error('[Mail Error] Failed to send pickup confirmation email:', err);
+        }
+      }
+
+      alert('বই সংগ্রহ প্রক্রিয়া সফলভাবে সম্পন্ন হয়েছে এবং লোন সচল করা হয়েছে!');
+      await loadData();
+    } catch (err) {
+      console.error('Error completing book pickup:', err);
+      alert('সংগ্রহ সম্পন্ন সংরক্ষণে ব্যর্থতা দেখা দিয়েছে।');
     } finally {
       setLoading(false);
     }
@@ -1236,7 +1446,7 @@ export default function AdminIssues() {
       return i.status === 'Overdue' || ((i.status === 'Active') && daysRemaining < 0);
     }
     if (activeTab === 'pending') {
-      return i.status === 'Pending';
+      return i.status === 'Pending' || i.status === 'Approved';
     }
     return i.status === 'Returned' || i.status === 'Rejected';
   });
@@ -1407,8 +1617,8 @@ export default function AdminIssues() {
               : "text-slate-500 hover:text-slate-850"
           )}
         >
-          আবেদনসমূহ ({issues.filter(i => i.status === 'Pending').length})
-          {issues.filter(i => i.status === 'Pending').length > 0 && (
+          আবেদনসমূহ ({issues.filter(i => i.status === 'Pending' || i.status === 'Approved').length})
+          {issues.filter(i => i.status === 'Pending' || i.status === 'Approved').length > 0 && (
             <span className="absolute top-1 right-2 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
           )}
         </button>
@@ -1533,11 +1743,13 @@ export default function AdminIssues() {
                           <span className={cn(
                             "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm border",
                             issue.status === 'Active' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            issue.status === 'Approved' ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
                             issue.status === 'Pending' ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
                             issue.status === 'Returned' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                             "bg-rose-50 text-rose-700 border-rose-200"
                           )}>
                             {issue.status === 'Active' ? `সচল ধার (আর ${toBengaliNumber(remDays)} দিন)` : 
+                             issue.status === 'Approved' ? 'অনুমোদিত (সংগ্রহের অপেক্ষায়)' :
                              issue.status === 'Pending' ? 'আবেদন পেন্ডিং' :
                              issue.status === 'Returned' ? 'ফেরত প্রাপ্ত' : 'বাতিল / প্রত্যাখ্যাত'}
                           </span>
@@ -1552,6 +1764,21 @@ export default function AdminIssues() {
                                 className="px-4 py-2 bg-indigo-600 hover:bg-slate-900 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-95 duration-150 cursor-pointer"
                               >
                                 অনুমোদন ও শিডিউল
+                              </button>
+                              <button 
+                                onClick={() => handleRejectBorrowRequest(issue)}
+                                className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                              >
+                                বাতিল
+                              </button>
+                            </>
+                          ) : issue.status === 'Approved' ? (
+                            <>
+                              <button 
+                                onClick={() => handleCompletePickup(issue)}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-95 duration-150 cursor-pointer animate-pulse"
+                              >
+                                সংগ্রহ সম্পন্ন (বই হস্তান্তর)
                               </button>
                               <button 
                                 onClick={() => handleRejectBorrowRequest(issue)}
@@ -1965,8 +2192,8 @@ export default function AdminIssues() {
               {/* Status control */}
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">লোন স্ট্যাটাস (Status Override)</label>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                  {(['Pending', 'Active', 'Overdue', 'Returned', 'Rejected'] as const).map((st) => (
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {(['Pending', 'Approved', 'Active', 'Overdue', 'Returned', 'Rejected'] as const).map((st) => (
                     <button
                       key={st}
                       type="button"
@@ -1975,6 +2202,7 @@ export default function AdminIssues() {
                         "py-2.5 px-3 text-[10px] font-black rounded-xl border transition-all text-center cursor-pointer",
                         editStatus === st 
                           ? st === 'Active' ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-100" :
+                            st === 'Approved' ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-150" :
                             st === 'Overdue' ? "bg-red-500 text-white border-red-500 shadow-sm shadow-red-100" :
                             st === 'Returned' ? "bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-100" :
                             st === 'Rejected' ? "bg-rose-500 text-white border-rose-500 shadow-sm shadow-rose-100" :
@@ -1982,7 +2210,8 @@ export default function AdminIssues() {
                           : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
                       )}
                     >
-                      {st === 'Pending' ? 'Пেন্ডিং' :
+                      {st === 'Pending' ? 'পেন্ডিং' :
+                       st === 'Approved' ? 'অনুমোদিত' :
                        st === 'Active' ? 'সচল লোন' :
                        st === 'Overdue' ? 'ওভারডিউ' :
                        st === 'Returned' ? 'ফেরতপ্রাপ্ত' : 'বাতিল'}
